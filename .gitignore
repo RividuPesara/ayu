@@ -39,3 +39,6 @@ dist/
 *.egg
 *.whl
 pip-wheel-metadata/
+
+# Data folder 
+data/
