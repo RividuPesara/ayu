@@ -1,0 +1,55 @@
+html, body { 
+    height: 100%; 
+    font-family: 'DM Sans', sans-serif; 
+    background: var(--bg); 
+}
+
+/* Container for the entire page */
+.page {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* LEFT SIDE OF THE SCREEN: Video Panel */
+.video-panel {
+    flex: 0 0 65%;
+    position: relative;
+    overflow: hidden;
+}
+
+.video-panel video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* RIGHT SIDE OF THE SCREEN: Login Panel */
+.login-panel {
+    flex: 0 0 35%;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2.5rem 2.5rem;
+    overflow-y: auto;
+}
+
+/*Logo In the Card */
+.logo-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 1.8rem;
+}
+
+.logo-img{  /* Size of the Logo */
+  width: 110px;
+  height: 110px;
+  object-fit: contain;
+}
+
+
