@@ -27,12 +27,43 @@ interface BackendDoctorProfile {
   avatar_url?: string | null;
 }
 
+interface AvatarUploadResponse {
+  avatar_url: string;
+}
+
+const SRI_LANKAN_MOBILE_REGEX = /^07\d{8}$/;
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return "Failed to update profile.";
+}
+
+function toSafeAvatarSrc(value: string | null | undefined): string {
+  const normalized = value?.trim();
+  if (!normalized) {
+    return "/assets/avatar.png";
+  }
+
+  if (
+    normalized.startsWith("/") ||
+    normalized.startsWith("http://") ||
+    normalized.startsWith("https://") ||
+    normalized.startsWith("data:image/")
+  ) {
+    return normalized;
+  }
+
+  return "/assets/avatar.png";
+}
+
 function mapProfileFromBackend(data: BackendDoctorProfile): Profile {
   return {
     name: data.full_name || "Doctor",
     specialty: data.specialty || "",
     phone: data.phone || "",
-    avatar: data.avatar_url || "/assets/avatar.png",
+    avatar: toSafeAvatarSrc(data.avatar_url),
   };
 }
  
@@ -48,7 +79,7 @@ export default function Header({ initialProfile }: HeaderProps) {
     name: initialProfile?.name || "",
     specialty: initialProfile?.specialty || "",
     phone: initialProfile?.phone || "",
-    avatar: initialProfile?.avatar || "/assets/avatar.png",
+    avatar: toSafeAvatarSrc(initialProfile?.avatar),
   });
  
   // Edit profile form state
@@ -57,11 +88,12 @@ export default function Header({ initialProfile }: HeaderProps) {
   const [editPhone, setEditPhone] = useState(profile.phone);
   const [editAvatar, setEditAvatar] = useState(profile.avatar);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const displayName = profile.name || "Doctor";
   const displaySpecialty = profile.specialty || "";
-  const displayAvatar = profile.avatar || "/assets/avatar.png";
+  const displayAvatar = toSafeAvatarSrc(profile.avatar);
  
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -114,6 +146,18 @@ export default function Header({ initialProfile }: HeaderProps) {
   function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setToast({ message: "Please select a valid image file.", type: "error" });
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setToast({ message: "Image must be smaller than 5MB.", type: "error" });
+      return;
+    }
+
+    setAvatarFile(file);
     const reader = new FileReader();
     reader.onload = (ev) => setAvatarPreview(ev.target?.result as string);
     reader.readAsDataURL(file);
@@ -121,14 +165,31 @@ export default function Header({ initialProfile }: HeaderProps) {
  
   async function handleSaveProfile() {
     try {
-      const avatar = avatarPreview || editAvatar;
+      const phone = editPhone.trim();
+      if (phone && !SRI_LANKAN_MOBILE_REGEX.test(phone)) {
+        setToast({ message: "Phone must be a valid Sri Lankan mobile number (e.g. 0775455266).", type: "error" });
+        return;
+      }
+
+      let avatar = editAvatar;
+
+      if (avatarFile) {
+        const formData = new FormData();
+        formData.append("avatar", avatarFile);
+
+        const uploadResult = await backendRequest<AvatarUploadResponse>("/api/doctor/profile/avatar", {
+          method: "POST",
+          body: formData,
+        });
+        avatar = uploadResult.avatar_url;
+      }
 
       const updated = await backendRequest<BackendDoctorProfile>("/api/doctor/profile", {
         method: "PATCH",
         body: JSON.stringify({
           full_name: editName,
           specialty: editSpecialty,
-          phone: editPhone,
+          phone: phone || null,
           avatar_url: avatar,
         }),
       });
@@ -141,9 +202,10 @@ export default function Header({ initialProfile }: HeaderProps) {
       setEditAvatar(mapped.avatar);
       setEditOpen(false);
       setAvatarPreview(null);
+      setAvatarFile(null);
       setToast({ message: "Profile updated successfully.", type: "success" });
-    } catch {
-      setToast({ message: "Failed to update profile.", type: "error" });
+    } catch (error: unknown) {
+      setToast({ message: getErrorMessage(error), type: "error" });
     }
   }
  
@@ -153,6 +215,7 @@ export default function Header({ initialProfile }: HeaderProps) {
     setEditPhone(profile.phone);
     setEditAvatar(profile.avatar);
     setAvatarPreview(null);
+    setAvatarFile(null);
     setEditOpen(true);
     setDropdownOpen(false);
   }
@@ -271,7 +334,7 @@ export default function Header({ initialProfile }: HeaderProps) {
                   onClick={() => avatarInputRef.current?.click()}
                 >
                   <Image
-                    src={avatarPreview || editAvatar}
+                    src={avatarPreview || toSafeAvatarSrc(editAvatar)}
                     alt="Avatar preview"
                     fill
                     className="object-cover"
@@ -331,7 +394,8 @@ export default function Header({ initialProfile }: HeaderProps) {
                   </label>
                   <input
                     value={editPhone}
-                    onChange={(e) => setEditPhone(e.target.value)}
+                    onChange={(e) => setEditPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    placeholder="0775455266"
                     className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-[#7C3AED] transition-colors"
                   />
                 </div>

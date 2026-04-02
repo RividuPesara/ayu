@@ -15,6 +15,8 @@ export interface Appointment {
   intakeNote?: string;
   prescriptionUrl?: string;
   prescriptionFilename?: string;
+  documentationUrl?: string;
+  documentationFilename?: string;
 }
 
 interface TimelineProps {

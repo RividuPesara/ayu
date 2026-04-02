@@ -3,6 +3,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 AppointmentStatus = Literal["done", "upcoming", "overdue"]
+AppointmentFileCategory = Literal["prescription", "documentation"]
 
 
 class DoctorProfile(BaseModel):
@@ -19,8 +20,18 @@ class DoctorProfileUpdate(BaseModel):
     # Fields allowed when updating a doctor profile
     full_name: str | None = Field(default=None, min_length=2, max_length=120)
     specialty: str | None = Field(default=None, min_length=2, max_length=120)
-    phone: str | None = Field(default=None, min_length=6, max_length=20)
+    phone: str | None = Field(default=None, pattern=r"^07\d{8}$")
     avatar_url: str | None = Field(default=None, min_length=4, max_length=500)
+
+
+class AvatarUploadResponse(BaseModel):
+    avatar_url: str
+
+
+class AppointmentFileUploadResponse(BaseModel):
+    url: str
+    filename: str
+    category: AppointmentFileCategory
 
 
 class Appointment(BaseModel):
@@ -37,6 +48,8 @@ class Appointment(BaseModel):
     intake_note: str | None = None
     prescription_url: str | None = None
     prescription_filename: str | None = None
+    documentation_url: str | None = None
+    documentation_filename: str | None = None
 
 
 class AppointmentStatusUpdate(BaseModel):
@@ -49,3 +62,5 @@ class SessionSummaryUpdate(BaseModel):
     clinical_notes: str | None = Field(default=None, max_length=10000)
     prescription_url: str | None = Field(default=None, max_length=500)
     prescription_filename: str | None = Field(default=None, max_length=255)
+    documentation_url: str | None = Field(default=None, max_length=500)
+    documentation_filename: str | None = Field(default=None, max_length=255)

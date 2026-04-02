@@ -14,6 +14,11 @@ class Settings(BaseSettings):
     firebase_project_id: str | None = None
     firebase_storage_bucket: str | None = None
 
+    cloudinary_url: str | None = None
+    cloudinary_cloud_name: str | None = None
+    cloudinary_api_key: str | None = None
+    cloudinary_api_secret: str | None = None
+
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",

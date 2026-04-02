@@ -1,7 +1,6 @@
 "use client";
  
 import React, { useState, useRef } from "react";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { backendRequest } from "@/app/lib/backend-api";
 import { Appointment } from "./timeline";
 
@@ -27,6 +26,14 @@ interface BackendAppointment {
   intake_note?: string;
   prescription_url?: string;
   prescription_filename?: string;
+  documentation_url?: string;
+  documentation_filename?: string;
+}
+
+interface UploadedAppointmentFile {
+  url: string;
+  filename: string;
+  category: "prescription" | "documentation";
 }
 
 function mapBackendAppointment(item: BackendAppointment): Appointment {
@@ -43,6 +50,8 @@ function mapBackendAppointment(item: BackendAppointment): Appointment {
     intakeNote: item.intake_note,
     prescriptionUrl: item.prescription_url,
     prescriptionFilename: item.prescription_filename,
+    documentationUrl: item.documentation_url,
+    documentationFilename: item.documentation_filename,
   };
 }
 
@@ -59,12 +68,14 @@ export default function AppointmentDetails({
   onSaveError,
 }: AppointmentDetailsProps) {
   const [notes, setNotes] = useState(appointment.clinicalNotes || "");
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [uploadedPrescriptionFile, setUploadedPrescriptionFile] = useState<File | null>(null);
+  const [uploadedDocumentationFile, setUploadedDocumentationFile] = useState<File | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<"id" | "pass" | null>(null);
   const [hoveredField, setHoveredField] = useState<"id" | "pass" | null>(null);
   const saveStartedRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const documentationInputRef = useRef<HTMLInputElement>(null);
  
   /*
   * Displays a temporary toast notification
@@ -91,26 +102,45 @@ export default function AppointmentDetails({
     if (!file) return;
  
     // Allowed file types for prescription uploads
-    const allowed = ["application/pdf", "image/jpeg", "image/png"];
+    const allowed = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
     if (!allowed.includes(file.type)) {
-      showToast("Only PDF, JPG, or PNG files are supported.");
+      showToast("Only PDF, JPG, PNG, or WEBP files are supported.");
       return;
     }
 
-    // Size validation - limit to 5MB
-    if (file.size > 5 * 1024 * 1024) {
-      showToast("File size must be under 5MB.");
+    // Size validation - limit to 10MB
+    if (file.size > 10 * 1024 * 1024) {
+      showToast("File size must be under 10MB.");
       return;
     }
  
-    setUploadedFile(file);
+    setUploadedPrescriptionFile(file);
+    showToast(`${file.name} attached.`);
+    e.target.value = "";
+  }
+
+  function handleDocumentationFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const allowed = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
+    if (!allowed.includes(file.type)) {
+      showToast("Only PDF, JPG, PNG, or WEBP files are supported.");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      showToast("File size must be under 10MB.");
+      return;
+    }
+
+    setUploadedDocumentationFile(file);
     showToast(`${file.name} attached.`);
     e.target.value = "";
   }
  
   /*
-  * Saves the session data including clinical notes and prescription file
-  * Uploads file to Firebase Storage first if present, then updates Firestore
+  * Saves clinical notes and uploads selected files via backend Cloudinary endpoints
   */
   async function handleSave() {
     if (saveStartedRef.current) {
@@ -122,40 +152,55 @@ export default function AppointmentDetails({
     onClose();
 
     try {
-      let fileUrl = null;
+      let prescriptionUpload: UploadedAppointmentFile | null = null;
+      let documentationUpload: UploadedAppointmentFile | null = null;
 
-      if (uploadedFile) {     // Upload prescription file if one was selected
-        fileUrl = await uploadToFirebase(uploadedFile);
+      if (uploadedPrescriptionFile) {
+        prescriptionUpload = await uploadAppointmentFile(uploadedPrescriptionFile, "prescription");
+      }
+
+      if (uploadedDocumentationFile) {
+        documentationUpload = await uploadAppointmentFile(uploadedDocumentationFile, "documentation");
       }
 
       const updated = await backendRequest<BackendAppointment>(`/api/doctor/appointments/${appointment.id}/session`, {
         method: "PATCH",
         body: JSON.stringify({
           clinical_notes: notes,
-          prescription_url: fileUrl || undefined,
-          prescription_filename: uploadedFile?.name || undefined,
+          prescription_url: prescriptionUpload?.url,
+          prescription_filename: prescriptionUpload?.filename,
+          documentation_url: documentationUpload?.url,
+          documentation_filename: documentationUpload?.filename,
         }),
       });
 
       onSaveSuccess?.(mapBackendAppointment(updated));
     } catch (error) {
       console.error(error);
-      onSaveError?.("Failed to save session.");
+      if (error instanceof Error) {
+        onSaveError?.(error.message || "Failed to save session.");
+      } else {
+        onSaveError?.("Failed to save session.");
+      }
     } finally {
       saveStartedRef.current = false;
     }
   }
 
-  // Uploads a file to Firebase Storage
-  async function uploadToFirebase(file: File) {
-    const storage = getStorage();
-    const storageRef = ref(storage, `prescriptions/${appointment.id}/${file.name}`);
+  async function uploadAppointmentFile(
+    file: File,
+    category: "prescription" | "documentation",
+  ): Promise<UploadedAppointmentFile> {
+    const formData = new FormData();
+    formData.append("file", file);
 
-    await uploadBytes(storageRef, file);
-
-    const url = await getDownloadURL(storageRef);
-
-    return url;
+    return backendRequest<UploadedAppointmentFile>(
+      `/api/doctor/appointments/${appointment.id}/files?category=${category}`,
+      {
+        method: "POST",
+        body: formData,
+      },
+    );
   }
   
   // Formats file size in bytes to a human-readable string
@@ -278,7 +323,7 @@ export default function AppointmentDetails({
               </p>
  
               {/* Conditional rendering based on whether a file has been uploaded */}
-              {!uploadedFile ? (
+              {!uploadedPrescriptionFile ? (
                 // File upload dropzone - appears when no file is selected
                 <div
                   onClick={() => fileInputRef.current?.click()}
@@ -299,29 +344,98 @@ export default function AppointmentDetails({
                 // File preview card - appears after file upload
                 <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
                   <div className="w-9 h-9 rounded-lg bg-green-100 flex items-center justify-center text-lg shrink-0">
-                    {uploadedFile.type === "application/pdf" ? "📄" : "🖼️"}
+                    {uploadedPrescriptionFile.type === "application/pdf" ? "📄" : "🖼️"}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-green-800 truncate">{uploadedFile.name}</p>
-                    <p className="text-xs text-green-500 mt-0.5">✓ Uploaded · {formatBytes(uploadedFile.size)}</p>
+                    <p className="text-sm font-semibold text-green-800 truncate">{uploadedPrescriptionFile.name}</p>
+                    <p className="text-xs text-green-500 mt-0.5">✓ Uploaded · {formatBytes(uploadedPrescriptionFile.size)}</p>
                   </div>
 
                   {/* Remove file button */}
                   <button
-                    onClick={() => setUploadedFile(null)}
+                    onClick={() => setUploadedPrescriptionFile(null)}
                     className="w-7 h-7 flex items-center justify-center rounded-lg bg-red-100 text-red-500 hover:bg-red-200 transition-colors shrink-0"
                   >
                     ✕
                   </button>
                 </div>
               )}
+
+              {appointment.prescriptionUrl && !uploadedPrescriptionFile && (
+                <a
+                  href={appointment.prescriptionUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 inline-flex items-center gap-2 text-sm text-[#7C3AED] font-medium hover:underline"
+                >
+                  View current prescription ({appointment.prescriptionFilename || "file"})
+                </a>
+              )}
  
               {/* Hidden file input triggered by the dropzone */}
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
+                accept=".pdf,.jpg,.jpeg,.png,.webp"
                 onChange={handleFileChange}
+                className="hidden"
+              />
+            </div>
+
+            <div className="bg-white rounded-xl border border-purple-50 p-4">
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">
+                Additional Documentation
+              </p>
+
+              {!uploadedDocumentationFile ? (
+                <div
+                  onClick={() => documentationInputRef.current?.click()}
+                  className="border-2 border-dashed border-purple-200 rounded-xl p-8 text-center cursor-pointer hover:border-[#7C3AED] hover:bg-purple-50/30 transition-all"
+                >
+                  <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center mx-auto mb-2">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                  </div>
+                  <p className="text-[#7C3AED] text-sm font-semibold">Upload Documentation</p>
+                  <p className="text-gray-400 text-xs mt-1">PDF, JPG, PNG, WEBP (Max 10MB)</p>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+                  <div className="w-9 h-9 rounded-lg bg-green-100 flex items-center justify-center text-lg shrink-0">
+                    {uploadedDocumentationFile.type === "application/pdf" ? "📄" : "🖼️"}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-green-800 truncate">{uploadedDocumentationFile.name}</p>
+                    <p className="text-xs text-green-500 mt-0.5">✓ Uploaded · {formatBytes(uploadedDocumentationFile.size)}</p>
+                  </div>
+                  <button
+                    onClick={() => setUploadedDocumentationFile(null)}
+                    className="w-7 h-7 flex items-center justify-center rounded-lg bg-red-100 text-red-500 hover:bg-red-200 transition-colors shrink-0"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
+              {appointment.documentationUrl && !uploadedDocumentationFile && (
+                <a
+                  href={appointment.documentationUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 inline-flex items-center gap-2 text-sm text-[#7C3AED] font-medium hover:underline"
+                >
+                  View current documentation ({appointment.documentationFilename || "file"})
+                </a>
+              )}
+
+              <input
+                ref={documentationInputRef}
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.webp"
+                onChange={handleDocumentationFileChange}
                 className="hidden"
               />
             </div>

@@ -29,6 +29,8 @@ interface BackendAppointment {
   intake_note?: string;
   prescription_url?: string;
   prescription_filename?: string;
+  documentation_url?: string;
+  documentation_filename?: string;
 }
 
 function mapBackendAppointment(item: BackendAppointment): Appointment {
@@ -45,6 +47,8 @@ function mapBackendAppointment(item: BackendAppointment): Appointment {
     intakeNote: item.intake_note,
     prescriptionUrl: item.prescription_url,
     prescriptionFilename: item.prescription_filename,
+    documentationUrl: item.documentation_url,
+    documentationFilename: item.documentation_filename,
   };
 }
 
