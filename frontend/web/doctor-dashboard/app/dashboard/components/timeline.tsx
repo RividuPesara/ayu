@@ -1,8 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { collection, getDocs, updateDoc, doc } from "firebase/firestore";
-import { db } from "@/app/lib/firebase";
+import React from "react";
  
 export interface Appointment {
   id: string;
@@ -11,10 +9,19 @@ export interface Appointment {
   type: string;
   status: "done" | "upcoming" | "overdue";
   date?: string;
+  zoomMeetingId?: string;
+  zoomPasscode?: string;
+  clinicalNotes?: string;
+  intakeNote?: string;
+  prescriptionUrl?: string;
+  prescriptionFilename?: string;
 }
 
 interface TimelineProps {
+  appointments: Appointment[];
+  isLoading: boolean;
   onJoinSession: (appointment: Appointment) => void;
+  onStatusChange: (id: string, status: "done" | "upcoming" | "overdue") => void;
 }
  
 function getInitials(name: string): string {
@@ -71,8 +78,6 @@ function AppointmentCard({
     const newStatus = nowMins > apptMins ? 'overdue' : 'upcoming';
     onStatusChange(appointment.id, newStatus);
   };
-
-  const [showDetails, setShowDetails] = useState(false);
  
   return (
     <div className="flex items-center gap-0">
@@ -152,7 +157,7 @@ function AppointmentCard({
 
           <button
             disabled={isDone}
-            onClick={(e) => { e.stopPropagation(); if (!isDone) { setShowDetails(true); onJoinSession(appointment); } }}
+            onClick={(e) => { e.stopPropagation(); if (!isDone) { onJoinSession(appointment); } }}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-[13px] font-semibold transition-opacity ${btnColor} cursor-pointer`}>
             <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
               <polygon points="5 3 19 12 5 21 5 3" />
@@ -165,38 +170,7 @@ function AppointmentCard({
   );
 }
  
-export default function Timeline({ onJoinSession }: TimelineProps) {
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-
-  useEffect(() => {
-    async function fetchAppointments() {
-      const querySnapshot = await getDocs(
-        collection(db, "appointments")
-      );
-
-      const data = querySnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Appointment[];
-
-      setAppointments(data);
-    }
-
-    fetchAppointments();
-  }, []);
-
-  const onStatusChange = async (
-    id: string,
-    status: "done" | "upcoming" | "overdue"
-  ) => {
-    await updateDoc(doc(db, "appointments", id), {
-      status: status,
-    });
-
-    setAppointments((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status } : a))
-    );
-  };
+export default function Timeline({ appointments, isLoading, onJoinSession, onStatusChange }: TimelineProps) {
 
   const sortByTime = (a: Appointment, b: Appointment) => {
     const [ah, am] = a.time.split(":").map(Number);
@@ -208,6 +182,16 @@ export default function Timeline({ onJoinSession }: TimelineProps) {
   const upcoming = appointments.filter((a) => a.status === "upcoming").sort(sortByTime);
   const done = appointments.filter((a) => a.status === "done").sort(sortByTime);
  
+  if (isLoading) {
+    return (
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-16 text-center">
+        <p className="text-gray-500 font-semibold">
+          Loading appointments...
+        </p>
+      </div>
+    );
+  }
+
   if (appointments.length === 0) {
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-16 text-center">
@@ -252,7 +236,7 @@ export default function Timeline({ onJoinSession }: TimelineProps) {
  
             {/* Cards with vertical line */}
             <div className="relative pl-0">
-              <div className="absolute left-[51px] top-0 bottom-0 w-0.5 bg-[#D3D3D3] rounded-full" />
+              <div className="absolute left-12.75 top-0 bottom-0 w-0.5 bg-[#D3D3D3] rounded-full" />
               <div className="flex flex-col gap-2">
                 {section.items.map((appt) => (
                   <AppointmentCard

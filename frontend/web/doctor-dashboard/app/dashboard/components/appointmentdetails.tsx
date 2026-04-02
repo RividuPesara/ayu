@@ -1,14 +1,49 @@
 "use client";
  
 import React, { useState, useRef } from "react";
-import { db } from "@/app/lib/firebase";
-import { doc, updateDoc } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { backendRequest } from "@/app/lib/backend-api";
+import { Appointment } from "./timeline";
 
 // Interface defining the props for the AppointmentDetails component
 interface AppointmentDetailsProps {
-  appointment: any;
+  appointment: Appointment;
   onClose: () => void;
+  onSaveStart?: () => void;
+  onSaveSuccess?: (updatedAppointment: Appointment) => void;
+  onSaveError?: (message: string) => void;
+}
+
+interface BackendAppointment {
+  id: string;
+  name: string;
+  time: string;
+  type: string;
+  status: "done" | "upcoming" | "overdue";
+  date?: string;
+  zoom_meeting_id?: string;
+  zoom_passcode?: string;
+  clinical_notes?: string;
+  intake_note?: string;
+  prescription_url?: string;
+  prescription_filename?: string;
+}
+
+function mapBackendAppointment(item: BackendAppointment): Appointment {
+  return {
+    id: item.id,
+    name: item.name,
+    time: item.time,
+    type: item.type,
+    status: item.status,
+    date: item.date,
+    zoomMeetingId: item.zoom_meeting_id,
+    zoomPasscode: item.zoom_passcode,
+    clinicalNotes: item.clinical_notes,
+    intakeNote: item.intake_note,
+    prescriptionUrl: item.prescription_url,
+    prescriptionFilename: item.prescription_filename,
+  };
 }
 
 /*
@@ -16,12 +51,19 @@ AppointmentDetails Component
 * Displays a modal with appointment details including Zoom meeting info, clinical notes, prescription upload functionality, and intake notes.
 * Allows healthcare providers to save session notes and upload prescriptions.
 */
-export default function AppointmentDetails({ appointment, onClose }: AppointmentDetailsProps) {
+export default function AppointmentDetails({
+  appointment,
+  onClose,
+  onSaveStart,
+  onSaveSuccess,
+  onSaveError,
+}: AppointmentDetailsProps) {
   const [notes, setNotes] = useState(appointment.clinicalNotes || "");
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<"id" | "pass" | null>(null);
   const [hoveredField, setHoveredField] = useState<"id" | "pass" | null>(null);
+  const saveStartedRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
  
   /*
@@ -62,7 +104,7 @@ export default function AppointmentDetails({ appointment, onClose }: Appointment
     }
  
     setUploadedFile(file);
-    showToast(`${file.name} uploaded successfully.`);
+    showToast(`${file.name} attached.`);
     e.target.value = "";
   }
  
@@ -71,6 +113,14 @@ export default function AppointmentDetails({ appointment, onClose }: Appointment
   * Uploads file to Firebase Storage first if present, then updates Firestore
   */
   async function handleSave() {
+    if (saveStartedRef.current) {
+      return;
+    }
+
+    saveStartedRef.current = true;
+    onSaveStart?.();
+    onClose();
+
     try {
       let fileUrl = null;
 
@@ -78,17 +128,21 @@ export default function AppointmentDetails({ appointment, onClose }: Appointment
         fileUrl = await uploadToFirebase(uploadedFile);
       }
 
-      const appointmentRef = doc(db, "appointments", appointment.id);
-
-      await updateDoc(appointmentRef, {
-        clinicalNotes: notes,
-        prescription: fileUrl,
+      const updated = await backendRequest<BackendAppointment>(`/api/doctor/appointments/${appointment.id}/session`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          clinical_notes: notes,
+          prescription_url: fileUrl || undefined,
+          prescription_filename: uploadedFile?.name || undefined,
+        }),
       });
 
-      showToast("Session saved successfully.");
-      setTimeout(onClose, 1200);
+      onSaveSuccess?.(mapBackendAppointment(updated));
     } catch (error) {
-      showToast("Failed to save session");
+      console.error(error);
+      onSaveError?.("Failed to save session.");
+    } finally {
+      saveStartedRef.current = false;
     }
   }
 
@@ -295,7 +349,7 @@ export default function AppointmentDetails({ appointment, onClose }: Appointment
             </button>
             <button
               onClick={handleSave}
-              className="flex-[2] py-2.5 rounded-xl bg-[#7C3AED] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+              className="flex-2 py-2.5 rounded-xl bg-[#7C3AED] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
             >
               Save Session
             </button>
@@ -305,7 +359,7 @@ export default function AppointmentDetails({ appointment, onClose }: Appointment
  
       {/* Toast Notification */}
       {toast && (
-        <div className="fixed bottom-6 right-6 z-[60] bg-green-500 text-white text-sm font-medium px-4 py-3 rounded-xl shadow-lg flex items-center gap-2">
+        <div className="fixed bottom-6 right-6 z-60 bg-green-500 text-white text-sm font-medium px-4 py-3 rounded-xl shadow-lg flex items-center gap-2">
           <span>✓</span>
           <span>{toast}</span>
         </div>

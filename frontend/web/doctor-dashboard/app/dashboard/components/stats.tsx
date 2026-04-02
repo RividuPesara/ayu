@@ -1,13 +1,36 @@
 "use client";
  
-import React, { useState, useEffect } from "react";
-import { db } from "@/app/lib/firebase";
-import { collection, getDocs } from "firebase/firestore";
- 
-interface Appointment {
-  id: string;
-  status: "done" | "upcoming" | "overdue";
-  date?: string;
+import React, { useMemo } from "react";
+import { Appointment } from "./timeline";
+
+interface StatsProps {
+  selectedDate: string;
+  appointments: Appointment[];
+  isLoading: boolean;
+}
+
+interface DerivedDashboardSummary {
+  total_for_date: number;
+  overdue_for_date: number;
+  upcoming_for_date: number;
+  done_for_date: number;
+  done_all: number;
+  total_all: number;
+  weekly_count: number[];
+}
+
+function parseSundayBasedIndex(dateKey: string): number | null {
+  const parts = dateKey.split("-");
+  if (parts.length !== 3) {
+    return null;
+  }
+
+  const [year, month, day] = parts.map(Number);
+  if (!year || !month || !day) {
+    return null;
+  }
+
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
 }
  
 // Simple SVG ring for circular progress
@@ -61,7 +84,7 @@ function BarChart({ data, color }: { data: number[]; color: string }) {
       {data.map((val, i) => (
         <div key={i} className="flex flex-col items-center gap-0.5 flex-1">
           <div
-            className="w-full rounded-t-sm min-h-[3px] transition-all"
+            className="w-full rounded-t-sm min-h-0.75 transition-all"
             style={{
               height: `${(val / max) * 28}px`,
               backgroundColor: i === today ? color : `${color}44`,
@@ -76,57 +99,75 @@ function BarChart({ data, color }: { data: number[]; color: string }) {
   );
 }
  
-export default function Stats() {
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [weeklyCount, setWeeklyCount] = useState<number[]>([0,0,0,0,0,0,0]);
+export default function Stats({ selectedDate, appointments, isLoading }: StatsProps) {
+  const summary = useMemo<DerivedDashboardSummary>(() => {
+    const derived: DerivedDashboardSummary = {
+      total_for_date: 0,
+      overdue_for_date: 0,
+      upcoming_for_date: 0,
+      done_for_date: 0,
+      done_all: 0,
+      total_all: appointments.length,
+      weekly_count: [0, 0, 0, 0, 0, 0, 0],
+    };
 
-  useEffect(() => {
-    async function fetchAppointments() {
-      const querySnapshot = await getDocs(collection(db, "appointments"));
+    for (const appointment of appointments) {
+      if (appointment.status === "done") {
+        derived.done_all += 1;
+      }
 
-      const data = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Appointment[];
-
-      setAppointments(data);
-
-      /* Calculate weekly counts */
-      const week = [0,0,0,0,0,0,0];
-
-      data.forEach((appointment) => {
-        if (appointment.date) {
-          const day = new Date(appointment.date).getDay();
-          week[day]++;
+      if (appointment.date) {
+        const weekdayIndex = parseSundayBasedIndex(appointment.date);
+        if (weekdayIndex !== null) {
+          derived.weekly_count[weekdayIndex] += 1;
         }
-      });
+      }
 
-      setWeeklyCount(week);
+      if (appointment.date !== selectedDate) {
+        continue;
+      }
+
+      derived.total_for_date += 1;
+
+      if (appointment.status === "overdue") {
+        derived.overdue_for_date += 1;
+        derived.upcoming_for_date += 1;
+      }
+
+      if (appointment.status === "upcoming") {
+        derived.upcoming_for_date += 1;
+      }
+
+      if (appointment.status === "done") {
+        derived.done_for_date += 1;
+      }
     }
 
-    fetchAppointments();
-  }, []);
+    return derived;
+  }, [appointments, selectedDate]);
 
-  const total = appointments.length;
-  const overdue = appointments.filter((a) => a.status === "overdue").length;
-  const upcoming = appointments.filter((a) => a.status === "upcoming").length;
-  const done = appointments.filter((a) => a.status === "done").length;
-  const uncompleted = total - done;
+  const total = summary.total_for_date;
+  const overdue = summary.overdue_for_date;
+  const upcoming = summary.upcoming_for_date;
+  const doneForDate = summary.done_for_date;
+  const doneAll = summary.done_all;
+  const totalAll = summary.total_all;
+  const uncompletedForDate = total - doneForDate;
  
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
       {/* Today's Total */}
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden hover:-translate-y-1 transition-transform">
         <div className="h-7 bg-[#4285F4] rounded-t-2xl flex items-center px-3">
-          <p className="text-[12px] font-bold text-white uppercase tracking-wider">Today's Total</p>
+          <p className="text-[12px] font-bold text-white uppercase tracking-wider">Today&apos;s Total</p>
         </div>
         <div className="px-5 py-5">
           <div className="flex items-end justify-between">
             <div>
-              <p className="text-4xl font-bold text-[#1A1A2E]">{String(total).padStart(2, "0")}</p>
+              <p className="text-4xl font-bold text-[#1A1A2E]">{isLoading ? "--" : String(total).padStart(2, "0")}</p>
               <p className="text-[11px] text-gray-400 font-semibold tracking-wide mt-0.5">APPOINTMENTS</p>
             </div>
-            <BarChart data={weeklyCount} color="#4285F4" />
+            <BarChart data={summary.weekly_count} color="#4285F4" />
           </div>
         </div>
       </div>
@@ -139,11 +180,11 @@ export default function Stats() {
         <div className="px-5 py-5">
           <div className="flex items-end justify-between">
             <div>
-              <p className="text-4xl font-bold text-[#1A1A2E]">{String(overdue).padStart(2, "0")}</p>
+              <p className="text-4xl font-bold text-[#1A1A2E]">{isLoading ? "--" : String(overdue).padStart(2, "0")}</p>
               <p className="text-[11px] text-gray-400 font-semibold tracking-wide mt-0.5">DELAYED VISITS</p>
             </div>
-            <Ring value={overdue} total={uncompleted || 1} color="#EA4335">
-              <span className="text-[10px] font-bold text-[#EA4335]">{overdue}/{uncompleted}</span>
+            <Ring value={overdue} total={uncompletedForDate || 1} color="#EA4335">
+              <span className="text-[10px] font-bold text-[#EA4335]">{overdue}/{Math.max(uncompletedForDate, 0)}</span>
             </Ring>
           </div>
         </div>
@@ -157,7 +198,7 @@ export default function Stats() {
         <div className="px-5 py-5">
           <div className="flex items-end justify-between">
             <div>
-              <p className="text-4xl font-bold text-[#1A1A2E]">{String(upcoming).padStart(2, "0")}</p>
+              <p className="text-4xl font-bold text-[#1A1A2E]">{isLoading ? "--" : String(upcoming).padStart(2, "0")}</p>
               <p className="text-[11px] text-gray-400 font-semibold tracking-wide mt-0.5">TO CONSULT</p>
             </div>
             <Ring value={upcoming} total={total || 1} color="#D5B60A">
@@ -175,10 +216,10 @@ export default function Stats() {
         <div className="px-5 py-5">
           <div className="flex items-end justify-between">
             <div>
-              <p className="text-4xl font-bold text-[#1A1A2E]">{String(done).padStart(2, "0")}</p>
+              <p className="text-4xl font-bold text-[#1A1A2E]">{isLoading ? "--" : String(doneAll).padStart(2, "0")}</p>
               <p className="text-[11px] text-gray-400 font-semibold tracking-wide mt-0.5">RESOLVED</p>
             </div>
-            <Ring value={done} total={total || 1} color="#34A853">
+            <Ring value={doneAll} total={totalAll || 1} color="#34A853">
               <span className="text-sm text-[#34A853]">✓</span>
             </Ring>
           </div>

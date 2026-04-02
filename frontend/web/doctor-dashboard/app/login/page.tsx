@@ -2,13 +2,23 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { doc, getDoc } from "firebase/firestore";
 import "./LoginPage.css";
-import { auth, db } from "../lib/firebase";
+import { auth } from "../lib/firebase";
 import {
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
 } from "firebase/auth";
+import { backendRequest } from "@/app/lib/backend-api";
+
+const DASHBOARD_REDIRECT_DELAY_MS = 450;
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "Something went wrong. Please try again.";
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -34,8 +44,8 @@ export default function LoginPage() {
     try {
       await signInWithEmailAndPassword(auth, email, password);
       setOtpMode(true);
-    } catch (error: any) {
-      alert(error.message);
+    } catch (error: unknown) {
+      alert(getErrorMessage(error));
     }
 
     setIsLoading(false);
@@ -49,8 +59,8 @@ export default function LoginPage() {
     try {
       await sendPasswordResetEmail(auth, forgotEmail);
       setForgotSent(true);
-    } catch (error: any) {
-      alert(error.message);
+    } catch (error: unknown) {
+      alert(getErrorMessage(error));
     }
 
     setIsLoading(false);
@@ -62,35 +72,37 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      if (otp === "123456") {
-        const currentUser = auth.currentUser;
-
-        if (currentUser) {
-          const userDoc = await getDoc(doc(db, "doctors", currentUser.uid));
-
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-
-            // Check if role is doctor
-            if (userData.role === "doctor") {
-              router.push(`/user/${currentUser.uid}`);
-            } else {
-              alert("Access denied: you are not a doctor.");
-              setOtpMode(false);
-            }
-          } else {
-            alert("User not found in doctors collection.");
-            setOtpMode(false);
-          }
-        } else {
-          alert("User not found. Please log in again.");
-          setOtpMode(false);
-        }
-      } else {
+      if (otp !== "123456") {
         alert("Invalid OTP");
+        setIsLoading(false);
+        return;
       }
-    } catch (error: any) {
-      alert(error.message);
+
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        alert("User not found. Please log in again.");
+        setOtpMode(false);
+        setIsLoading(false);
+        return;
+      }
+
+      const authStatus = await backendRequest<{
+        uid: string;
+        role: string;
+      }>("/api/auth/me");
+
+      if (authStatus.role !== "doctor") {
+        alert("Access denied: you are not a doctor.");
+        setOtpMode(false);
+        setIsLoading(false);
+        return;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, DASHBOARD_REDIRECT_DELAY_MS));
+      router.replace("/dashboard");
+      return;
+    } catch (error: unknown) {
+      alert(getErrorMessage(error));
     }
 
     setIsLoading(false);

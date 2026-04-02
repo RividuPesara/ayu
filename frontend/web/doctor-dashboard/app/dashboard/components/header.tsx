@@ -4,6 +4,9 @@ import React, { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import defaultAvatar from "@/public/assets/avatar.png";
 import { useRouter } from "next/navigation";
+import { signOut } from "firebase/auth";
+import { auth } from "@/app/lib/firebase";
+import { backendRequest } from "@/app/lib/backend-api";
  
 interface Profile {
   name: string;
@@ -11,8 +14,29 @@ interface Profile {
   phone: string;
   avatar: string;
 }
+
+interface HeaderProps {
+  initialProfile?: Partial<Profile>;
+}
+
+interface BackendDoctorProfile {
+  uid: string;
+  full_name: string;
+  specialty?: string | null;
+  phone?: string | null;
+  avatar_url?: string | null;
+}
+
+function mapProfileFromBackend(data: BackendDoctorProfile): Profile {
+  return {
+    name: data.full_name || "Doctor",
+    specialty: data.specialty || "",
+    phone: data.phone || "",
+    avatar: data.avatar_url || "/assets/avatar.png",
+  };
+}
  
-export default function Header() {
+export default function Header({ initialProfile }: HeaderProps) {
   const router = useRouter();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -21,10 +45,10 @@ export default function Header() {
   const dropdownRef = useRef<HTMLDivElement>(null);
  
   const [profile, setProfile] = useState<Profile>({
-    name: "Dr. M",
-    specialty: "General Practitioner",
-    phone: "0777123456",
-    avatar: "/assets/avatar.png",
+    name: initialProfile?.name || "",
+    specialty: initialProfile?.specialty || "",
+    phone: initialProfile?.phone || "",
+    avatar: initialProfile?.avatar || "/assets/avatar.png",
   });
  
   // Edit profile form state
@@ -34,6 +58,10 @@ export default function Header() {
   const [editAvatar, setEditAvatar] = useState(profile.avatar);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+
+  const displayName = profile.name || "Doctor";
+  const displaySpecialty = profile.specialty || "";
+  const displayAvatar = profile.avatar || "/assets/avatar.png";
  
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -44,6 +72,24 @@ export default function Header() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    async function loadProfile() {
+      try {
+        const data = await backendRequest<BackendDoctorProfile>("/api/doctor/profile");
+        const mapped = mapProfileFromBackend(data);
+        setProfile(mapped);
+        setEditName(mapped.name);
+        setEditSpecialty(mapped.specialty);
+        setEditPhone(mapped.phone);
+        setEditAvatar(mapped.avatar);
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
+    loadProfile();
+  }, []);
  
   // Auto-dismiss toast
   useEffect(() => {
@@ -53,9 +99,11 @@ export default function Header() {
     }
   }, [toast]);
  
-  function handleLogout() {
+  async function handleLogout() {
     setDropdownOpen(false);
+
     try {
+      await signOut(auth);
       setToast({ message: "Logged out successfully.", type: "success" });
       setTimeout(() => router.push("/login"), 1500);
     } catch {
@@ -71,21 +119,38 @@ export default function Header() {
     reader.readAsDataURL(file);
   }
  
-  function handleSaveProfile() {
-    setProfile({
-      name: editName,
-      specialty: editSpecialty,
-      phone: profile.phone,
-      avatar: avatarPreview || editAvatar,
-    });
-    setEditOpen(false);
-    setAvatarPreview(null);
-    setToast({ message: "Profile updated successfully.", type: "success" });
+  async function handleSaveProfile() {
+    try {
+      const avatar = avatarPreview || editAvatar;
+
+      const updated = await backendRequest<BackendDoctorProfile>("/api/doctor/profile", {
+        method: "PATCH",
+        body: JSON.stringify({
+          full_name: editName,
+          specialty: editSpecialty,
+          phone: editPhone,
+          avatar_url: avatar,
+        }),
+      });
+
+      const mapped = mapProfileFromBackend(updated);
+      setProfile(mapped);
+      setEditName(mapped.name);
+      setEditSpecialty(mapped.specialty);
+      setEditPhone(mapped.phone);
+      setEditAvatar(mapped.avatar);
+      setEditOpen(false);
+      setAvatarPreview(null);
+      setToast({ message: "Profile updated successfully.", type: "success" });
+    } catch {
+      setToast({ message: "Failed to update profile.", type: "error" });
+    }
   }
  
   function openEditProfile() {
     setEditName(profile.name);
     setEditSpecialty(profile.specialty);
+    setEditPhone(profile.phone);
     setEditAvatar(profile.avatar);
     setAvatarPreview(null);
     setEditOpen(true);
@@ -112,8 +177,8 @@ export default function Header() {
         {/* Right side — profile */}
         <div className="flex items-center gap-3 relative" ref={dropdownRef}>
           <div className="text-right mr-1">
-            <p className="text-sm font-semibold text-white leading-tight">{profile.name}</p>
-            <p className="text-xs text-gray-300">{profile.specialty}</p>
+            <p className="text-sm font-semibold text-white leading-tight">{displayName}</p>
+            <p className="text-xs text-gray-300">{displaySpecialty}</p>
           </div>
  
           {/* Avatar button */}
@@ -123,7 +188,7 @@ export default function Header() {
             aria-label="Open profile menu"
           >
             <Image
-              src={profile.avatar}
+              src={displayAvatar}
               alt="Profile"
               fill
               className="object-cover"
@@ -139,7 +204,9 @@ export default function Header() {
             <button
               onMouseEnter={() => setShowLogoutTooltip(true)}
               onMouseLeave={() => setShowLogoutTooltip(false)}
-              onClick={handleLogout}
+              onClick={() => {
+                void handleLogout();
+              }}
               className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors cursor-pointer"
               aria-label="Logout"
             >
@@ -161,7 +228,7 @@ export default function Header() {
             <div className="absolute right-0 top-full mt-2 w-52 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden">
               <div className="px-4 py-3 border-b border-gray-50">
                 <p className="text-xs text-gray-400 font-medium">Signed in as</p>
-                <p className="text-sm font-semibold text-[#1A1A2E] truncate">{profile.name}</p>
+                <p className="text-sm font-semibold text-[#1A1A2E] truncate">{displayName}</p>
               </div>
               <button
                 className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-[#F4F6FB] transition-colors"
@@ -279,8 +346,10 @@ export default function Header() {
                   Cancel
                 </button>
                 <button
-                  onClick={handleSaveProfile}
-                  className="flex-[2] py-2.5 rounded-xl bg-[#694EBC] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+                  onClick={() => {
+                    void handleSaveProfile();
+                  }}
+                  className="flex-2 py-2.5 rounded-xl bg-[#694EBC] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
                 >
                   Save Changes
                 </button>

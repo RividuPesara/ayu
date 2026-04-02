@@ -1,25 +1,193 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Header from "./components/header";
 import Calendar from "./components/calendar";
 import Stats from "./components/stats";
 import Timeline from "./components/timeline";
 import AppointmentDetails from "./components/appointmentdetails";
+import { backendRequest } from "@/app/lib/backend-api";
 
 import { Appointment } from "./components/timeline";
 
+interface DashboardProfile {
+  full_name?: string | null;
+  specialty?: string | null;
+  avatar_url?: string | null;
+}
+
+interface BackendAppointment {
+  id: string;
+  name: string;
+  time: string;
+  type: string;
+  status: "done" | "upcoming" | "overdue";
+  date?: string;
+  zoom_meeting_id?: string;
+  zoom_passcode?: string;
+  clinical_notes?: string;
+  intake_note?: string;
+  prescription_url?: string;
+  prescription_filename?: string;
+}
+
+function mapBackendAppointment(item: BackendAppointment): Appointment {
+  return {
+    id: item.id,
+    name: item.name,
+    time: item.time,
+    type: item.type,
+    status: item.status,
+    date: item.date,
+    zoomMeetingId: item.zoom_meeting_id,
+    zoomPasscode: item.zoom_passcode,
+    clinicalNotes: item.clinical_notes,
+    intakeNote: item.intake_note,
+    prescriptionUrl: item.prescription_url,
+    prescriptionFilename: item.prescription_filename,
+  };
+}
+
 // Format date to YYYY-MM-DD
 const toDateKey = (date: Date) => {
-  return date.toISOString().split("T")[0];
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 };
 
 export default function DashboardPage() {
 
   const today = new Date();
 
+  const [isDashboardReady, setIsDashboardReady] = useState(false);
+  const [isAppointmentsLoading, setIsAppointmentsLoading] = useState(true);
+  const [doctorName, setDoctorName] = useState("Doctor");
+  const [doctorSpecialty, setDoctorSpecialty] = useState("");
+  const [doctorAvatar, setDoctorAvatar] = useState("/assets/avatar.png");
+  const [allAppointments, setAllAppointments] = useState<Appointment[]>([]);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+
   const [selectedDate, setSelectedDate] = useState<Date>(today);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const selectedDateKey = toDateKey(selectedDate);
+
+  const showToast = (message: string, type: "success" | "error" | "info") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const selectedDateAppointments = useMemo(() => {
+    return allAppointments.filter((appointment) => appointment.date === selectedDateKey);
+  }, [allAppointments, selectedDateKey]);
+
+  const handleStatusChange = async (
+    id: string,
+    status: "done" | "upcoming" | "overdue"
+  ) => {
+    const originalAppointment = allAppointments.find((appointment) => appointment.id === id);
+    if (!originalAppointment) {
+      return;
+    }
+
+    setAllAppointments((prev) =>
+      prev.map((appointment) =>
+        appointment.id === id ? { ...appointment, status } : appointment
+      )
+    );
+
+    setSelectedAppointment((prev) =>
+      prev && prev.id === id ? { ...prev, status } : prev
+    );
+
+    try {
+      const updated = await backendRequest<BackendAppointment>(
+        `/api/doctor/appointments/${id}/status`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ status }),
+        }
+      );
+
+      const updatedMapped = mapBackendAppointment(updated);
+      setAllAppointments((prev) =>
+        prev.map((appointment) =>
+          appointment.id === id ? updatedMapped : appointment
+        )
+      );
+
+      setSelectedAppointment((prev) =>
+        prev && prev.id === id ? updatedMapped : prev
+      );
+    } catch (error) {
+      console.error(error);
+
+      setAllAppointments((prev) =>
+        prev.map((appointment) =>
+          appointment.id === id ? originalAppointment : appointment
+        )
+      );
+
+      setSelectedAppointment((prev) =>
+        prev && prev.id === id ? originalAppointment : prev
+      );
+
+      showToast("Failed to update appointment status.", "error");
+    }
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function bootstrapDashboard() {
+      const [profileResult, appointmentsResult] = await Promise.allSettled([
+        backendRequest<DashboardProfile>("/api/doctor/profile"),
+        backendRequest<BackendAppointment[]>("/api/doctor/appointments"),
+      ]);
+
+      if (!isMounted) {
+        return;
+      }
+
+      if (profileResult.status === "fulfilled") {
+        const profile = profileResult.value;
+        setDoctorName(profile.full_name?.trim() || "Doctor");
+        setDoctorSpecialty(profile.specialty?.trim() || "");
+        if (profile.avatar_url) {
+          setDoctorAvatar(profile.avatar_url);
+        }
+      } else {
+        console.error(profileResult.reason);
+      }
+
+      if (appointmentsResult.status === "fulfilled") {
+        setAllAppointments(appointmentsResult.value.map(mapBackendAppointment));
+      } else {
+        console.error(appointmentsResult.reason);
+        setAllAppointments([]);
+      }
+
+      setIsAppointmentsLoading(false);
+      setIsDashboardReady(true);
+    }
+
+    bootstrapDashboard();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  if (!isDashboardReady) {
+    return (
+      <div className="min-h-screen bg-[#F1F5F9] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded-full border-4 border-[#694EBC]/20 border-t-[#694EBC] animate-spin" />
+          <p className="text-sm font-semibold text-[#483674]">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F1F5F9]">
@@ -34,12 +202,18 @@ export default function DashboardPage() {
         <div className="absolute right-24 -bottom-10 w-48 h-48 rounded-full bg-white/5" />
 
         <div className="absolute top-0 left-0 right-0 z-10 pt-4">
-          <Header />
+          <Header
+            initialProfile={{
+              name: doctorName,
+              specialty: doctorSpecialty,
+              avatar: doctorAvatar,
+            }}
+          />
         </div>
 
         <div className="max-w-7xl mx-auto px-8 pt-24 text-white">
           <p className="text-sm font-bold text-white/70 uppercase tracking-widest mb-1">
-            Hi, Dr. M
+            Hi, {doctorName}
           </p>
 
           <h2 className="text-5xl font-extrabold tracking-tight mb-2">
@@ -53,7 +227,11 @@ export default function DashboardPage() {
       <div className="max-w-7xl w-full mx-auto px-6 pb-16 -mt-14 flex flex-col relative gap-5">
 
         {/* Stats */}
-        <Stats />
+        <Stats
+          selectedDate={selectedDateKey}
+          appointments={allAppointments}
+          isLoading={isAppointmentsLoading}
+        />
 
         {/* Calendar */}
         <Calendar
@@ -63,6 +241,9 @@ export default function DashboardPage() {
 
         {/* Timeline */}
         <Timeline
+          appointments={selectedDateAppointments}
+          isLoading={isAppointmentsLoading}
+          onStatusChange={handleStatusChange}
           onJoinSession={(appt) => setSelectedAppointment(appt)}
         />
 
@@ -73,7 +254,37 @@ export default function DashboardPage() {
         <AppointmentDetails
           appointment={selectedAppointment}
           onClose={() => setSelectedAppointment(null)}
+          onSaveStart={() => showToast("Saving session in background...", "info")}
+          onSaveSuccess={(updatedAppointment) => {
+            setAllAppointments((prev) =>
+              prev.map((appointment) =>
+                appointment.id === updatedAppointment.id ? updatedAppointment : appointment
+              )
+            );
+
+            setSelectedAppointment((prev) =>
+              prev && prev.id === updatedAppointment.id ? updatedAppointment : prev
+            );
+
+            showToast("Session saved successfully.", "success");
+          }}
+          onSaveError={(message) => showToast(message, "error")}
         />
+      )}
+
+      {toast && (
+        <div
+          className={`fixed bottom-6 right-6 z-70 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-white text-sm font-medium ${
+            toast.type === "success"
+              ? "bg-green-500"
+              : toast.type === "error"
+                ? "bg-red-500"
+                : "bg-[#1A1A2E]"
+          }`}
+        >
+          <span>{toast.type === "success" ? "✓" : toast.type === "error" ? "✕" : "ℹ"}</span>
+          <span>{toast.message}</span>
+        </div>
       )}
 
     </div>
