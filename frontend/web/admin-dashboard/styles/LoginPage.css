@@ -1,0 +1,428 @@
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
+
+*, *::before, *::after { 
+  box-sizing: border-box; 
+  margin: 0; 
+  padding: 0; 
+}
+
+:root {
+  --violet: #6f46d9;
+  --violet-light: #8A5CF0;
+  --violet-dark: #6d5ab9;
+  --indigo: #6542cb;
+  --bg: #F4F3FF;
+  --surface: #FFFFFF;
+  --text: #1A1033;
+  --muted: #6B7280;
+  --border: #E5E2F7;
+  --input-bg: #EEF0FF;
+  --error: #EF4444;
+  --success: #10B981;
+}
+
+html, body { 
+  height: 100%; 
+  font-family: 'DM Sans', sans-serif; 
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(14px) saturate(10%);
+}
+
+.page {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;   
+  padding-top: 6rem;         
+
+  background-image: url("/assets/loginimage.png");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.login-panel {
+  position: relative;
+  z-index: 2;
+  flex: 0 0 35%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 2.5rem;
+  overflow-y: auto;
+}
+
+/* Login Card */
+.card {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.85); 
+  backdrop-filter: blur(14px);            
+  -webkit-backdrop-filter: blur(14px);
+  border-radius: 0;
+  padding: 3.2rem 2rem;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.18); 
+  border: 1px solid rgba(255, 255, 255, 0.35); 
+}
+
+/* Logo inside card */
+.card-logo{
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  margin-bottom:1rem;
+}
+
+.card-logo img{
+  width:110px;
+  height: 110px;
+  object-fit:contain;
+}
+
+/* Card Header */
+
+.card-header {
+  text-align: center;
+  margin-bottom: 0.8rem;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+}
+
+.card-title {
+  font-family: 'Sora', sans-serif;
+  font-size: 1.65rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  margin-bottom: 0.3rem;
+}
+
+.card-sub {
+  font-size: 0.88rem;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+/* Form */
+
+.form { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 1rem; 
+}
+
+.field { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 0.45rem; 
+}
+
+.field-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.forgot-link {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--violet);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: 'DM Sans', sans-serif;
+  transition: opacity 0.15s;
+}
+
+.forgot-link:hover { opacity: 0.7; }
+
+/* Input */
+.input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-icon {
+  position: absolute;
+  left: 0.9rem;
+  color: #A5B4FC;
+  width: 17px;
+  height: 17px;
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.input {
+  width: 100%;
+  padding: 0.75rem 0.9rem 0.75rem 2.5rem;
+  background: var(--input-bg);
+  border: 1.5px solid transparent;
+  border-radius: 12px;
+  font-size: 0.92rem;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.input::placeholder { color: #A8A8C0; }
+
+.input:focus {
+  border-color: var(--violet);
+  box-shadow: 0 0 0 3px rgba(108, 62, 232, 0.12);
+}
+
+/* Password Eye */
+
+.eye-btn {
+  position: absolute;
+  right: 0.9rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #A5B4FC;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s;
+}
+
+.eye-btn:hover { color: var(--violet); }
+
+.eye-btn svg { width: 17px; height: 17px; }
+
+/* Button */
+
+.btn-primary {
+  width: 100%;
+  padding: 0.85rem;
+  background: linear-gradient(135deg, var(--violet) 0%, var(--indigo) 100%);
+  color: white;
+  border: none;
+  border-radius: 14px;
+  font-family: 'Sora', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+  box-shadow: 0 6px 20px rgba(108, 62, 232, 0.35);
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  letter-spacing: 0.01em;
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 28px rgba(108, 62, 232, 0.45);
+}
+
+.btn-primary:active:not(:disabled) { transform: translateY(0); }
+
+.btn-primary:disabled { opacity: 0.7; cursor: not-allowed; }
+
+/* Spinner */
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2.5px solid rgba(255,255,255,0.35);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin { 
+  to { transform: rotate(360deg); } 
+}
+
+/* Back Button */
+
+.back-btn {
+  background: none;
+  border: none;
+  font-size: 0.82rem;
+  color: var(--violet);
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-bottom: 1rem;
+  padding: 0;
+  transition: opacity 0.15s;
+}
+
+.back-btn:hover { opacity: 0.7; }
+
+/* Success Box */
+
+.success-box {
+  text-align: center;
+  padding: 1rem;
+  background: rgba(16, 185, 129, 0.07);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 12px;
+  margin-bottom: 1rem;
+}
+
+.success-box p { 
+  font-size: 0.88rem; 
+  color: #065F46; 
+  line-height: 1.5; 
+}
+
+/* OTP */
+
+.otp-container {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 1rem 0;
+}
+
+.otp-input {
+  width: 45px;
+  height: 50px;
+  text-align: center;
+  color: var(--text);
+  font-size: 20px;
+  background: var(--input-bg);
+  border: 1.5px solid transparent;
+  border-radius: 12px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.otp-input:focus {
+  border-color: var(--violet);
+  box-shadow: 0 0 0 3px rgba(108, 62, 232, 0.12);
+}
+
+/* Tablet */
+
+@media (max-width: 1024px) {
+
+  .login-panel {
+    flex: 0 0 80%;
+    padding: 2rem;
+  }
+
+  .card {
+    padding: 2rem 1.5rem;
+  }
+
+  .card-logo img {
+    width:70px;
+  }
+
+  .card-title {
+    font-size: 1.45rem;
+  }
+
+  .card-sub {
+    font-size: 0.8rem;
+  }
+
+  .otp-input {
+    width: 40px;
+    height: 45px;
+    font-size: 18px;
+  }
+}
+
+/* Mobile */
+
+@media (max-width: 640px) {
+
+  .page {
+    padding: 0.5rem;
+  }
+
+  .login-panel {
+    width: 100%;
+    padding: 1.5rem 1rem;
+  }
+
+  .card {
+    padding: 1.5rem 1rem;
+    border-radius: 18px;
+  }
+
+  .card-logo img {
+    width:60px;
+  }
+
+  .card-title {
+    font-size: 1.25rem;
+  }
+
+  .card-sub {
+    font-size: 0.75rem;
+  }
+
+  .input {
+    padding: 0.65rem 0.9rem 0.65rem 2.2rem;
+    font-size: 0.85rem;
+  }
+
+  .eye-btn svg,
+  .input-icon {
+    width: 15px;
+    height: 15px;
+  }
+
+  .otp-container {
+    gap: 6px;
+  }
+
+  .otp-input {
+    width: 35px;
+    height: 40px;
+    font-size: 16px;
+  }
+
+  .btn-primary {
+    font-size: 0.88rem;
+    padding: 0.75rem;
+  }
+
+  .back-btn {
+    font-size: 0.75rem;
+  }
+
+  .forgot-link {
+    font-size: 0.75rem;
+  }
+}
+
+/* For Very small screens */
+
+@media (max-width: 400px) {
+
+  .otp-container {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .otp-input {
+    width: 30px;
+    height: 38px;
+    font-size: 15px;
+  }
+}
