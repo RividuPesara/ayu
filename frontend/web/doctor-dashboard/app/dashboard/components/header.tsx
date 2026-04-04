@@ -4,9 +4,14 @@ import React, { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import defaultAvatar from "@/public/assets/avatar.png";
 import { useRouter } from "next/navigation";
-import { signOut } from "firebase/auth";
+import { RecaptchaVerifier, signOut } from "firebase/auth";
 import { auth } from "@/app/lib/firebase";
 import { backendRequest } from "@/app/lib/backend-api";
+import {
+  normalizeSriLankanPhone,
+  sendPhoneEnrollmentOtp,
+  verifyAndEnrollPhoneFactor,
+} from "@/app/lib/phone-mfa";
  
 interface Profile {
   name: string;
@@ -28,6 +33,13 @@ interface BackendDoctorProfile {
 }
 
 interface AvatarUploadResponse {
+  avatar_url: string;
+}
+
+interface PendingProfileUpdate {
+  full_name: string;
+  specialty: string;
+  phone: string | null;
   avatar_url: string;
 }
 
@@ -74,6 +86,7 @@ export default function Header({ initialProfile }: HeaderProps) {
   const [showLogoutTooltip, setShowLogoutTooltip] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
  
   const [profile, setProfile] = useState<Profile>({
     name: initialProfile?.name || "",
@@ -89,6 +102,13 @@ export default function Header({ initialProfile }: HeaderProps) {
   const [editAvatar, setEditAvatar] = useState(profile.avatar);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isSendingPhoneOtp, setIsSendingPhoneOtp] = useState(false);
+  const [isVerifyingPhoneOtp, setIsVerifyingPhoneOtp] = useState(false);
+  const [phoneOtpOpen, setPhoneOtpOpen] = useState(false);
+  const [phoneOtpCode, setPhoneOtpCode] = useState("");
+  const [pendingPhoneVerificationId, setPendingPhoneVerificationId] = useState("");
+  const [pendingProfileUpdate, setPendingProfileUpdate] = useState<PendingProfileUpdate | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const displayName = profile.name || "Doctor";
@@ -121,6 +141,17 @@ export default function Header({ initialProfile }: HeaderProps) {
     }
 
     loadProfile();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      try {
+        recaptchaVerifierRef.current?.clear();
+      } catch {
+        // ignore recaptcha if it's already removed
+      }
+      recaptchaVerifierRef.current = null;
+    };
   }, []);
  
   // Auto-dismiss toast
@@ -162,8 +193,69 @@ export default function Header({ initialProfile }: HeaderProps) {
     reader.onload = (ev) => setAvatarPreview(ev.target?.result as string);
     reader.readAsDataURL(file);
   }
+
+  function getOrCreateRecaptchaVerifier(): RecaptchaVerifier {
+    // get existing or create new recaptcha
+    if (recaptchaVerifierRef.current) {
+      return recaptchaVerifierRef.current;
+    }
+
+    const recaptchaVerifier = new RecaptchaVerifier(auth, "profile-phone-recaptcha", {
+      size: "invisible",
+    });
+    recaptchaVerifierRef.current = recaptchaVerifier;
+    return recaptchaVerifier;
+  }
+
+  function clearPhoneVerificationState() {
+    // clear phone verification data
+    setPhoneOtpCode("");
+    setPendingPhoneVerificationId("");
+    setPendingProfileUpdate(null);
+    setIsSendingPhoneOtp(false);
+    setIsVerifyingPhoneOtp(false);
+    setIsSavingProfile(false);
+    setPhoneOtpOpen(false);
+  }
+
+  function closeEditProfile() {
+    // reset everything and close edit
+    clearPhoneVerificationState();
+    setAvatarPreview(null);
+    setAvatarFile(null);
+    setEditOpen(false);
+  }
+
+  function hasPhoneChanged(nextPhone: string): boolean {
+    // check if phone number changed
+    return normalizeSriLankanPhone(nextPhone) !== normalizeSriLankanPhone(profile.phone);
+  }
+
+  async function persistProfileUpdate(payload: PendingProfileUpdate, successMessage: string): Promise<void> {
+    const updated = await backendRequest<BackendDoctorProfile>("/api/doctor/profile", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+
+    const mapped = mapProfileFromBackend(updated);
+    setProfile(mapped);
+    setEditName(mapped.name);
+    setEditSpecialty(mapped.specialty);
+    setEditPhone(mapped.phone);
+    setEditAvatar(mapped.avatar);
+    setEditOpen(false);
+    setAvatarPreview(null);
+    setAvatarFile(null);
+    setToast({ message: successMessage, type: "success" });
+  }
  
   async function handleSaveProfile() {
+    if (isSavingProfile || isSendingPhoneOtp) {
+      return;
+    }
+
+    setIsSavingProfile(true);
+
     try {
       const phone = editPhone.trim();
       if (phone && !SRI_LANKAN_MOBILE_REGEX.test(phone)) {
@@ -184,28 +276,77 @@ export default function Header({ initialProfile }: HeaderProps) {
         avatar = uploadResult.avatar_url;
       }
 
-      const updated = await backendRequest<BackendDoctorProfile>("/api/doctor/profile", {
-        method: "PATCH",
-        body: JSON.stringify({
-          full_name: editName,
-          specialty: editSpecialty,
-          phone: phone || null,
-          avatar_url: avatar,
-        }),
-      });
+      const payload: PendingProfileUpdate = {
+        full_name: editName,
+        specialty: editSpecialty,
+        phone: phone || null,
+        avatar_url: avatar,
+      };
 
-      const mapped = mapProfileFromBackend(updated);
-      setProfile(mapped);
-      setEditName(mapped.name);
-      setEditSpecialty(mapped.specialty);
-      setEditPhone(mapped.phone);
-      setEditAvatar(mapped.avatar);
-      setEditOpen(false);
-      setAvatarPreview(null);
-      setAvatarFile(null);
-      setToast({ message: "Profile updated successfully.", type: "success" });
+      if (hasPhoneChanged(phone) && phone) {
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+          setToast({ message: "Session expired. Please sign in again.", type: "error" });
+          return;
+        }
+
+        const recaptchaVerifier = getOrCreateRecaptchaVerifier();
+        setIsSendingPhoneOtp(true);
+        try {
+          const verificationId = await sendPhoneEnrollmentOtp(auth, currentUser, phone, recaptchaVerifier);
+          setPendingPhoneVerificationId(verificationId);
+          setPendingProfileUpdate(payload);
+          setPhoneOtpCode("");
+          setPhoneOtpOpen(true);
+          setToast({ message: "Verification code sent to your phone.", type: "success" });
+          return;
+        } finally {
+          setIsSendingPhoneOtp(false);
+        }
+      }
+
+      await persistProfileUpdate(payload, "Profile updated successfully.");
     } catch (error: unknown) {
       setToast({ message: getErrorMessage(error), type: "error" });
+    } finally {
+      setIsSavingProfile(false);
+    }
+  }
+
+  async function handleVerifyPhoneOtp() {
+    if (isVerifyingPhoneOtp) {
+      return;
+    }
+
+    if (!pendingProfileUpdate || !pendingPhoneVerificationId) {
+      setToast({ message: "Phone verification state was lost. Please try again.", type: "error" });
+      clearPhoneVerificationState();
+      return;
+    }
+
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      setToast({ message: "Session expired. Please sign in again.", type: "error" });
+      clearPhoneVerificationState();
+      return;
+    }
+
+    setIsVerifyingPhoneOtp(true);
+
+    try {
+      await verifyAndEnrollPhoneFactor(
+        currentUser,
+        pendingPhoneVerificationId,
+        phoneOtpCode,
+        "Profile phone",
+      );
+
+      await persistProfileUpdate(pendingProfileUpdate, "Phone verified and profile updated.");
+      clearPhoneVerificationState();
+    } catch (error: unknown) {
+      setToast({ message: getErrorMessage(error), type: "error" });
+    } finally {
+      setIsVerifyingPhoneOtp(false);
     }
   }
  
@@ -216,6 +357,7 @@ export default function Header({ initialProfile }: HeaderProps) {
     setEditAvatar(profile.avatar);
     setAvatarPreview(null);
     setAvatarFile(null);
+    clearPhoneVerificationState();
     setEditOpen(true);
     setDropdownOpen(false);
   }
@@ -231,9 +373,6 @@ export default function Header({ initialProfile }: HeaderProps) {
             width={65}
             height={65}
             className="object-contain"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = "none";
-            }}
           />
         </div>
  
@@ -256,8 +395,10 @@ export default function Header({ initialProfile }: HeaderProps) {
               fill
               className="object-cover"
               onError={(e) => {
-                const imgElement = e.target as HTMLImageElement;
-                imgElement.src = defaultAvatar.src;
+                const imgElement = e.currentTarget;
+                if (imgElement && imgElement.src !== defaultAvatar.src) {
+                  imgElement.src = defaultAvatar.src;
+                }
               }}
             />
           </button>
@@ -319,7 +460,7 @@ export default function Header({ initialProfile }: HeaderProps) {
                 <p className="text-white/60 text-sm mt-0.5">Update your professional information</p>
               </div>
               <button
-                onClick={() => setEditOpen(false)}
+                onClick={closeEditProfile}
                 className="text-white/70 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors"
               >
                 ✕
@@ -339,8 +480,10 @@ export default function Header({ initialProfile }: HeaderProps) {
                     fill
                     className="object-cover"
                     onError={(e) => {
-                      const imgElement = e.target as HTMLImageElement;
-                      imgElement.src = defaultAvatar.src;
+                      const imgElement = e.currentTarget;
+                      if (imgElement && imgElement.src !== defaultAvatar.src) {
+                        imgElement.src = defaultAvatar.src;
+                      }
                     }}
                   />
                   {/* Camera overlay */}
@@ -404,7 +547,7 @@ export default function Header({ initialProfile }: HeaderProps) {
               {/* Action buttons */}
               <div className="flex gap-3 mt-6">
                 <button
-                  onClick={() => setEditOpen(false)}
+                  onClick={closeEditProfile}
                   className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50 transition-colors"
                 >
                   Cancel
@@ -413,9 +556,60 @@ export default function Header({ initialProfile }: HeaderProps) {
                   onClick={() => {
                     void handleSaveProfile();
                   }}
-                  className="flex-2 py-2.5 rounded-xl bg-[#694EBC] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+                  disabled={isSavingProfile || isSendingPhoneOtp}
+                  className="flex-2 py-2.5 rounded-xl bg-[#694EBC] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Save Changes
+                  {isSendingPhoneOtp ? "Sending OTP..." : isSavingProfile ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {phoneOtpOpen && (
+        <div className="fixed inset-0 bg-black/55 z-60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl">
+            <div className="bg-[#694EBC] px-6 py-5 flex items-center justify-between">
+              <div>
+                <h3 className="text-white font-bold text-lg">Verify Phone Number</h3>
+                <p className="text-white/70 text-sm mt-0.5">Enter the 6-digit OTP sent to your phone</p>
+              </div>
+              <button
+                onClick={clearPhoneVerificationState}
+                className="text-white/70 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors"
+                aria-label="Close phone verification"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">
+                OTP Code
+              </label>
+              <input
+                value={phoneOtpCode}
+                onChange={(e) => setPhoneOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="123456"
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-[#7C3AED] transition-colors"
+              />
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={clearPhoneVerificationState}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    void handleVerifyPhoneOtp();
+                  }}
+                  disabled={isVerifyingPhoneOtp}
+                  className="flex-1 py-2.5 rounded-xl bg-[#694EBC] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isVerifyingPhoneOtp ? "Verifying..." : "Verify & Save"}
                 </button>
               </div>
             </div>
@@ -430,6 +624,8 @@ export default function Header({ initialProfile }: HeaderProps) {
           <span>{toast.message}</span>
         </div>
       )}
+
+      <div id="profile-phone-recaptcha" className="hidden" />
     </>
   );
 }

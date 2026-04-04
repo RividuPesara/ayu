@@ -14,6 +14,33 @@ class CurrentUser(BaseModel):
   email: str | None = None
   role: str = "user"
   full_name: str | None = None
+  mfa_verified: bool = False
+  mfa_factor: str | None = None
+
+
+def read_mfa_state(decoded_token: dict[str, object]) -> tuple[bool, str | None]:
+  firebase_claims = decoded_token.get("firebase")
+  second_factor: str | None = None
+  # check if user used MFA
+  if isinstance(firebase_claims, dict):
+    raw_second_factor = firebase_claims.get("sign_in_second_factor")
+    if isinstance(raw_second_factor, str) and raw_second_factor.strip():
+      second_factor = raw_second_factor.strip().lower()
+
+  # check if token says MFA was used
+  amr = decoded_token.get("amr")
+
+  has_mfa_amr = False  # default: MFA not found
+
+  # check if amr is actually a list
+  if isinstance(amr, list):
+      # loop through each authentication method in the list
+      for value in amr:
+          if isinstance(value, str) and value.lower() == "mfa":
+              has_mfa_amr = True  # MFA found
+              break  
+   # MFA is true if either second factor or AMR says MFA
+  return second_factor is not None or has_mfa_amr, second_factor
 
 # Extract and build the current user from the authorization token
 async def get_current_user(
@@ -31,8 +58,16 @@ async def get_current_user(
   role = detect_user_role(uid)
   email = decoded_token.get("email")
   full_name = decoded_token.get("name")
+  mfa_verified, mfa_factor = read_mfa_state(decoded_token)
 
-  return CurrentUser(uid=uid, email=email, role=role, full_name=full_name)
+  return CurrentUser(
+    uid=uid,
+    email=email,
+    role=role,
+    full_name=full_name,
+    mfa_verified=mfa_verified,
+    mfa_factor=mfa_factor,
+  )
 
 # Allow only users with doctor role
 async def require_doctor_user(

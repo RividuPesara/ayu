@@ -13,4 +13,6 @@ def get_auth_status(user: CurrentUser = Depends(get_current_user)) -> AuthStatus
     role=user.role,
     email=user.email,
     full_name=user.full_name,
+    mfa_verified=user.mfa_verified,
+    mfa_factor=user.mfa_factor,
   )

@@ -6,3 +6,5 @@ class AuthStatusResponse(BaseModel):
   role: str
   email: str | None = None
   full_name: str | None = None
+  mfa_verified: bool = False
+  mfa_factor: str | None = None
