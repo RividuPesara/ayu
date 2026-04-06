@@ -126,22 +126,19 @@ export default function Header({ initialProfile }: HeaderProps) {
   }, []);
 
   useEffect(() => {
-    async function loadProfile() {
-      try {
-        const data = await backendRequest<BackendDoctorProfile>("/api/doctor/profile");
-        const mapped = mapProfileFromBackend(data);
-        setProfile(mapped);
-        setEditName(mapped.name);
-        setEditSpecialty(mapped.specialty);
-        setEditPhone(mapped.phone);
-        setEditAvatar(mapped.avatar);
-      } catch (error) {
-        console.error(error);
-      }
-    }
+    const nextProfile: Profile = {
+      name: initialProfile?.name || "Doctor",
+      specialty: initialProfile?.specialty || "",
+      phone: initialProfile?.phone || "",
+      avatar: toSafeAvatarSrc(initialProfile?.avatar),
+    };
 
-    loadProfile();
-  }, []);
+    setProfile(nextProfile);
+    setEditName(nextProfile.name);
+    setEditSpecialty(nextProfile.specialty);
+    setEditPhone(nextProfile.phone);
+    setEditAvatar(nextProfile.avatar);
+  }, [initialProfile?.avatar, initialProfile?.name, initialProfile?.phone, initialProfile?.specialty]);
 
   useEffect(() => {
     return () => {
@@ -254,15 +251,28 @@ export default function Header({ initialProfile }: HeaderProps) {
       return;
     }
 
+    // all fields required
+    if (!editName.trim()) {
+      setToast({ message: "Full Name is required.", type: "error" });
+      return;
+    }
+    if (!editSpecialty.trim()) {
+      setToast({ message: "Specialty is required.", type: "error" });
+      return;
+    }
+    const phone = editPhone.trim();
+    if (!phone) {
+      setToast({ message: "Phone number is required.", type: "error" });
+      return;
+    }
+    if (!SRI_LANKAN_MOBILE_REGEX.test(phone)) {
+      setToast({ message: "Phone must be a valid Sri Lankan mobile number (e.g. 0775455266).", type: "error" });
+      return;
+    }
+
     setIsSavingProfile(true);
 
     try {
-      const phone = editPhone.trim();
-      if (phone && !SRI_LANKAN_MOBILE_REGEX.test(phone)) {
-        setToast({ message: "Phone must be a valid Sri Lankan mobile number (e.g. 0775455266).", type: "error" });
-        return;
-      }
-
       let avatar = editAvatar;
 
       if (avatarFile) {

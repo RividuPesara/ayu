@@ -34,13 +34,88 @@ function getInitials(name: string): string {
     .toUpperCase()
     .slice(0, 2);
 }
+
+function parseTimeToMinutes(rawTime: string): number | null {
+  const normalized = rawTime.trim().toLowerCase().replace(/\./g, ":");
+  const match = normalized.match(/^(\d{1,2}):(\d{2})(?:\s*([ap]m))?$/);
+  if (!match) {
+    return null;
+  }
+
+  let hour = Number(match[1]);
+  const minute = Number(match[2]);
+  const amPm = match[3];
+
+  if (Number.isNaN(hour) || Number.isNaN(minute) || minute > 59) {
+    return null;
+  }
+
+  if (amPm) {
+    if (hour < 1 || hour > 12) {
+      return null;
+    }
+
+    if (amPm === "am") {
+      hour = hour === 12 ? 0 : hour;
+    } else {
+      hour = hour === 12 ? 12 : hour + 12;
+    }
+  } else if (hour > 23) {
+    return null;
+  }
+
+  return hour * 60 + minute;
+}
+
+function parseDateKeyToDate(dateKey?: string): Date | null {
+  if (!dateKey) {
+    return null;
+  }
+
+  const match = dateKey.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) {
+    return null;
+  }
+
+  const year = Number(match[1]);
+  const monthIndex = Number(match[2]) - 1;
+  const day = Number(match[3]);
+
+  const parsed = new Date(year, monthIndex, day);
+  if (
+    parsed.getFullYear() !== year ||
+    parsed.getMonth() !== monthIndex ||
+    parsed.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return parsed;
+}
+
+function buildAppointmentDateTime(appointment: Appointment): Date | null {
+  const minutes = parseTimeToMinutes(appointment.time);
+  if (minutes === null) {
+    return null;
+  }
+
+  const today = new Date();
+  const appointmentDate =
+    parseDateKeyToDate(appointment.date) ||
+    new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+  appointmentDate.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
+  return appointmentDate;
+}
  
-function getLateMinutes(time: string): number {
-  const [h, m] = time.split(":").map(Number);
-  const apptMins = h * 60 + m;
-  const now = new Date();
-  const nowMins = now.getHours() * 60 + now.getMinutes();
-  return nowMins - apptMins;
+function getLateMinutes(appointment: Appointment): number {
+  const appointmentDateTime = buildAppointmentDateTime(appointment);
+  if (!appointmentDateTime) {
+    return 0;
+  }
+
+  const diffMs = Date.now() - appointmentDateTime.getTime();
+  return Math.max(0, Math.floor(diffMs / 60000));
 }
  
 function AppointmentCard({
@@ -58,7 +133,7 @@ function AppointmentCard({
   const { name, time, type, status } = appointment;
   const isOverdue = status === "overdue";
   const isDone = status === "done";
-  const lateMinutes = isOverdue ? getLateMinutes(time) : 0;
+  const lateMinutes = isOverdue ? getLateMinutes(appointment) : 0;
  
   const dotColor = isDone ? "bg-gray-300" : isOverdue ? "bg-red-500" : "bg-[#7C3AED]";
 
@@ -73,11 +148,11 @@ function AppointmentCard({
 
   const handleUndo = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const [h, m] = time.split(":").map(Number);
-    const apptMins = h * 60 + m;
-    const now = new Date();
-    const nowMins = now.getHours() * 60 + now.getMinutes();
-    const newStatus = nowMins > apptMins ? 'overdue' : 'upcoming';
+    const appointmentDateTime = buildAppointmentDateTime(appointment);
+    const newStatus =
+      appointmentDateTime && appointmentDateTime.getTime() < Date.now()
+        ? "overdue"
+        : "upcoming";
     onStatusChange(appointment.id, newStatus);
   };
  
@@ -175,9 +250,22 @@ function AppointmentCard({
 export default function Timeline({ appointments, isLoading, onJoinSession, onStatusChange }: TimelineProps) {
 
   const sortByTime = (a: Appointment, b: Appointment) => {
-    const [ah, am] = a.time.split(":").map(Number);
-    const [bh, bm] = b.time.split(":").map(Number);
-    return ah * 60 + am - (bh * 60 + bm);
+    const aMinutes = parseTimeToMinutes(a.time);
+    const bMinutes = parseTimeToMinutes(b.time);
+
+    if (aMinutes !== null && bMinutes !== null) {
+      return aMinutes - bMinutes;
+    }
+
+    if (aMinutes !== null) {
+      return -1;
+    }
+
+    if (bMinutes !== null) {
+      return 1;
+    }
+
+    return a.time.localeCompare(b.time);
   };
 
   const overdue = appointments.filter((a) => a.status === "overdue").sort(sortByTime);

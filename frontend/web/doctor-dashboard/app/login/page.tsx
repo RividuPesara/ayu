@@ -114,17 +114,6 @@ export default function LoginPage() {
   }
 
   async function verifyDoctorRoleAndRedirect(): Promise<void> {
-    const authStatus = await backendRequest<{
-      uid: string;
-      role: string;
-    }>("/api/auth/me");
-
-    if (authStatus.role !== "doctor") {
-      await signOut(auth);
-      alert("Access denied: you are not a doctor.");
-      return;
-    }
-
     await new Promise((resolve) => setTimeout(resolve, DASHBOARD_REDIRECT_DELAY_MS));
     router.replace("/dashboard");
   }
@@ -153,20 +142,16 @@ export default function LoginPage() {
         return;
       }
 
-      const authStatus = await backendRequest<{
-        uid: string;
-        role: string;
-      }>("/api/auth/me");
+      const [authStatus, profile] = await Promise.all([
+        backendRequest<{ uid: string; role: string }>("/api/auth/me"),
+        backendRequest<{ phone?: string | null }>("/api/doctor/profile"),
+      ]);
 
       if (authStatus.role !== "doctor") {
         await signOut(auth);
         alert("Access denied: you are not a doctor.");
         return;
       }
-
-      const profile = await backendRequest<{
-        phone?: string | null;
-      }>("/api/doctor/profile");
 
       const loginPhone = (profile.phone || "").trim();
       if (!loginPhone) {

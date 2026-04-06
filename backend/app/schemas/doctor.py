@@ -37,6 +37,8 @@ class AppointmentFileUploadResponse(BaseModel):
 class Appointment(BaseModel):
     # Appointment data shown in the doctor dashboard
     id: str
+    doctor_uid: str | None = None  
+    patient_uid: str | None = None
     name: str = ""
     time: str = ""
     type: str = "consultation"

@@ -1,6 +1,10 @@
 import os
+import re
 import tempfile
+from datetime import date as date_type
+from datetime import datetime, timezone, tzinfo
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import cloudinary
 from cloudinary.uploader import upload as cloudinary_upload
@@ -18,7 +22,7 @@ from app.schemas.doctor import (
     SessionSummaryUpdate,
 )
 
-APPOINTMENT_OWNER_FIELD = "uid"
+APPOINTMENT_OWNER_FIELD = "doctorUid"
 DEFAULT_APPOINTMENTS_LIMIT = 500
 MAX_AVATAR_BYTES = 5 * 1024 * 1024
 MAX_APPOINTMENT_FILE_BYTES = 10 * 1024 * 1024
@@ -31,14 +35,94 @@ ALLOWED_APPOINTMENT_FILE_CONTENT_TYPES = {
     "image/webp",
 }
 _cloudinary_configured = False
+USERS_COLLECTION = "users"
+APPOINTMENT_TIMEZONE_FALLBACK = "Asia/Colombo"
 
 
-# Extracts the doctor UID from an appointment document
+ # Extracts the doctor UID from an appointment document
 def read_owner_uid(data: dict[str, Any]) -> str | None:
     value = data.get(APPOINTMENT_OWNER_FIELD)
     if isinstance(value, str) and value.strip():
         return value
     return None
+
+
+# Extracts the patient UID from an appointment document
+def read_patient_uid(data: dict[str, Any]) -> str | None:
+    value = data.get("patientUid")
+    if isinstance(value, str) and value.strip():
+        return value
+    return None
+
+
+# Return the dashboard timezone from settings or fall back to a default or UTC if invalid
+def resolve_dashboard_timezone() -> tzinfo:
+    settings = get_settings()
+    timezone_name = (settings.dashboard_timezone or APPOINTMENT_TIMEZONE_FALLBACK).strip()
+    try:
+        return ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError:
+        return timezone.utc
+
+
+# Converts a HH:MM time string to minutes since midnight
+def parse_time_to_minutes(raw_time: Any) -> int | None:
+    if not isinstance(raw_time, str):
+        return None
+
+    normalized = raw_time.strip()
+    if not normalized:
+        return None
+
+    match = re.match(r"^([01]\d|2[0-3]):([0-5]\d)$", normalized)
+    if not match:
+        return None
+
+    hour = int(match.group(1))
+    minute = int(match.group(2))
+    return hour * 60 + minute
+
+def parse_date_value(raw_date: Any) -> date_type | None:
+    if isinstance(raw_date, datetime):
+        return raw_date.date()
+
+    if isinstance(raw_date, date_type):
+        return raw_date
+
+    if isinstance(raw_date, str):
+        normalized = raw_date.strip()
+        if not normalized:
+            return None
+
+        try:
+            return datetime.strptime(normalized, "%Y-%m-%d").date()
+        except ValueError:
+            return None
+
+    return None
+
+# Create a datetime for an appointment using date, time, and timezone
+def build_appointment_datetime(
+    date_key: str | None,
+    raw_time: str,
+    timezone_info: tzinfo,
+) -> datetime | None:
+    parsed_date = parse_date_value(date_key)
+    parsed_minutes = parse_time_to_minutes(raw_time)
+
+    if parsed_date is None or parsed_minutes is None:
+        return None
+
+    hour = parsed_minutes // 60
+    minute = parsed_minutes % 60
+    return datetime(
+        parsed_date.year,
+        parsed_date.month,
+        parsed_date.day,
+        hour,
+        minute,
+        tzinfo=timezone_info,
+    )
 
 # Configure Cloudinary only once
 def configure_cloudinary() -> None:
@@ -110,7 +194,7 @@ def upload_avatar_to_cloudinary(uid: str, content: bytes, content_type: str | No
 
         result = cloudinary_upload(
             temp_path,
-            folder=f"ayu/doctors/{uid}",
+            folder=f"ayu/users/{uid}",
             public_id="avatar",
             resource_type="image",
             overwrite=True,
@@ -138,13 +222,32 @@ def upload_avatar_to_cloudinary(uid: str, content: bytes, content_type: str | No
     return secure_url
 
 
+# Reads the doctor's specialty
+def read_doctor_specialty(data: dict[str, Any]) -> str | None:
+    doctor_profile = data.get("doctorProfile")
+    if isinstance(doctor_profile, dict):
+        specialty = doctor_profile.get("specialty")
+        if isinstance(specialty, str) and specialty.strip():
+            return specialty
+
+    return None
+
+
+# Reads the doctor's phone number
+def read_profile_phone(data: dict[str, Any]) -> str | None:
+    phone = data.get("phone")
+    if isinstance(phone, str) and phone.strip():
+        return phone
+    return None
+
+
 # Maps Firestore doctor data into the DoctorProfile schema.
 def map_profile(uid: str, data: dict[str, Any]) -> DoctorProfile:
     return DoctorProfile(
         uid=uid,
         full_name=str(data.get("fullName") or ""),
-        specialty=data.get("specialty"),
-        phone=data.get("phone"),
+        specialty=read_doctor_specialty(data),
+        phone=read_profile_phone(data),
         avatar_url=data.get("avatar"),
         email=data.get("email"),
     )
@@ -160,10 +263,10 @@ def normalize_status(raw_status: Any) -> AppointmentStatus:
 
 # Extracts date in year-month-day (YYYY-MM-DD) format
 def to_date_key(raw_date: Any) -> str | None:
-    if isinstance(raw_date, str):
-        return raw_date.split("T")[0]
-
-    return None
+    parsed_date = parse_date_value(raw_date)
+    if parsed_date is None:
+        return None
+    return parsed_date.isoformat()
 
 
 # Gets prescription URL from stored object
@@ -204,6 +307,8 @@ def read_documentation_filename(raw_value: Any) -> str | None:
 def map_appointment(doc_id: str, data: dict[str, Any]) -> Appointment:
     return Appointment(
         id=doc_id,
+        doctor_uid=read_owner_uid(data),
+        patient_uid=read_patient_uid(data),
         name=str(data.get("name") or ""),
         time=str(data.get("time") or ""),
         type=str(data.get("type") or "consultation"),
@@ -220,7 +325,53 @@ def map_appointment(doc_id: str, data: dict[str, Any]) -> Appointment:
     )
 
 
-# Fetches appointment documents for a doctor using uid field only
+# Determines the runtime status overdue/upcoming/done for an appointment
+def resolve_runtime_status(
+    current_status: AppointmentStatus,
+    appointment_date: str | None,
+    appointment_time: str,
+    now: datetime,
+    timezone_info: tzinfo,
+) -> AppointmentStatus:
+    if current_status == "done":
+        return "done"
+
+    appointment_datetime = build_appointment_datetime(
+        appointment_date,
+        appointment_time,
+        timezone_info,
+    )
+    if appointment_datetime is None:
+        return current_status
+
+    return "overdue" if appointment_datetime < now else "upcoming"
+
+
+# Applies runtime status to an appointment object
+def apply_runtime_status(
+    appointment: Appointment,
+    now: datetime,
+    timezone_info: tzinfo,
+) -> Appointment:
+    appointment.status = resolve_runtime_status(
+        appointment.status,
+        appointment.date,
+        appointment.time,
+        now,
+        timezone_info,
+    )
+    return appointment
+
+
+# Sort appointments by time
+def appointment_sort_key(appointment: Appointment) -> tuple[int, int, str]:
+    minutes = parse_time_to_minutes(appointment.time)
+    if minutes is not None:
+        return (0, minutes, "")
+    return (1, 0, appointment.time)
+
+
+# Fetches appointment documents for a doctor using doctorUid field.
 def find_doctor_appointments(uid: str, limit: int) -> list[Appointment]:
     db = get_firestore_client()
     appointments_collection = db.collection("appointments")
@@ -253,7 +404,7 @@ def get_owned_appointment(uid: str, appointment_id: str):
 # Returns doctor profile details for the given doctor user id
 def get_doctor_profile(uid: str) -> DoctorProfile:
     db = get_firestore_client()
-    snapshot = db.collection("doctors").document(uid).get()
+    snapshot = db.collection(USERS_COLLECTION).document(uid).get()
 
     if not snapshot.exists:
         raise HTTPException(
@@ -267,13 +418,20 @@ def get_doctor_profile(uid: str) -> DoctorProfile:
 # Updates doctor profile fields
 def update_doctor_profile(uid: str, payload: DoctorProfileUpdate) -> DoctorProfile:
     db = get_firestore_client()
-    doc_ref = db.collection("doctors").document(uid)
+    doc_ref = db.collection(USERS_COLLECTION).document(uid)
+    snapshot = doc_ref.get()
+
+    if not snapshot.exists:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Doctor profile not found.",
+        )
 
     update_data: dict[str, object] = {}
     if payload.full_name is not None:
         update_data["fullName"] = payload.full_name
     if payload.specialty is not None:
-        update_data["specialty"] = payload.specialty
+        update_data["doctorProfile.specialty"] = payload.specialty
     if payload.phone is not None:
         update_data["phone"] = payload.phone
     if payload.avatar_url is not None:
@@ -281,15 +439,16 @@ def update_doctor_profile(uid: str, payload: DoctorProfileUpdate) -> DoctorProfi
 
     if update_data:
         update_data["updatedAt"] = firestore.SERVER_TIMESTAMP
-        doc_ref.set(update_data, merge=True)
+        doc_ref.update(update_data)
 
-    return get_doctor_profile(uid)
+    refreshed = doc_ref.get()
+    return map_profile(uid, refreshed.to_dict() or {})
 
 # Uploads and updates doctor avatar in Cloudinary and Firestore
 def update_doctor_avatar(uid: str, avatar_file_bytes: bytes, content_type: str | None) -> str:
     avatar_url = upload_avatar_to_cloudinary(uid, avatar_file_bytes, content_type)
     db = get_firestore_client()
-    doc_ref = db.collection("doctors").document(uid)
+    doc_ref = db.collection(USERS_COLLECTION).document(uid)
     doc_ref.set(
         {
             "avatar": avatar_url,
@@ -381,15 +540,24 @@ def upload_appointment_file_to_cloudinary(
 
 # Returns doctor appointments for the current doctor
 def list_doctor_appointments(uid: str) -> list[Appointment]:
-    appointments = find_doctor_appointments(uid, DEFAULT_APPOINTMENTS_LIMIT)
-    appointments.sort(key=lambda item: item.time)
+    timezone_info = resolve_dashboard_timezone()
+    now = datetime.now(timezone_info)
+
+    appointments = [
+        apply_runtime_status(item, now, timezone_info)
+        for item in find_doctor_appointments(uid, DEFAULT_APPOINTMENTS_LIMIT)
+    ]
+    appointments.sort(key=appointment_sort_key)
     return appointments
 
 
 # Gets a single appointment for the doctor
 def get_doctor_appointment(uid: str, appointment_id: str) -> Appointment:
     _, data = get_owned_appointment(uid, appointment_id)
-    return map_appointment(appointment_id, data)
+    timezone_info = resolve_dashboard_timezone()
+    now = datetime.now(timezone_info)
+    appointment = map_appointment(appointment_id, data)
+    return apply_runtime_status(appointment, now, timezone_info)
 
 
 # Updates appointment status and return the updated appointment
@@ -406,7 +574,11 @@ def update_appointment_status(
         }
     )
 
-    return get_doctor_appointment(uid, appointment_id)
+    refreshed = doc_ref.get()
+    timezone_info = resolve_dashboard_timezone()
+    now = datetime.now(timezone_info)
+    appointment = map_appointment(appointment_id, refreshed.to_dict() or {})
+    return apply_runtime_status(appointment, now, timezone_info)
 
 # Saves consultation notes and prescription info
 def save_session_summary(
@@ -446,4 +618,9 @@ def save_session_summary(
         update_data["documentation"] = existing_documentation
 
     doc_ref.update(update_data)
-    return get_doctor_appointment(uid, appointment_id)
+
+    refreshed = doc_ref.get()
+    timezone_info = resolve_dashboard_timezone()
+    now = datetime.now(timezone_info)
+    appointment = map_appointment(appointment_id, refreshed.to_dict() or {})
+    return apply_runtime_status(appointment, now, timezone_info)

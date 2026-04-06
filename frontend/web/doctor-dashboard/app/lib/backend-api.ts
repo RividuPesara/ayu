@@ -4,36 +4,58 @@ import { onAuthStateChanged, User } from "firebase/auth";
 const BACKEND_BASE_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
 
+export class UnauthenticatedError extends Error {
+  constructor(message = "No authenticated user found.") {
+    super(message);
+    this.name = "UnauthenticatedError";
+  }
+}
+
 // Backend URL used by the doctor dashboard
 export function getBackendBaseUrl(): string {
   return BACKEND_BASE_URL;
 }
 
-// Waits for Firebase auth state if user isnt immediately available
-async function waitForCurrentUser(): Promise<User | null> {
-  if (auth.currentUser) {
-    return auth.currentUser;
+let _resolvedUser: User | null = null;
+let _authReady = false;
+let _authReadyPromise: Promise<void> | null = null;
+
+// waits until firebase auth is ready
+function ensureAuthListener(): Promise<void> {
+  if (_authReadyPromise) {
+    return _authReadyPromise;
   }
-  return new Promise((resolve) => {
+  _authReadyPromise = new Promise<void>((resolve) => {
     const timeout = setTimeout(() => {
-      unsubscribe();
-      resolve(null);
+      _authReady = true;
+      resolve();
     }, 3000);
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      clearTimeout(timeout);
-      unsubscribe();
-      resolve(user);
+    // listen for login and logout changes
+    onAuthStateChanged(auth, (user) => {
+      _resolvedUser = user;
+      if (!_authReady) {
+        clearTimeout(timeout);
+        _authReady = true;
+        resolve();
+      }
     });
   });
+  return _authReadyPromise;
 }
 
 // Gets a Firebase ID token from the currently sign in user
 export async function getAuthToken(): Promise<string> {
-  const currentUser = await waitForCurrentUser();
-  if (!currentUser) {
-    throw new Error("No authenticated user found.");
+  if (auth.currentUser) {
+    return auth.currentUser.getIdToken();
   }
-  return currentUser.getIdToken(true);
+
+  await ensureAuthListener();
+
+  const user = _resolvedUser ?? auth.currentUser;
+  if (!user) {
+    throw new UnauthenticatedError();
+  }
+  return user.getIdToken();
 }
 
 // Makes an authenticated request to the backend API
@@ -50,6 +72,10 @@ export async function backendRequest<T>(
     headers.set("Content-Type", "application/json");
   }
   const response = await fetch(`${getBackendBaseUrl()}${path}`, {...init,headers,});
+
+  if (response.status === 401 || response.status === 403) {
+    throw new UnauthenticatedError("Authentication required.");
+  }
 
   if (!response.ok) {
     const message = await response.text();

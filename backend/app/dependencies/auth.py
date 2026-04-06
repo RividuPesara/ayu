@@ -1,3 +1,5 @@
+import asyncio
+import functools
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
@@ -42,19 +44,10 @@ def read_mfa_state(decoded_token: dict[str, object]) -> tuple[bool, str | None]:
    # MFA is true if either second factor or AMR says MFA
   return second_factor is not None or has_mfa_amr, second_factor
 
-# Extract and build the current user from the authorization token
-async def get_current_user(
-  credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
-) -> CurrentUser:
-  if credentials is None:
-    raise HTTPException(
-      status_code=status.HTTP_401_UNAUTHORIZED,
-      detail="Missing Authorization header.",
-    )
 
-  decoded_token = verify_firebase_token(credentials.credentials)
+def _resolve_user_blocking(token: str) -> CurrentUser:
+  decoded_token = verify_firebase_token(token)
   uid = extract_uid_from_token(decoded_token)
-
   role = detect_user_role(uid)
   email = decoded_token.get("email")
   full_name = decoded_token.get("name")
@@ -67,6 +60,22 @@ async def get_current_user(
     full_name=full_name,
     mfa_verified=mfa_verified,
     mfa_factor=mfa_factor,
+  )
+
+
+# Extract and build the current user from the authorization token
+async def get_current_user(
+  credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+) -> CurrentUser:
+  if credentials is None:
+    raise HTTPException(
+      status_code=status.HTTP_401_UNAUTHORIZED,
+      detail="Missing Authorization header.",
+    )
+
+  loop = asyncio.get_running_loop()
+  return await loop.run_in_executor(
+    None, functools.partial(_resolve_user_blocking, credentials.credentials),
   )
 
 # Allow only users with doctor role

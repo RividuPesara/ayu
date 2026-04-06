@@ -1,18 +1,22 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { onAuthStateChanged } from "firebase/auth";
 import Header from "./components/header";
 import Calendar from "./components/calendar";
 import Stats from "./components/stats";
 import Timeline from "./components/timeline";
 import AppointmentDetails from "./components/appointmentdetails";
-import { backendRequest } from "@/app/lib/backend-api";
+import { auth } from "@/app/lib/firebase";
+import { backendRequest, UnauthenticatedError } from "@/app/lib/backend-api";
 
 import { Appointment } from "./components/timeline";
 
 interface DashboardProfile {
   full_name?: string | null;
   specialty?: string | null;
+  phone?: string | null;
   avatar_url?: string | null;
 }
 
@@ -61,6 +65,7 @@ const toDateKey = (date: Date) => {
 };
 
 export default function DashboardPage() {
+  const router = useRouter();
 
   const today = new Date();
 
@@ -68,6 +73,7 @@ export default function DashboardPage() {
   const [isAppointmentsLoading, setIsAppointmentsLoading] = useState(true);
   const [doctorName, setDoctorName] = useState("Doctor");
   const [doctorSpecialty, setDoctorSpecialty] = useState("");
+  const [doctorPhone, setDoctorPhone] = useState("");
   const [doctorAvatar, setDoctorAvatar] = useState("/assets/avatar.png");
   const [allAppointments, setAllAppointments] = useState<Appointment[]>([]);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
@@ -75,6 +81,12 @@ export default function DashboardPage() {
   const [selectedDate, setSelectedDate] = useState<Date>(today);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const selectedDateKey = toDateKey(selectedDate);
+
+  const redirectToLogin = useCallback(() => {
+    setIsAppointmentsLoading(false);
+    setIsDashboardReady(false);
+    router.replace("/login");
+  }, [router]);
 
   const showToast = (message: string, type: "success" | "error" | "info") => {
     setToast({ message, type });
@@ -142,45 +154,72 @@ export default function DashboardPage() {
 
   useEffect(() => {
     let isMounted = true;
+    let isBootstrapping = false;
 
     async function bootstrapDashboard() {
-      const [profileResult, appointmentsResult] = await Promise.allSettled([
-        backendRequest<DashboardProfile>("/api/doctor/profile"),
-        backendRequest<BackendAppointment[]>("/api/doctor/appointments"),
-      ]);
+      if (isBootstrapping) {
+        return;
+      }
 
+      isBootstrapping = true;
+
+      try {
+        const [profile, appointments] = await Promise.all([
+          backendRequest<DashboardProfile>("/api/doctor/profile"),
+          backendRequest<BackendAppointment[]>("/api/doctor/appointments"),
+        ]);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setDoctorName(profile.full_name?.trim() || "Doctor");
+        setDoctorSpecialty(profile.specialty?.trim() || "");
+        setDoctorPhone(profile.phone?.trim() || "");
+        if (profile.avatar_url) {
+          setDoctorAvatar(profile.avatar_url);
+        }
+
+        setAllAppointments(appointments.map(mapBackendAppointment));
+        setIsAppointmentsLoading(false);
+        setIsDashboardReady(true);
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
+
+        if (error instanceof UnauthenticatedError) {
+          redirectToLogin();
+          return;
+        }
+
+        console.error(error);
+        setAllAppointments([]);
+        setIsAppointmentsLoading(false);
+        setIsDashboardReady(true);
+      } finally {
+        isBootstrapping = false;
+      }
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (!isMounted) {
         return;
       }
 
-      if (profileResult.status === "fulfilled") {
-        const profile = profileResult.value;
-        setDoctorName(profile.full_name?.trim() || "Doctor");
-        setDoctorSpecialty(profile.specialty?.trim() || "");
-        if (profile.avatar_url) {
-          setDoctorAvatar(profile.avatar_url);
-        }
-      } else {
-        console.error(profileResult.reason);
+      if (!user) {
+        redirectToLogin();
+        return;
       }
 
-      if (appointmentsResult.status === "fulfilled") {
-        setAllAppointments(appointmentsResult.value.map(mapBackendAppointment));
-      } else {
-        console.error(appointmentsResult.reason);
-        setAllAppointments([]);
-      }
-
-      setIsAppointmentsLoading(false);
-      setIsDashboardReady(true);
-    }
-
-    bootstrapDashboard();
+      bootstrapDashboard();
+    });
 
     return () => {
       isMounted = false;
+      unsubscribe();
     };
-  }, []);
+  }, [redirectToLogin]);
 
   if (!isDashboardReady) {
     return (
@@ -210,6 +249,7 @@ export default function DashboardPage() {
             initialProfile={{
               name: doctorName,
               specialty: doctorSpecialty,
+              phone: doctorPhone,
               avatar: doctorAvatar,
             }}
           />
@@ -217,7 +257,7 @@ export default function DashboardPage() {
 
         <div className="max-w-7xl mx-auto px-8 pt-24 text-white">
           <p className="text-sm font-bold text-white/70 uppercase tracking-widest mb-1">
-            Hi, {doctorName}
+            Hi, Dr. {doctorName}
           </p>
 
           <h2 className="text-5xl font-extrabold tracking-tight mb-2">
