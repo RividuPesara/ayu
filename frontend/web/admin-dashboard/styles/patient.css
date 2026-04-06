@@ -1,0 +1,317 @@
+/* ── Page Header ── */
+.page-header {
+  margin-bottom: 32px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 13px;
+  flex-wrap: wrap;
+  width: 100%;
+  max-width: none;
+}
+
+.title-section {
+  flex: 1;
+}
+
+.page-title {
+  font-family: var(--font-heading, 'Sora', sans-serif);
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--text-primary, #18172b);
+  letter-spacing: -0.5px;
+  line-height: 1.15;
+  margin-bottom: 6px;
+}
+
+.page-subtitle {
+  font-size: 15px;
+  color: var(--text-secondary, #6b6a8a);
+  margin-top: 0;
+}
+
+/* ── Search Bar ── */
+.search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 12px;
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+
+.search-input {
+  padding: 9px 16px 9px 38px;
+  border: 1px solid var(--border, #e4e3ef);
+  border-radius: 12px;
+  font-size: 14px;
+  font-family: var(--font-body, 'DM Sans', sans-serif);
+  color: var(--text-primary, #18172b);
+  background-color: var(--surface, #fff);
+  width: 240px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  outline: none;
+}
+
+.search-input::placeholder {
+  color: #9ca3af;
+}
+
+.search-input:focus {
+  border-color: var(--primary, #7c3aed);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+}
+
+/* ── Table ── */
+.table-wrapper {
+  background-color: var(--surface, #fff);
+  border: 1px solid var(--border, #e4e3ef);
+  border-radius: 18px;
+  overflow: visible;
+  box-shadow: var(--shadow-sm);
+}
+
+.table-header {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1.2fr 0.5fr;
+  padding: 12px 24px;
+  background-color: var(--surface, #fff);
+  border-bottom: 1px solid var(--border, #e4e3ef);
+  border-radius: 18px 18px 0 0;
+}
+
+.table-header-cell {
+  font-size: 11px;
+  font-weight: 700;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.table-header-cell.text-right {
+  text-align: right;
+}
+
+.table-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1.2fr 0.5fr;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border, #e4e3ef);
+  transition: background-color 0.15s;
+  position: static;
+  animation: cardIn 0.28s ease both;
+}
+
+.table-row:last-child {
+  border-bottom: none;
+  border-radius: 0 0 18px 18px;
+}
+
+.table-row:hover {
+  background-color: #faf9ff;
+}
+
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Patient Cell ── */
+.patient-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.patient-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.patient-avatar svg {
+  width: 22px;
+  height: 22px;
+  fill: #ffffff;
+  color: #ffffff;
+}
+
+.patient-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary, #18172b);
+  font-family: var(--font-heading, 'Sora', sans-serif);
+}
+
+.patient-email {
+  font-size: 12px;
+  color: var(--text-secondary, #6b6a8a);
+  margin-top: 2px;
+}
+
+/* ── Status Badges ── */
+.badge {
+  display: inline-block;
+  padding: 4px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.badge-active {
+  background-color: #31a73b;
+  color: #ffffff;
+}
+
+.badge-suspended {
+  background-color: #ef4444;
+  color: #ffffff;
+}
+
+.badge-archived {
+  background-color: #ffbf00;
+  color: #323232;
+  border: 1px solid var(--border, #d1d5db);
+}
+
+/* ── Donation Toggle ── */
+.donation-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.donation-toggle {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  border: none;
+  cursor: default;
+  transition: background-color 0.25s;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.donation-toggle.approved {
+  background-color: #31a73b;
+}
+
+.donation-toggle.not-approved {
+  background-color: #d1d5db;
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background-color: #ffffff;
+  transition: transform 0.25s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.donation-toggle.approved .toggle-thumb {
+  transform: translateX(18px);
+}
+
+.donation-toggle.not-approved .toggle-thumb {
+  transform: translateX(0);
+}
+
+.donation-toggle:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.donation-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary, #6b6a8a);
+  white-space: nowrap;
+}
+
+/* ── Empty State ── */
+.empty-state {
+  padding: 40px 24px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-secondary, #6b6a8a);
+}
+
+/* ── Actions ── */
+.actions-cell {
+  display: flex;
+  justify-content: flex-end;
+  position: relative;
+  z-index: 30;
+}
+
+.dots-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  transition: background 0.15s, color 0.15s;
+  color: #9ca3af;
+}
+
+.dots-button:hover {
+  background-color: #f4f3ff;
+  color: var(--primary, #7c3aed);
+}
+
+/* ── Dropdown Menu (portal) ── */
+.dropdown-menu {
+  background-color: var(--surface, #ffffff);
+  border: 1px solid var(--border, #e4e3ef);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  width: 160px;
+  padding: 4px 0;
+  animation: cardIn 0.18s ease both;
+}
+
+.dropdown-item {
+  width: 100%;
+  text-align: left;
+  font-size: 14px;
+  padding: 8px 16px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-primary, #374151);
+  font-family: var(--font-body, 'DM Sans', sans-serif);
+  transition: background 0.15s, color 0.15s;
+}
+
+.dropdown-item:hover {
+  background-color: #f4f3ff;
+  color: var(--primary, #7c3aed);
+}
+
+.dropdown-item.danger {
+  color: #ef4444;
+}
+
+.dropdown-item.danger:hover {
+  background-color: #fef2f2;
+  color: #ef4444;
+}
