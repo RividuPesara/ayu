@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'onboardingQuiz.dart';
 
 class OtpScreen extends StatefulWidget {
   const OtpScreen({super.key});
@@ -134,6 +135,14 @@ class _OtpScreenState extends State<OtpScreen> {
                 onTap: () {
                   String otp = getOtp();
                   print("OTP Entered: $otp");
+
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const Quiz(),
+                    ),
+                  );
+
                 },
                 child: Container(
                   width: double.infinity,
