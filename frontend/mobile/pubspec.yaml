@@ -69,6 +69,9 @@ flutter:
     - assets/signin.jpeg
     - assets/login.png
     - assets/questions_cat.png
+    - assets/visa.svg
+    - assets/mastercard.svg
+    - assets/amex.svg
 
   # To add assets to your application, add an assets section, like this:
   # assets:
