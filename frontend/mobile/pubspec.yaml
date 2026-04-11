@@ -67,6 +67,7 @@ flutter:
     - assets/google.svg
     - assets/email.svg
     - assets/signin.jpeg
+    - assets/login.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:
