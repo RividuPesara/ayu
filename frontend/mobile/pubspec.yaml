@@ -30,6 +30,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  lottie: ^2.7.0
+  google_fonts: ^6.1.0
+  flutter_svg: ^2.0.10
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -56,6 +59,14 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - assets/splash.json
+    - assets/logo.png
+    - assets/cat.png
+    - assets/google.svg
+    - assets/email.svg
+    - assets/signin.jpeg
 
   # To add assets to your application, add an assets section, like this:
   # assets:
