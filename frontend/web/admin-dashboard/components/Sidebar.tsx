@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useParams, useRouter } from 'next/navigation';
 import '../styles/sidebar.css';
 import Image from 'next/image';
-import logo from '../public/assets/logo1.png';
+
 
 /* Icons */
 const icons = {
@@ -51,6 +51,12 @@ const icons = {
       <line x1="21" y1="12" x2="9" y2="12" />
     </svg>
   ),
+  article: (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M12 20h9" />
+    <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+  </svg>
+  ),
 };
 
 /* Navigation Configuration */
@@ -74,6 +80,15 @@ const getNavItems = (uid: string) => [
       { label: 'Moderation', href: `/user/${uid}/moderation` },
     ],
   },
+  {
+    label: 'Articles',
+    icon: icons.article,
+    children: [
+      { label: 'Create Article', href: `/user/${uid}/create-article` },
+      { label: 'Manage Articles', href: `/user/${uid}/manage-articles` },
+    ],
+  },
+  { label: 'Edit Profile', href: `/user/${uid}/edit-profile`, icon: icons.settings },
 ];
 
 
@@ -85,7 +100,7 @@ export default function Sidebar() {
   const uid = params.uid as string;
 
   const navItems = getNavItems(uid);
-  const [openGroups, setOpenGroups] = useState<string[]>(['Users', 'Community']);
+  const [openGroups, setOpenGroups] = useState<string[]>([]);
 
   const toggleGroup = (label: string) => {
     setOpenGroups((prev) =>
@@ -99,7 +114,13 @@ export default function Sidebar() {
     <aside className="sidebar">
       {/* Brand */}
       <div className="sidebar__brand">
-        <Image src={logo} alt="Logo" width={120} height={40} className="sidebar__logo" />
+        <Image
+          src="/assets/logo1.png"
+          alt="Logo"
+          width={120}
+          height={40}
+          className="sidebar__logo"
+        />
       </div>
 
       {/* Navigation */}
@@ -153,13 +174,6 @@ export default function Sidebar() {
 
         <div className="sidebar__divider" />
 
-        <Link
-          href={`/user/${uid}/settings`}
-          className={`sidebar__nav-item ${isActive(`/user/${uid}/settings`) ? 'sidebar__nav-item--active' : ''}`}
-        >
-          {React.cloneElement(icons.settings, { color: "black" })}
-          Edit Profile
-        </Link>
       </nav>
 
       {/* Footer */}
