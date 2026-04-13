@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import "./LoginPage.css";
 import { auth } from "../lib/firebase";
@@ -22,6 +22,15 @@ import {
   sendPhoneEnrollmentOtp,
   verifyAndEnrollPhoneFactor,
 } from "@/app/lib/phone-mfa";
+import {
+  canAttemptLogin,
+  createLoginCooldownKey,
+  getLoginCooldownRemainingMs,
+  getPersistedLoginCooldownIdentifier,
+  registerFailedLoginAttempt,
+  registerSuccessfulLoginAttempt,
+  setPersistedLoginCooldownIdentifier,
+} from "@/app/lib/login-cooldown";
 
 const DASHBOARD_REDIRECT_DELAY_MS = 450;
 
@@ -47,6 +56,15 @@ function hasErrorCode(error: unknown, expectedCode: string): boolean {
 
   const maybeCode = (error as { code?: unknown }).code;
   return typeof maybeCode === "string" && maybeCode === expectedCode;
+}
+
+function readErrorCode(error: unknown): string | null {
+  if (typeof error !== "object" || error === null) {
+    return null;
+  }
+
+  const maybeCode = (error as { code?: unknown }).code;
+  return typeof maybeCode === "string" ? maybeCode : null;
 }
 
 function readMaskedPhone(hint: MultiFactorInfo): string {
@@ -77,6 +95,9 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
+  const [cooldownRemainingMs, setCooldownRemainingMs] = useState(0);
+  // Store the last login identifier from a failed attempt so a page refresh doesn't make the browser forget the active cooldown.
+  const [persistedLoginIdentifier, setPersistedLoginIdentifier] = useState<string | null>(null);
 
   const [forgotMode, setForgotMode] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
@@ -89,6 +110,18 @@ export default function LoginPage() {
   const [verificationId, setVerificationId] = useState("");
   const [otpFlowType, setOtpFlowType] = useState<OtpFlowType | null>(null);
 
+  const loginIdentifier = useMemo(
+    () => email.trim() || persistedLoginIdentifier || "anonymous",
+    [email, persistedLoginIdentifier],
+  );
+
+  const loginCooldownKey = useMemo(
+    () => createLoginCooldownKey("email-password", loginIdentifier),
+    [loginIdentifier],
+  );
+
+  const cooldownRemainingSeconds = Math.ceil(cooldownRemainingMs / 1000);
+
   useEffect(() => {
     return () => {
       try {
@@ -99,6 +132,34 @@ export default function LoginPage() {
       recaptchaVerifierRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    // When the page loads, restore the last identifier used for login cooldown. this helps keep the same cooldown active after a browser refresh
+    const storedIdentifier = getPersistedLoginCooldownIdentifier("email-password");
+    if (storedIdentifier) {
+      setPersistedLoginIdentifier(storedIdentifier);
+    }
+  }, []);
+
+  useEffect(() => {
+    setCooldownRemainingMs(getLoginCooldownRemainingMs(loginCooldownKey));
+  }, [loginCooldownKey]);
+
+  useEffect(() => {
+    if (cooldownRemainingMs <= 0) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      const remainingMs = getLoginCooldownRemainingMs(loginCooldownKey);
+      setCooldownRemainingMs(remainingMs);
+      if (remainingMs <= 0) {
+        window.clearInterval(intervalId);
+      }
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [cooldownRemainingMs, loginCooldownKey]);
 
   function getOrCreateRecaptchaVerifier(): RecaptchaVerifier {
     if (recaptchaVerifierRef.current) {
@@ -130,10 +191,22 @@ export default function LoginPage() {
   // LOGIN
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const availability = canAttemptLogin(loginCooldownKey);
+    if (!availability.allowed) {
+      setCooldownRemainingMs(availability.remainingMs);
+      alert(
+        `Too many failed attempts. Try again in ${Math.ceil(availability.remainingMs / 1000)} seconds.`,
+      );
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      registerSuccessfulLoginAttempt(loginCooldownKey);
+      setCooldownRemainingMs(0);
 
       if (!userCredential.user.emailVerified) {
         await sendEmailVerification(userCredential.user);
@@ -177,10 +250,12 @@ export default function LoginPage() {
       return;
     } catch (error: unknown) {
       if (hasErrorCode(error, "auth/multi-factor-auth-required")) {
+        registerSuccessfulLoginAttempt(loginCooldownKey);
+        setCooldownRemainingMs(0);
         try {
           const resolver = getMultiFactorResolver(auth, error as MultiFactorError);
           const phoneHint = resolver.hints.find(
-            (hint) => hint.factorId === PhoneMultiFactorGenerator.FACTOR_ID,
+            (hint: MultiFactorInfo) => hint.factorId === PhoneMultiFactorGenerator.FACTOR_ID,
           );
 
           if (!phoneHint) {
@@ -209,6 +284,20 @@ export default function LoginPage() {
           return;
         } catch (mfaError: unknown) {
           alert(getErrorMessage(mfaError));
+          return;
+        }
+      }
+
+      const errorCode = readErrorCode(error);
+      if (errorCode && errorCode.startsWith("auth/")) {
+        // Remember this identifier so the same browser session still sees the cooldown even after a refresh is done
+        setPersistedLoginCooldownIdentifier("email-password", email.trim() || loginIdentifier);
+        const failedAttemptState = registerFailedLoginAttempt(loginCooldownKey);
+        if (failedAttemptState.isCoolingDown) {
+          setCooldownRemainingMs(failedAttemptState.remainingMs);
+          alert(
+            `Too many failed attempts. Try again in ${Math.ceil(failedAttemptState.remainingMs / 1000)} seconds.`,
+          );
           return;
         }
       }
@@ -409,8 +498,12 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                <button className="btn-primary" disabled={isLoading}>
-                  {isLoading ? "Signing in..." : "Sign In"}
+                <button className="btn-primary" disabled={isLoading || cooldownRemainingMs > 0}>
+                  {isLoading
+                    ? "Signing in..."
+                    : cooldownRemainingMs > 0
+                    ? `Try again in ${cooldownRemainingSeconds}s`
+                    : "Sign In"}
                 </button>
               </form>
             </>
