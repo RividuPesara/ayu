@@ -20,6 +20,18 @@ class Settings(BaseSettings):
     cloudinary_api_key: str | None = None
     cloudinary_api_secret: str | None = None
 
+    gemini_api_key: str | None = None
+    hf_token: str | None = None
+    model_dir: str = "../models"
+    chroma_db_dir: str = "../data/chroma_db"
+    knowledge_base_path: str = "../data/cancer_knowledge_base.json"
+
+    dev_mode: bool = False
+    dev_patient_uid: str = "dev-rividu-pesara"
+    dev_patient_email: str = "rivindupeshara11@gmail.com"
+    dev_patient_name: str = "Rividu Pesara"
+
+
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",

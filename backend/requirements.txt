@@ -13,4 +13,14 @@ nltk
 numpy
 pandas
 scipy
+langchain-google-genai
+langchain-huggingface
+langchain-chroma
+langchain-core
+langchain-text-splitters
+google-genai
+scikit-learn
+xgboost
+sentence-transformers
+chromadb
 

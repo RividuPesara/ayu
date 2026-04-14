@@ -22,17 +22,91 @@ for _pkg in ("punkt", "wordnet", "averaged_perceptron_tagger", "punkt_tab", "ave
         nltk.download(_pkg, quiet=True)
 
 # emotion word lists used for rule based features
-JOY_WORDS = {...}
-ANXIETY_WORDS = {...}
-STRESS_WORDS = {...}
-DEPRESSION_WORDS = {...}
-SUICIDAL_WORDS = {...}
+JOY_WORDS = {
+    'happy','happiness','joy','joyful','excited','excitement','amazing','wonderful',
+    'fantastic','great','love','loved','grateful','gratitude','blessed','thrilled',
+    'delighted','ecstatic','overjoyed','proud','celebrate','celebrating','smiling',
+    'laughing','laugh','beautiful','incredible','awesome','lucky','thankful',
+    'promoted','promotion','scholarship','accepted','engaged','proposal','born',
+    'baby','married','wedding','vacation','holiday','trip','surprise','gift',
+    'moon','unstoppable','alive','peace','peaceful','magical','crossed','finish',
+    'line','milestone','achievement','achieved','dream','worth','penny','saved',
+    'cheering','dancing','danced','winning','won','passed','congratulations',
+    'glowing','beaming','radiant','light','smile','grinning','grin','elated',
+    'content','fulfilling','fulfilled','meaningful','rewarding','rewarded',
+}
+
+ANXIETY_WORDS = {
+    'anxious','anxiety','worry','worried','worrying','panic','panicking','fear',
+    'fearful','terrified','terrifying','terror','dread','dreading','nervous',
+    'catastrophize','catastrophizing','overthink','overthinking','racing',
+    'trembling','shaking','freeze','frozen','avoid','avoidance','scared',
+    'breathe','chest','tightens','tighten','attacks','attack','scenarios',
+    'convinced','wrong','shake','judged','highways','losing','control',
+    'smaller','triggered','trigger','worrying','terrible','cancelled',
+    'interviews','crowd','crowded','spiral','spiraling','restless','uneasy',
+    'apprehensive','tense','tension','phobia','obsess','obsessing',
+    'checking','locks','ruminate','ruminating','sleepless','insomnia',
+    'heart','pounding','sweating','sweat','nauseous','nausea','faint',
+}
+
+STRESS_WORDS = {
+    'stress','stressed','stressful','burnout','burned','overwhelmed','overloaded',
+    'exhausted','exhaustion','pressure','deadline','workload','furious','angry',
+    'anger','irritable','irritated','snapping','frustrated','frustration',
+    'relentless','piling','humiliated','juggling','rent','cover','barely',
+    'syllabus','missed','launch','client','sixteen','edge','temper','aches',
+    'breaking','crushing','meetings','running','empty','behind','overdue',
+    'manager','boss','colleague','fired','layoff','debt','bills','financial',
+    'screaming','yelling','yelled','slammed','snapped','boiling','fuming',
+    'seething','livid','outraged','grinding','drained','depleted','stretched',
+    'pulled','pushed','collapsing','crumbling','falling','apart','cope','coping',
+}
+
+DEPRESSION_WORDS = {
+    'depressed','depression','hopeless','hopelessness','empty','numb','worthless',
+    'useless','lonely','loneliness','isolated','isolation','crying','cried',
+    'sadness','sad','miserable','darkness','dark','pointless','meaningless',
+    'void','hollow','broken','shattered','defeated','lost','invisible',
+    'disconnected','ghost','drifting','faking','fake','mask','pretend',
+    'exhausted','heavy','sinking','drowning','suffocating','trapped','stuck',
+    'failure','failed','disappoint','disappointing','ashamed','shame','guilt',
+    'regret','nothingness','bleak','grey','gray','colorless','lifeless',
+    'apathy','apathetic','withdrawn','detached','unmotivated','unmoved',
+}
+
+SUICIDAL_WORDS = {
+    'suicidal','suicide','die','dying','dead','death','kill','goodbye','note',
+    'plan','end','bridge','pills','overdose','cut','cutting','harm','pain',
+    'method','ready','disappear','disappeared','letgo','peace','relieved',
+    'farewell','arranged','neighbor','dog','stopping','almost',
+    'tonight','night','stockpiling','researched','methods','reason','stay',
+    'birthday','unbearable','terminal','decided','terms','deeper','wakeup',
+    'morning','hoped','awake','knife','rope','jump','jumped','ledge','final',
+}
 
 # negation words to flip meaning
-NEGATION_WORDS = {...}
-
+NEGATION_WORDS = {
+    'not','never','no','nothing','nobody','nowhere','neither','nor','none',
+    'cannot','cant','wont','wouldnt','shouldnt','couldnt','dont','doesnt',
+    'didnt','hasnt','havent','hadnt','isnt','arent','wasnt','werent',
+}
 # keywords that immediately indicate crisis risk
-KEYWORD_CRISIS = {...}
+KEYWORD_CRISIS = {
+    'kill myself', 'end my life', 'want to die', 'going to kill',
+    'suicide', 'overdose', 'goodbye forever', 'end it all',
+    'no reason to live', 'better off dead', 'cant go on',
+    'take my own life', 'dont want to be here', 'ready to die',
+    'life isnt worth', 'nothing left to live for', 'final goodbye',
+    'jumping off', 'hanging myself', 'cut my wrists', 'slit my',
+    'self harm', 'hurt myself badly', 'harm myself',
+    'want it to end', 'ready to go', 'cant take it anymore',
+    'everyone better without me', 'burden to everyone',
+    'world without me', 'stockpiling pills', 'writing goodbye',
+    'suicide note', 'plan to end', 'wont be here tomorrow',
+    'final message', 'kill me', 'wish i was dead',
+    'shouldnt exist', 'disappear forever', 'cease to exist',
+}
 
 # threshold for suicidal confidence from model
 SUICIDAL_CRISIS_THRESHOLD = 0.65
@@ -52,7 +126,7 @@ _xgb_model = None
 _tfidf_uni = None
 _tfidf_bi = None
 _le = None
-_classes = []
+_classes: list[str] = []
 _lemmatizer = WordNetLemmatizer()
 
 
@@ -77,6 +151,7 @@ def _load_models(model_dir: str) -> None:
     _classes = list(_le.classes_)
 
     _models_loaded = True
+    logger.info("Sentiment models loaded. Classes: %s", _classes)
 
 
 def initialize_sentiment_service(model_dir: str) -> None:
@@ -124,7 +199,7 @@ def lemmatize_text(text: str) -> str:
         result.append(lemma)
     return ' '.join(result)
 
-
+# Feature engineering
 def _count_lexicon(text: str, lexicon: set) -> int:
     # count emotion words in text
     tokens = set(text.lower().split())

@@ -1,14 +1,16 @@
 from datetime import datetime
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
 class CreateSessionRequest(BaseModel):
-    # Title chat session
+    # Title for the new chat session
     title: str = Field(min_length=1, max_length=200)
 
 
 class SessionResponse(BaseModel):
-    # chat session belonging to a patient
+    # A chat session belonging to a patient
     session_id: str
     user_id: str
     title: str
@@ -17,6 +19,7 @@ class SessionResponse(BaseModel):
     message_count: int = 0
     created_at: datetime | None = None
     last_message_at: datetime | None = None
+    is_summarized: bool = False  # False until the longTermSummary update succeeds.
 
 
 class SendMessageRequest(BaseModel):
@@ -45,7 +48,6 @@ class MessageResponse(BaseModel):
 
 class ChatResponse(BaseModel):
     # Full response returned after sending a message
-    immediate_response: str | None = None
     response: str
     sentiment: str
     safety_flag: str
