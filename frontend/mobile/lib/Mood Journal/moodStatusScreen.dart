@@ -1,16 +1,93 @@
 import 'package:flutter/material.dart';
-import 'package:mobile_app/Mood Journal/pastJournalEntries.dart';
 import 'package:mobile_app/Mood Journal/journalEntryScreen.dart';
+import 'package:mobile_app/Mood Journal/mood_journal_service.dart';
+import 'package:mobile_app/Mood Journal/pastJournalEntries.dart';
 
-class MoodStatusScreen extends StatelessWidget {
+class MoodStatusScreen extends StatefulWidget {
   const MoodStatusScreen({super.key});
+
+  @override
+  State<MoodStatusScreen> createState() => _MoodStatusScreenState();
+}
+
+class _MoodStatusScreenState extends State<MoodStatusScreen> {
+  bool _isLoading = true;
+  String? _error;
+  MoodStats? _stats;
+  List<MoodHistoryItem> _cachedRecentHistory = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _cachedRecentHistory = MoodJournalRepository.instance
+        .recentHistoryFromCache();
+    _loadStatus();
+  }
+
+  Future<void> _loadStatus() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final data = await fetchMoodStats();
+      MoodJournalRepository.instance.syncFromMoodStats(data);
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _stats = data;
+        _cachedRecentHistory = MoodJournalRepository.instance
+            .recentHistoryFromCache();
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _error = error.toString().replaceFirst('Exception: ', '');
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Color _statusChipColor(String dominantEmotion) {
+    final key = dominantEmotion.toLowerCase();
+    if (key == 'fragile') {
+      return const Color(0xFFFF8A80);
+    }
+    if (key.contains('positive')) {
+      return const Color(0xFFA8D85A);
+    }
+    if (key.contains('low')) {
+      return const Color(0xFFFFB36A);
+    }
+    return const Color(0xFFD7B8A8);
+  }
 
   @override
   Widget build(BuildContext context) {
     const Color bgYellow = Color(0xFFF1C24C);
     const Color brown = Color(0xFF4B3326);
-    const Color lightGreen = Color(0xFFA8D85A);
     const Color whiteSection = Color(0xFFF4F4F4);
+
+    final stats = _stats;
+    final String dominantEmotion = stats?.dominantEmotion ?? 'Mainly Neutral';
+    final String statusText = dominantEmotion.toUpperCase();
+    final String detailText =
+        stats?.emotionMessage ??
+        'Keep journaling to build a clearer mood pattern.';
+    final history = _cachedRecentHistory.isNotEmpty
+        ? _cachedRecentHistory
+        : (stats?.recentHistory ?? const <MoodHistoryItem>[]);
 
     return Scaffold(
       backgroundColor: bgYellow,
@@ -23,7 +100,7 @@ class MoodStatusScreen extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Image.asset(
-                      "assets/moodjournal.png",
+                      'assets/moodjournal.png',
                       fit: BoxFit.cover,
                       width: double.infinity,
                     ),
@@ -31,7 +108,6 @@ class MoodStatusScreen extends StatelessWidget {
                 ],
               ),
             ),
-
             // bottom white curved section
             Positioned(
               left: 0,
@@ -39,21 +115,19 @@ class MoodStatusScreen extends StatelessWidget {
               bottom: -80,
               child: ClipPath(
                 clipper: TopArcClipper(),
-                child: Container(
-                  height: 650,
-                  color: whiteSection,
-                ),
+                child: Container(height: 650, color: whiteSection),
               ),
             ),
-
             SafeArea(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 6),
-
                     // header
                     Row(
                       children: [
@@ -93,9 +167,7 @@ class MoodStatusScreen extends StatelessWidget {
                         ),
                       ],
                     ),
-
                     const SizedBox(height: 100),
-
                     Center(
                       child: Container(
                         padding: const EdgeInsets.symmetric(
@@ -103,12 +175,12 @@ class MoodStatusScreen extends StatelessWidget {
                           vertical: 14,
                         ),
                         decoration: BoxDecoration(
-                          color: lightGreen,
+                          color: _statusChipColor(dominantEmotion),
                           borderRadius: BorderRadius.circular(24),
                         ),
-                        child: const Text(
-                          'NORMAL',
-                          style: TextStyle(
+                        child: Text(
+                          statusText,
+                          style: const TextStyle(
                             fontSize: 32,
                             fontFamily: 'Urbanist',
                             fontWeight: FontWeight.w900,
@@ -118,14 +190,12 @@ class MoodStatusScreen extends StatelessWidget {
                         ),
                       ),
                     ),
-
                     const SizedBox(height: 18),
-
-                    const Center(
+                    Center(
                       child: Text(
-                        'Congratulations! You are\nmentally okay.',
+                        _error ?? detailText,
                         textAlign: TextAlign.center,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 27,
                           height: 1.25,
                           fontWeight: FontWeight.w600,
@@ -133,19 +203,29 @@ class MoodStatusScreen extends StatelessWidget {
                         ),
                       ),
                     ),
-
                     const SizedBox(height: 62),
-
                     // plus button
                     Center(
                       child: Material(
                         color: Colors.transparent,
                         child: InkWell(
-                          onTap: () {
-                            Navigator.push(
+                          onTap: () async {
+                            await Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (context) => NewJournalEntryPage()),
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const NewJournalEntryPage(),
+                              ),
                             );
+                            if (!mounted) {
+                              return;
+                            }
+                            setState(() {
+                              _cachedRecentHistory = MoodJournalRepository
+                                  .instance
+                                  .recentHistoryFromCache();
+                            });
+                            await _loadStatus();
                           },
                           borderRadius: BorderRadius.circular(30),
                           child: Ink(
@@ -171,14 +251,12 @@ class MoodStatusScreen extends StatelessWidget {
                         ),
                       ),
                     ),
-
                     const SizedBox(height: 26),
-
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
-                          'Mental Score History',
+                          'Recent Journals',
                           style: TextStyle(
                             fontSize: 21,
                             fontWeight: FontWeight.w800,
@@ -186,11 +264,15 @@ class MoodStatusScreen extends StatelessWidget {
                           ),
                         ),
                         GestureDetector(
-                          onTap: () {
-                            Navigator.push(
+                          onTap: () async {
+                            await Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (context) => PastJournalEntriesScreen()),
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const PastJournalEntriesScreen(),
+                              ),
                             );
+                            await _loadStatus();
                           },
                           child: const Text(
                             'View All',
@@ -203,30 +285,8 @@ class MoodStatusScreen extends StatelessWidget {
                         ),
                       ],
                     ),
-
                     const SizedBox(height: 32),
-
-                    Expanded(
-                      child: ListView(
-                        padding: EdgeInsets.zero,
-                        children: const [
-                          MoodHistoryCard(
-                            day: '12',
-                            text: 'Anxious, Depressed',
-                          ),
-                          SizedBox(height: 12),
-                          MoodHistoryCard(
-                            day: '11',
-                            text: 'Very Happy',
-                          ),
-                          SizedBox(height: 12),
-                          MoodHistoryCard(
-                            day: '11',
-                            text: 'Very Happy',
-                          ),
-                        ],
-                      ),
-                    ),
+                    Expanded(child: _buildHistoryList(history)),
                   ],
                 ),
               ),
@@ -236,16 +296,62 @@ class MoodStatusScreen extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildHistoryList(List<MoodHistoryItem> history) {
+    if (_isLoading && history.isEmpty) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF4B3326)),
+      );
+    }
+
+    if (_error != null && history.isEmpty) {
+      return Center(
+        child: TextButton(onPressed: _loadStatus, child: const Text('Retry')),
+      );
+    }
+
+    if (history.isEmpty) {
+      return const Center(
+        child: Text(
+          'No history yet. Add your first journal entry.',
+          style: TextStyle(
+            color: Color(0xFF4B3326),
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: EdgeInsets.zero,
+      itemCount: history.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final item = history[index];
+        return MoodHistoryCard(
+          month: item.month,
+          day: item.day,
+          title: item.title,
+          mood: item.mood,
+        );
+      },
+    );
+  }
 }
 
 class MoodHistoryCard extends StatelessWidget {
+  final String month;
   final String day;
-  final String text;
+  final String title;
+  final String mood;
 
   const MoodHistoryCard({
     super.key,
+    required this.month,
     required this.day,
-    required this.text,
+    required this.title,
+    required this.mood,
   });
 
   @override
@@ -269,9 +375,9 @@ class MoodHistoryCard extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text(
-                  'SEP',
-                  style: TextStyle(
+                Text(
+                  month,
+                  style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 1,
@@ -292,13 +398,30 @@ class MoodHistoryCard extends StatelessWidget {
           ),
           const SizedBox(width: 14),
           Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(
-                fontSize: 19,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF4D3D35),
-              ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF4D3D35),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Mood: $mood',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF6C5A4F),
+                  ),
+                ),
+              ],
             ),
           ),
         ],

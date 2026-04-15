@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:mobile_app/Mood Journal/journalEntryScreen.dart';
+import 'package:mobile_app/Mood Journal/mood_journal_service.dart';
 
 const Color screenBg = Color(0xFFF4F4F4);
 const Color textDark = Color(0xFF4B3425);
@@ -14,11 +17,183 @@ class PastJournalEntriesScreen extends StatefulWidget {
   const PastJournalEntriesScreen({super.key});
 
   @override
-  State<PastJournalEntriesScreen> createState() => _PastJournalEntriesScreenState();
+  State<PastJournalEntriesScreen> createState() =>
+      _PastJournalEntriesScreenState();
 }
 
 class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
+  final ScrollController _scrollController = ScrollController();
+  final MoodJournalRepository _repository = MoodJournalRepository.instance;
+
   String selectedSort = 'Newest';
+  bool _isLoading = true;
+  bool _isLoadingMore = false;
+  String? _error;
+
+  List<JournalEntryItem> _entries = [];
+  String? _nextCursor;
+  bool _hasMore = false;
+  int _activeDaysCount = MoodJournalRepository.instance.activeDaysCount;
+
+  void _syncFromRepository() {
+    _entries = _repository.entries;
+    _nextCursor = _repository.nextCursor;
+    _hasMore = _repository.hasMore;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+    _loadInitial();
+  }
+
+  @override
+  void dispose() {
+    _scrollController
+      ..removeListener(_onScroll)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_hasMore || _isLoading || _isLoadingMore) {
+      return;
+    }
+
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 220) {
+      _loadMore();
+    }
+  }
+
+  Future<void> _loadInitial() async {
+    try {
+      final sort = selectedSort == 'Newest' ? 'desc' : 'asc';
+      final hasCache = _repository.hasCacheForSort(sort);
+
+      if (mounted) {
+        setState(() {
+          _isLoading = !hasCache;
+          _error = null;
+          _activeDaysCount = _repository.activeDaysCount;
+          if (hasCache) {
+            _syncFromRepository();
+          }
+        });
+      }
+
+      await _repository.ensureFirstPage(sort: sort, limit: 4);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _syncFromRepository();
+      });
+
+      unawaited(_refreshCounterInBackground());
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _error = error.toString().replaceFirst('Exception: ', '');
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _refreshCounterInBackground() async {
+    try {
+      final stats = await fetchMoodStats();
+      _repository.syncFromMoodStats(stats);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _activeDaysCount = _repository.activeDaysCount;
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _loadMore() async {
+    if (_nextCursor == null || _isLoadingMore || !_hasMore) {
+      return;
+    }
+
+    setState(() {
+      _isLoadingMore = true;
+    });
+
+    try {
+      await _repository.fetchNextPage(limit: 4);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _syncFromRepository();
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not load more entries.')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingMore = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _openJournalEntry(JournalEntryItem entry) async {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) =>
+          const Center(child: CircularProgressIndicator(color: textDark)),
+    );
+
+    try {
+      final detail = await fetchJournalEntryById(entry.entryId);
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.pop(context);
+      _showJournalDialog(
+        title: detail.title,
+        mood: detail.userMood.toUpperCase(),
+        entry: detail.content,
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
+  }
 
   void _showJournalDialog({
     required String title,
@@ -41,65 +216,67 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
               fontWeight: FontWeight.w800,
             ),
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Title',
-                style: TextStyle(
-                  color: mutedText,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Title',
+                  style: TextStyle(
+                    color: mutedText,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                title,
-                style: const TextStyle(
-                  color: textDark,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
+                const SizedBox(height: 4),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: textDark,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 14),
-              const Text(
-                'Mood',
-                style: TextStyle(
-                  color: mutedText,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
+                const SizedBox(height: 14),
+                const Text(
+                  'Mood',
+                  style: TextStyle(
+                    color: mutedText,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                mood,
-                style: const TextStyle(
-                  color: textDark,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
+                const SizedBox(height: 4),
+                Text(
+                  mood,
+                  style: const TextStyle(
+                    color: textDark,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 14),
-              const Text(
-                'Entry',
-                style: TextStyle(
-                  color: mutedText,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
+                const SizedBox(height: 14),
+                const Text(
+                  'Entry',
+                  style: TextStyle(
+                    color: mutedText,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                entry,
-                style: const TextStyle(
-                  color: textDark,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  height: 1.5,
+                const SizedBox(height: 4),
+                Text(
+                  entry,
+                  style: const TextStyle(
+                    color: textDark,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    height: 1.5,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -117,6 +294,52 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
         );
       },
     );
+  }
+
+  Color _cardColorForMood(String mood) {
+    final key = mood.toLowerCase();
+    if (key == 'normal' ||
+        key == 'happy' ||
+        key == 'good' ||
+        key == 'great' ||
+        key == 'joy') {
+      return greenCard;
+    }
+    return orangeCard;
+  }
+
+  Color _tagBgForMood(String mood) {
+    final key = mood.toLowerCase();
+    if (key == 'normal' ||
+        key == 'happy' ||
+        key == 'good' ||
+        key == 'great' ||
+        key == 'joy') {
+      return paleGreen;
+    }
+    return paleOrange;
+  }
+
+  IconData _iconForMood(String mood) {
+    final key = mood.toLowerCase();
+    if (key == 'happy' || key == 'good' || key == 'great' || key == 'joy') {
+      return Icons.sentiment_very_satisfied_rounded;
+    }
+    if (key == 'normal' || key == 'neutral') {
+      return Icons.sentiment_neutral_rounded;
+    }
+    return Icons.sentiment_dissatisfied_rounded;
+  }
+
+  String _subtitleForEntry(JournalEntryItem entry) {
+    final dt = entry.entryDate;
+    if (dt == null) {
+      return 'Tap to read full journal';
+    }
+
+    final month = dt.month.toString().padLeft(2, '0');
+    final day = dt.day.toString().padLeft(2, '0');
+    return '$day/$month • Tap to read full journal';
   }
 
   @override
@@ -138,10 +361,7 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  Image.asset(
-                    "assets/moodentries.png",
-                    fit: BoxFit.cover,
-                  ),
+                  Image.asset('assets/moodentries.png', fit: BoxFit.cover),
                   SafeArea(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
@@ -190,11 +410,10 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
                             ],
                           ),
                           const Spacer(),
-
-                          const Center(
+                          Center(
                             child: Text(
-                              '34/365',
-                              style: TextStyle(
+                              '$_activeDaysCount/365',
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 72,
                                 fontWeight: FontWeight.w800,
@@ -205,7 +424,7 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
                           const SizedBox(height: 16),
                           const Center(
                             child: Text(
-                              'Journals this year. Keep it Up!',
+                              'Active journal days this year.',
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: Colors.white,
@@ -222,8 +441,6 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
                 ],
               ),
             ),
-
-            // White Curved Section
             Positioned(
               left: 0,
               right: 0,
@@ -232,9 +449,7 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
                 clipper: TopArcClipper(),
                 child: Container(
                   height: screenHeight * 0.55,
-                  decoration: const BoxDecoration(
-                    color: screenBg,
-                  ),
+                  decoration: const BoxDecoration(color: screenBg),
                   child: SafeArea(
                     top: false,
                     child: Padding(
@@ -258,59 +473,7 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
                             ],
                           ),
                           const SizedBox(height: 18),
-
-                          // Journal List
-                          Expanded(
-                            child: ListView.separated(
-                              scrollDirection: Axis.horizontal,
-                              itemCount: 2,
-                              separatorBuilder: (_, __) =>
-                              const SizedBox(width: 14),
-                              itemBuilder: (context, index) {
-                                if (index == 0) {
-                                  return JournalCard(
-                                    cardColor: greenCard,
-                                    tagBg: paleGreen,
-                                    tagTextColor: greenCard,
-                                    moodText: 'MOOD: HAPPY',
-                                    title: "I’m grateful for my l...",
-                                    subtitle:
-                                    'Today, I just had a revelation. It...',
-                                    moodIcon:
-                                    Icons.sentiment_dissatisfied_rounded,
-                                    onTap: () {
-                                      _showJournalDialog(
-                                        title: "I’m grateful for my life",
-                                        mood: "HAPPY",
-                                        entry:
-                                        "Today, I just had a revelation. It made me appreciate the little things in life and feel more thankful for everything around me.",
-                                      );
-                                    },
-                                  );
-                                }
-
-                                return JournalCard(
-                                  cardColor: orangeCard,
-                                  tagBg: paleOrange,
-                                  tagTextColor: orangeCard,
-                                  moodText: 'MOOD: SAD',
-                                  title: "I’m grateful for m...",
-                                  subtitle:
-                                  'Today, I just had a revelation. It...',
-                                  moodIcon:
-                                  Icons.sentiment_dissatisfied_rounded,
-                                  onTap: () {
-                                    _showJournalDialog(
-                                      title: "I’m grateful for myself",
-                                      mood: "SAD",
-                                      entry:
-                                      "Today, I just had a revelation. It was a difficult day, but I am trying to understand my feelings and give myself some space to heal.",
-                                    );
-                                  },
-                                );
-                              },
-                            ),
-                          ),
+                          Expanded(child: _buildJournalBody()),
                         ],
                       ),
                     ),
@@ -318,8 +481,6 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
                 ),
               ),
             ),
-
-            // Center Plus Button
             Positioned(
               left: 0,
               right: 0,
@@ -329,11 +490,20 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
                   color: Colors.transparent,
                   child: InkWell(
                     borderRadius: BorderRadius.circular(50),
-                    onTap: () {
-                      Navigator.push(
+                    onTap: () async {
+                      await Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => NewJournalEntryPage()),
+                        MaterialPageRoute(
+                          builder: (context) => const NewJournalEntryPage(),
+                        ),
                       );
+                      if (!mounted) {
+                        return;
+                      }
+                      setState(() {
+                        _syncFromRepository();
+                      });
+                      await _loadInitial();
                     },
                     child: Container(
                       width: 60,
@@ -355,6 +525,89 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildJournalBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator(color: textDark));
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _error!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: textDark,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextButton(onPressed: _loadInitial, child: const Text('Retry')),
+          ],
+        ),
+      );
+    }
+
+    if (_entries.isEmpty) {
+      return const Center(
+        child: Text(
+          'No journal entries yet.',
+          style: TextStyle(
+            color: textDark,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+    }
+
+    final itemCount = _entries.length + (_hasMore || _isLoadingMore ? 1 : 0);
+
+    return ListView.separated(
+      controller: _scrollController,
+      scrollDirection: Axis.horizontal,
+      itemCount: itemCount,
+      separatorBuilder: (_, __) => const SizedBox(width: 14),
+      itemBuilder: (context, index) {
+        if (index >= _entries.length) {
+          if (_isLoadingMore) {
+            return Container(
+              width: 120,
+              alignment: Alignment.center,
+              child: const CircularProgressIndicator(color: textDark),
+            );
+          }
+          return Container(
+            width: 120,
+            alignment: Alignment.center,
+            child: const Text(
+              'Swipe for more',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: textDark, fontWeight: FontWeight.w700),
+            ),
+          );
+        }
+
+        final entry = _entries[index];
+        final cardColor = _cardColorForMood(entry.userMood);
+        final tagBg = _tagBgForMood(entry.userMood);
+
+        return JournalCard(
+          cardColor: cardColor,
+          tagBg: tagBg,
+          tagTextColor: cardColor,
+          moodText: 'MOOD: ${entry.userMood.toUpperCase()}',
+          title: entry.title,
+          subtitle: _subtitleForEntry(entry),
+          moodIcon: _iconForMood(entry.userMood),
+          onTap: () => _openJournalEntry(entry),
+        );
+      },
     );
   }
 
@@ -413,11 +666,12 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
               ),
             ),
           ],
-          onChanged: (value) {
+          onChanged: (value) async {
             if (value != null) {
               setState(() {
                 selectedSort = value;
               });
+              await _loadInitial();
             }
           },
         ),
@@ -471,17 +725,12 @@ class JournalCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
               ),
               alignment: Alignment.topLeft,
-              child: Icon(
-                moodIcon,
-                color: Colors.white,
-                size: 22,
-              ),
+              child: Icon(moodIcon, color: Colors.white, size: 22),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
               child: Container(
-                padding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: tagBg,
                   borderRadius: BorderRadius.circular(20),

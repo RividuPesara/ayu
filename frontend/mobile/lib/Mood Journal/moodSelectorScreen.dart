@@ -1,5 +1,8 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:mobile_app/Mood Journal/moodStatusScreen.dart';
+import 'package:mobile_app/Mood Journal/mood_journal_service.dart';
 
 class MoodSelectorScreen extends StatefulWidget {
   const MoodSelectorScreen({super.key});
@@ -11,6 +14,16 @@ class MoodSelectorScreen extends StatefulWidget {
 class _MoodSelectorScreenState extends State<MoodSelectorScreen> {
   int selectedMoodIndex = 2;
   double pointerAngle = math.pi / 2;
+  bool _isSubmittingPulse = false;
+  bool _isCheckingToday = true;
+
+  static const List<String> _pulseMoodKeys = [
+    'Depression',
+    'Depression',
+    'Normal',
+    'Normal',
+    'Normal',
+  ];
 
   final List<_MoodData> moods = const [
     _MoodData(
@@ -40,11 +53,66 @@ class _MoodSelectorScreenState extends State<MoodSelectorScreen> {
     ),
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _checkTodayPulseAndRoute();
+  }
+
+  Future<void> _checkTodayPulseAndRoute() async {
+    final repository = MoodJournalRepository.instance;
+
+    if (repository.pulseRecordedToday) {
+      if (!mounted) {
+        return;
+      }
+      await Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const MoodStatusScreen()),
+      );
+      return;
+    }
+
+    try {
+      final status = await fetchMoodStats();
+      repository.syncFromMoodStats(status);
+      if (!mounted) {
+        return;
+      }
+
+      if (status.pulseRecordedToday) {
+        await Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const MoodStatusScreen()),
+        );
+        return;
+      }
+    } catch (_) {
+      // Keep selector visible when status call fails.
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCheckingToday = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _submitPulseInBackground(String selectedMood) async {
+    final repository = MoodJournalRepository.instance;
+    try {
+      final result = await submitDailyPulse(selectedMood);
+      repository.syncFromMoodStats(result.moodStats);
+    } catch (_) {
+      repository.clearLocalPulseFlag();
+    }
+  }
+
   void _updatePointerFromLocalPosition(
-      Offset localPosition,
-      Size size,
-      double wheelHeight,
-      ) {
+    Offset localPosition,
+    Size size,
+    double wheelHeight,
+  ) {
     final double centerX = size.width / 2;
     final double centerY = size.height;
 
@@ -68,8 +136,53 @@ class _MoodSelectorScreenState extends State<MoodSelectorScreen> {
     });
   }
 
+  Future<void> _submitPulseAndContinue() async {
+    if (_isSubmittingPulse) {
+      return;
+    }
+
+    setState(() {
+      _isSubmittingPulse = true;
+    });
+
+    try {
+      final repository = MoodJournalRepository.instance;
+      final selectedMood = _pulseMoodKeys[selectedMoodIndex];
+      repository.markPulseRecordedTodayLocally();
+
+      if (!mounted) {
+        return;
+      }
+
+      unawaited(_submitPulseInBackground(selectedMood));
+      await Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const MoodStatusScreen()),
+      );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmittingPulse = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_isCheckingToday) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFF3F1EF),
+        body: Center(
+          child: CircularProgressIndicator(color: Color(0xFF4B3425)),
+        ),
+      );
+    }
+
     final mood = moods[selectedMoodIndex];
 
     return Scaffold(
@@ -172,7 +285,9 @@ class _MoodSelectorScreenState extends State<MoodSelectorScreen> {
                     width: 170,
                     height: 48,
                     child: ElevatedButton(
-                      onPressed: () {},
+                      onPressed: _isSubmittingPulse
+                          ? null
+                          : _submitPulseAndContinue,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF4B3425),
                         foregroundColor: Colors.white,
@@ -181,13 +296,22 @@ class _MoodSelectorScreenState extends State<MoodSelectorScreen> {
                           borderRadius: BorderRadius.circular(28),
                         ),
                       ),
-                      child: const Text(
-                        'Let’s Check In',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                      child: _isSubmittingPulse
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              'Let’s Check In',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                     ),
                   ),
                 ),
@@ -228,9 +352,7 @@ class _MoodSelectorScreenState extends State<MoodSelectorScreen> {
                           ),
                         ),
                         Positioned.fill(
-                          child: CustomPaint(
-                            painter: _InnerArcPainter(),
-                          ),
+                          child: CustomPaint(painter: _InnerArcPainter()),
                         ),
                         Positioned(
                           left: pointerX - 20,
@@ -278,13 +400,8 @@ class _CenterMoodFace extends StatelessWidget {
     return Container(
       width: 170,
       height: 170,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: _getColor(),
-      ),
-      child: CustomPaint(
-        painter: _FacePainter(faceType),
-      ),
+      decoration: BoxDecoration(shape: BoxShape.circle, color: _getColor()),
+      child: CustomPaint(painter: _FacePainter(faceType)),
     );
   }
 }
@@ -316,22 +433,12 @@ class _MoodOrbState extends State<_MoodOrb>
     _scaleAnimation = Tween<double>(
       begin: 1.0,
       end: 1.08,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeInOut,
-      ),
-    );
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
 
     _glowAnimation = Tween<double>(
       begin: 18,
       end: 26,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeInOut,
-      ),
-    );
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   List<Color> _getGradient() {
@@ -441,26 +548,14 @@ class _InnerArcPainter extends CustomPainter {
       ..strokeWidth = 8
       ..strokeCap = StrokeCap.round;
 
-    canvas.drawArc(
-      rect,
-      math.pi,
-      -math.pi,
-      false,
-      paint,
-    );
+    canvas.drawArc(rect, math.pi, -math.pi, false, paint);
   }
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-enum MoodFaceType {
-  verySad,
-  sad,
-  neutral,
-  happy,
-  veryHappy,
-}
+enum MoodFaceType { verySad, sad, neutral, happy, veryHappy }
 
 class _FacePainter extends CustomPainter {
   final MoodFaceType type;
