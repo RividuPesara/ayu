@@ -13,6 +13,116 @@ logger = logging.getLogger(__name__)
 SESSIONS_COLLECTION  = "sessions"
 MESSAGES_COLLECTION  = "messages"
 USERS_COLLECTION = "users"
+CONVERSATION_HISTORY_LIMIT = 6
+DEFAULT_MESSAGES_PAGE_SIZE = 50
+MAX_MESSAGES_PAGE_SIZE = 200
+
+
+def _safe_int(value: Any, default: int = 0) -> int:
+    # Safely convert a value to integer or return a default if conversion fails
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _normalize_emotion_counts(value: Any) -> dict[str, int]:
+    # Make sure emotion dictionary contains valid strings and positive integers
+    if not isinstance(value, dict):
+        return {}
+
+    normalized: dict[str, int] = {}
+    for raw_label, raw_count in value.items():
+        label = str(raw_label).strip()
+        if not label:
+            continue
+        count = _safe_int(raw_count, 0)
+        if count > 0:
+            normalized[label] = count
+    return normalized
+
+
+def _dominant_emotion_from_counts(emotion_counts: dict[str, int]) -> str:
+    # Identify the emotion with the highest frequency in the counts dictionary
+    if not emotion_counts:
+        return ""
+    return max(emotion_counts.items(), key=lambda item: (item[1], item[0]))[0]
+
+
+def _build_session_aggregates(data: dict[str, Any]) -> dict[str, Any]:
+    # Extract and clean session level statistics from Firestore raw data
+    emotion_counts = _normalize_emotion_counts(data.get("emotionCounts"))
+    patient_message_count = _safe_int(
+        data.get("patientMessageCount", data.get("messageCount", sum(emotion_counts.values()))),
+        0,
+    )
+    crisis_count = _safe_int(data.get("crisisCount", 0), 0)
+
+    # Sanity check to prevent negative counts
+    if patient_message_count < 0:
+        patient_message_count = 0
+    if crisis_count < 0:
+        crisis_count = 0
+
+    dominant_emotion = str(data.get("dominantEmotion", "")).strip()
+    if not dominant_emotion:
+        dominant_emotion = _dominant_emotion_from_counts(emotion_counts)
+
+    return {
+        "emotion_counts": emotion_counts,
+        "patient_message_count": patient_message_count,
+        "crisis_count": crisis_count,
+        "dominant_emotion": dominant_emotion,
+    }
+
+
+def _recompute_session_aggregates(session_id: str) -> dict[str, Any]:
+    # Scan all session messages to rebuild statistics if they are missing from the session doc
+    db = get_firestore_client()
+    snapshots = (
+        db.collection(MESSAGES_COLLECTION)
+        .where("sessionId", "==", session_id)
+        .stream()
+    )
+
+    emotion_counts: dict[str, int] = {}
+    patient_message_count = 0
+    crisis_count = 0
+
+    for snap in snapshots:
+        data = snap.to_dict() or {}
+        if data.get("role") != "patient":
+            continue
+
+        patient_message_count += 1
+
+        analysis = data.get("analysis")
+        if not isinstance(analysis, dict):
+            continue
+
+        label = str(analysis.get("emotion_label") or analysis.get("analysis", "")).strip()
+        if label:
+            emotion_counts[label] = emotion_counts.get(label, 0) + 1
+
+        if str(analysis.get("safety_flag", "")).lower() == "crisis":
+            crisis_count += 1
+
+    dominant_emotion = _dominant_emotion_from_counts(emotion_counts)
+    # Sync the recomputed values back to the session documen
+    db.collection(SESSIONS_COLLECTION).document(session_id).update({
+        "emotionCounts": emotion_counts,
+        "patientMessageCount": patient_message_count,
+        "crisisCount": crisis_count,
+        "dominantEmotion": dominant_emotion,
+        "messageCount": patient_message_count,
+    })
+
+    return {
+        "emotion_counts": emotion_counts,
+        "patient_message_count": patient_message_count,
+        "crisis_count": crisis_count,
+        "dominant_emotion": dominant_emotion,
+    }
 
 def _parse_timestamp(value: Any) -> datetime | None:
     if value is None:
@@ -87,6 +197,9 @@ def create_session(uid: str, title: str) -> SessionResponse:
         "status": "active",
         "dominantEmotion": "",
         "messageCount": 0,
+        "patientMessageCount": 0,
+        "crisisCount": 0,
+        "emotionCounts": {},
         "isSummarized": False,
         "createdAt" : firestore.SERVER_TIMESTAMP,
         "lastMessageAt": firestore.SERVER_TIMESTAMP,
@@ -104,14 +217,35 @@ def list_sessions(uid: str) -> list[SessionResponse]:
     snapshots = (
         db.collection(SESSIONS_COLLECTION)
         .where("userId", "==", uid)
+        .where("status", "==", "active")
+        .order_by("lastMessageAt", direction=firestore.Query.DESCENDING)
         .stream()
     )
-    sessions = [_map_session(snap.id, snap.to_dict() or {}) for snap in snapshots]
-    # deleted sessions stay in Firestore but should be hidden from patient history.
-    sessions = [s for s in sessions if s.status.lower() != "archived"]
-    # sort locally to avoid having to build composite indexes in firestore console
-    sessions.sort(key=lambda s: s.last_message_at or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
-    return sessions
+    return [_map_session(snap.id, snap.to_dict() or {}) for snap in snapshots]
+
+
+def get_session_aggregates(session_id: str) -> dict[str, Any]:
+    # Fetch existing session stats if data is incomplete
+    db = get_firestore_client()
+    snapshot = db.collection(SESSIONS_COLLECTION).document(session_id).get()
+    if not snapshot.exists:
+        return {
+            "emotion_counts": {},
+            "patient_message_count": 0,
+            "crisis_count": 0,
+            "dominant_emotion": "",
+        }
+
+    data = snapshot.to_dict() or {}
+    has_aggregates = (
+        isinstance(data.get("emotionCounts"), dict)
+        and data.get("patientMessageCount") is not None
+        and data.get("crisisCount") is not None
+    )
+    if has_aggregates:
+        return _build_session_aggregates(data)
+
+    return _recompute_session_aggregates(session_id)
 
 
 def get_session(session_id: str, uid: str) -> dict[str, Any]:
@@ -135,25 +269,19 @@ def get_session(session_id: str, uid: str) -> dict[str, Any]:
 
 def get_conversation_history(session_id: str) -> list[dict[str, str]]:
     #Return the last 6 messages in chronological order to build the conversation context passed to Gemini
-   
+
     db = get_firestore_client()
-    # order_by with where requires a composite index — sort in Python instead
-    snapshots = (
+    snapshots = list(
         db.collection(MESSAGES_COLLECTION)
         .where("sessionId", "==", session_id)
+        .order_by("timestamp", direction=firestore.Query.DESCENDING)
+        .limit(CONVERSATION_HISTORY_LIMIT)
         .stream()
     )
+
+    # Query returns newest to first, reverse so the prompt sees oldest to newest
+    snapshots.reverse()
     messages = [snap.to_dict() or {} for snap in snapshots]
-
-    # Sort chronologically using the timestamp field
-    def _ts_key(msg: dict) -> datetime:
-        ts = _parse_timestamp(msg.get("timestamp"))
-        return ts if ts is not None else datetime.min.replace(tzinfo=timezone.utc)
-
-    messages.sort(key=_ts_key)
-
-    # Keep only the last 10 for the prompt context
-    messages = messages[-6:]
 
     return [
         {"role": str(msg.get("role", "")), "content": str(msg.get("content", ""))}
@@ -162,46 +290,19 @@ def get_conversation_history(session_id: str) -> list[dict[str, str]]:
 
 
 def get_user_emotion_history(session_id: str) -> list[str]:
-    # Collect all emotion labels recorded for patient messages in this sessio to build the user_summary
-
-    db = get_firestore_client()
-    # Filter on sessionId only
-    snapshots = (
-        db.collection(MESSAGES_COLLECTION)
-        .where("sessionId", "==", session_id)
-        .stream()
-    )
+    # Backward compatible helper reconstructed from session aggregates
+    aggregate = get_session_aggregates(session_id)
+    emotion_counts = aggregate["emotion_counts"]
     emotions: list[str] = []
-    for snap in snapshots:
-        data = snap.to_dict() or {}
-        if data.get("role") != "patient":
-            continue
-        analysis = data.get("analysis")
-        if isinstance(analysis, dict):
-            label = analysis.get("emotion_label") or analysis.get("analysis", "")
-            if label:
-                emotions.append(str(label))
+    for label, count in emotion_counts.items():
+        emotions.extend([label] * count)
     return emotions
 
 
 def get_crisis_count(session_id: str) -> int:
-    #Count the number of crisis flagged patient messages in this session
-    db = get_firestore_client()
-    # Filter on sessionId only and check role
-    snapshots = (
-        db.collection(MESSAGES_COLLECTION)
-        .where("sessionId", "==", session_id)
-        .stream()
-    )
-    count = 0
-    for snap in snapshots:
-        data = snap.to_dict() or {}
-        if data.get("role") != "patient":
-            continue
-        analysis = data.get("analysis")
-        if isinstance(analysis, dict) and analysis.get("safety_flag") == "crisis":
-            count += 1
-    return count
+    # Reads from session level aggregate instead of scanning message history
+    aggregate = get_session_aggregates(session_id)
+    return int(aggregate["crisis_count"])
 
 
 def save_patient_message(session_id: str,uid: str,content : str,
@@ -241,16 +342,45 @@ def save_chatbot_message(session_id: str, uid: str, content: str) -> str:
     return ref.id
 
 
-def update_session_stats(session_id: str,dominant_emotion: str,message_count: int,) -> None:
-    # update session metadata after each message exchange
-    db= get_firestore_client()
+def update_session_stats(session_id: str, emotion_label: str, safety_flag: str) -> None:
+    # Increment aggregate counters after each saved patient message
+    db = get_firestore_client()
     ref = db.collection(SESSIONS_COLLECTION).document(session_id)
 
-    ref.update({
-        "dominantEmotion": dominant_emotion,
-        "messageCount": message_count,
-        "lastMessageAt": firestore.SERVER_TIMESTAMP,
-    })
+    @firestore.transactional
+    def _apply_updates(transaction: firestore.Transaction) -> None:
+        snapshot = ref.get(transaction=transaction)
+        if not snapshot.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Session not found.",
+            )
+
+        data = snapshot.to_dict() or {}
+        aggregates = _build_session_aggregates(data)
+        emotion_counts = dict(aggregates["emotion_counts"])
+
+        clean_emotion = str(emotion_label).strip()
+        if clean_emotion:
+            emotion_counts[clean_emotion] = emotion_counts.get(clean_emotion, 0) + 1
+
+        patient_message_count = int(aggregates["patient_message_count"]) + 1
+        crisis_count = int(aggregates["crisis_count"])
+        if str(safety_flag).lower() == "crisis":
+            crisis_count += 1
+
+        dominant_emotion = _dominant_emotion_from_counts(emotion_counts)
+
+        transaction.update(ref, {
+            "dominantEmotion": dominant_emotion,
+            "messageCount": patient_message_count,
+            "patientMessageCount": patient_message_count,
+            "crisisCount": crisis_count,
+            "emotionCounts": emotion_counts,
+            "lastMessageAt": firestore.SERVER_TIMESTAMP,
+        })
+
+    _apply_updates(db.transaction())
 
 
 def get_user_profile(uid: str) -> dict[str, Any]:
@@ -347,13 +477,12 @@ def get_unsummarized_sessions(uid: str) -> list[dict]:
         db.collection(SESSIONS_COLLECTION)
         .where("userId", "==", uid)
         .where("isSummarized", "==", False)
+        .where("status", "==", "active")
         .stream()
     )
     results = []
     for snap in snapshots:
         data = snap.to_dict() or {}
-        if str(data.get("status", "active")).lower() == "archived":
-            continue
         # Skip empty sessions
         try:
             if int(data.get("messageCount", 0)) == 0:
@@ -364,14 +493,38 @@ def get_unsummarized_sessions(uid: str) -> list[dict]:
     return results
 
 
-def list_messages(session_id: str) -> list[MessageResponse]:
-    # fetches the full chat history sorted from oldest to newest
-    db= get_firestore_client()
-    snapshots = (
+def list_messages(
+    session_id: str,
+    limit: int = DEFAULT_MESSAGES_PAGE_SIZE,
+    start_after: str | None = None,
+) -> list[MessageResponse]:
+    # Fetch paginated history with newest page first, then return each page oldest to newest
+    db = get_firestore_client()
+    page_size = max(1, min(limit, MAX_MESSAGES_PAGE_SIZE))
+
+    query = (
         db.collection(MESSAGES_COLLECTION)
         .where("sessionId", "==", session_id)
-        .stream()
+        .order_by("timestamp", direction=firestore.Query.DESCENDING)
     )
-    messages = [_map_message(snap.id, snap.to_dict() or {}) for snap in snapshots]
-    messages.sort(key=lambda m: m.timestamp or datetime.min.replace(tzinfo=timezone.utc))
-    return messages
+
+    if start_after:
+        cursor_snapshot = db.collection(MESSAGES_COLLECTION).document(start_after).get()
+        if not cursor_snapshot.exists:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid start_after cursor.",
+            )
+
+        cursor_data = cursor_snapshot.to_dict() or {}
+        if cursor_data.get("sessionId") != session_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cursor does not belong to this session.",
+            )
+
+        query = query.start_after(cursor_snapshot)
+
+    snapshots = list(query.limit(page_size).stream())
+    snapshots.reverse()
+    return [_map_message(snap.id, snap.to_dict() or {}) for snap in snapshots]

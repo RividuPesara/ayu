@@ -61,8 +61,24 @@ class ChatMessage {
 
   // Convert to the local map format used by the chat UI
   Map<String, dynamic> toLocalMessage() {
-    return {'isUser': role == 'patient', 'message': content};
+    return {
+      'isUser': role == 'patient',
+      'message': content,
+      'messageId': messageId,
+    };
   }
+}
+
+class ChatMessagePage {
+  final List<ChatMessage> messages;
+  final String? nextCursor;
+  final bool hasMore;
+
+  ChatMessagePage({
+    required this.messages,
+    required this.nextCursor,
+    required this.hasMore,
+  });
 }
 
 class SendMessageResult {
@@ -122,15 +138,37 @@ Future<List<ChatSession>> fetchSessions() async {
   throw Exception('Failed to load sessions: ${response.statusCode}');
 }
 
-// Load all messages for an existing session
-Future<List<ChatMessage>> fetchMessages(String sessionId) async {
-  final response = await _backend.get('/chatbot/sessions/$sessionId/messages');
+// Load one page of messages for an existing session
+Future<ChatMessagePage> fetchMessages(
+  String sessionId, {
+  int limit = 50,
+  String? startAfter,
+}) async {
+  final response = await _backend.get(
+    '/chatbot/sessions/$sessionId/messages',
+    queryParameters: {
+      'limit': limit,
+      if (startAfter != null && startAfter.isNotEmpty)
+        'start_after': startAfter,
+    },
+  );
 
   if (response.statusCode == 200) {
     final list = jsonDecode(response.body) as List<dynamic>;
-    return list
+    final messages = list
         .map((e) => ChatMessage.fromJson(e as Map<String, dynamic>))
         .toList();
+
+    final hasMore = messages.length == limit;
+    final nextCursor = hasMore && messages.isNotEmpty
+        ? messages.first.messageId
+        : null;
+
+    return ChatMessagePage(
+      messages: messages,
+      nextCursor: nextCursor,
+      hasMore: hasMore,
+    );
   }
 
   throw Exception('Failed to load messages: ${response.statusCode}');

@@ -14,13 +14,17 @@ class Chatbot extends StatefulWidget {
 class _ChatbotState extends State<Chatbot> {
   final TextEditingController controller = TextEditingController();
   final ScrollController scrollController = ScrollController();
+  static const int _historyPageSize = 50;
 
   List<Map<String, dynamic>> messages = [];
   String? _sessionId;
+  String? _nextHistoryCursor;
+  bool _hasMoreHistory = false;
 
   bool isTyping = false;
   bool _isSending = false;
   bool _isLoadingHistory = false;
+  bool _isLoadingOlder = false;
 
   // Voice Variables
   late stt.SpeechToText _speech;
@@ -30,6 +34,7 @@ class _ChatbotState extends State<Chatbot> {
   void initState() {
     super.initState();
     _speech = stt.SpeechToText();
+    scrollController.addListener(_onScroll);
     if (widget.existingSession != null) {
       _sessionId = widget.existingSession!.sessionId;
       _loadExistingMessages();
@@ -38,8 +43,24 @@ class _ChatbotState extends State<Chatbot> {
 
   @override
   void dispose() {
+    scrollController.removeListener(_onScroll);
+    controller.dispose();
+    scrollController.dispose();
+    _speech.stop();
     _endCurrentSession();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (_isLoadingHistory || _isLoadingOlder || !_hasMoreHistory) {
+      return;
+    }
+    if (!scrollController.hasClients) {
+      return;
+    }
+    if (scrollController.position.pixels <= 100) {
+      _loadOlderMessages();
+    }
   }
 
   // Notify the backend when the user leaves so longTermSummary gets updated
@@ -52,14 +73,76 @@ class _ChatbotState extends State<Chatbot> {
   Future<void> _loadExistingMessages() async {
     setState(() => _isLoadingHistory = true);
     try {
-      final msgs = await api.fetchMessages(_sessionId!);
+      final page = await api.fetchMessages(
+        _sessionId!,
+        limit: _historyPageSize,
+      );
       if (!mounted) return;
-      setState(() => messages = msgs.map((m) => m.toLocalMessage()).toList());
+      setState(() {
+        messages = page.messages.map((m) => m.toLocalMessage()).toList();
+        _nextHistoryCursor = page.nextCursor;
+        _hasMoreHistory = page.hasMore;
+      });
       WidgetsBinding.instance.addPostFrameCallback((_) => scrollToBottom());
     } catch (e) {
       _showError('Could not load conversation history.');
     } finally {
       if (mounted) setState(() => _isLoadingHistory = false);
+    }
+  }
+
+  Future<void> _loadOlderMessages() async {
+    if (_sessionId == null || !_hasMoreHistory || _isLoadingOlder) {
+      return;
+    }
+
+    setState(() => _isLoadingOlder = true);
+
+    final previousOffset = scrollController.hasClients
+        ? scrollController.offset
+        : 0.0;
+    final previousMaxExtent = scrollController.hasClients
+        ? scrollController.position.maxScrollExtent
+        : 0.0;
+
+    try {
+      final page = await api.fetchMessages(
+        _sessionId!,
+        limit: _historyPageSize,
+        startAfter: _nextHistoryCursor,
+      );
+
+      if (!mounted) return;
+
+      final older = page.messages.map((m) => m.toLocalMessage()).toList();
+      if (older.isEmpty) {
+        setState(() {
+          _hasMoreHistory = false;
+        });
+        return;
+      }
+
+      setState(() {
+        messages = [...older, ...messages];
+        _nextHistoryCursor = page.nextCursor;
+        _hasMoreHistory = page.hasMore;
+      });
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!scrollController.hasClients) return;
+        final newMaxExtent = scrollController.position.maxScrollExtent;
+        final delta = newMaxExtent - previousMaxExtent;
+        final targetOffset = previousOffset + delta;
+        scrollController.jumpTo(
+          targetOffset.clamp(0.0, scrollController.position.maxScrollExtent),
+        );
+      });
+    } catch (_) {
+      _showError('Could not load older messages.');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingOlder = false);
+      }
     }
   }
 
@@ -168,6 +251,8 @@ class _ChatbotState extends State<Chatbot> {
     setState(() {
       messages.clear();
       _sessionId = null;
+      _nextHistoryCursor = null;
+      _hasMoreHistory = false;
     });
   }
 
@@ -321,9 +406,22 @@ class _ChatbotState extends State<Chatbot> {
               Expanded(
                 child: ListView.builder(
                   controller: scrollController,
-                  itemCount: messages.length + (showSpinner ? 1 : 0),
+                  itemCount:
+                      messages.length +
+                      (showSpinner ? 1 : 0) +
+                      (_isLoadingOlder ? 1 : 0),
                   itemBuilder: (context, index) {
-                    if (index == messages.length) {
+                    if (_isLoadingOlder && index == 0) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 10),
+                        child: Center(
+                          child: CircularProgressIndicator(strokeWidth: 2.0),
+                        ),
+                      );
+                    }
+
+                    final messageIndex = index - (_isLoadingOlder ? 1 : 0);
+                    if (messageIndex == messages.length) {
                       return const Align(
                         alignment: Alignment.centerLeft,
                         child: Padding(
@@ -335,7 +433,7 @@ class _ChatbotState extends State<Chatbot> {
                         ),
                       );
                     }
-                    return _buildMessage(messages[index]);
+                    return _buildMessage(messages[messageIndex]);
                   },
                 ),
               ),

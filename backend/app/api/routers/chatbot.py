@@ -2,11 +2,10 @@ import asyncio
 import functools
 import json
 import logging
-from collections import Counter
 
 logger = logging.getLogger(__name__)
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 
 from app.core import chatbot_engine
@@ -23,11 +22,10 @@ from app.services.chatbot_service import (
     archive_session,
     create_session,
     get_conversation_history,
-    get_crisis_count,
     get_long_term_summary,
     get_session,
+    get_session_aggregates,
     get_unsummarized_sessions,
-    get_user_emotion_history,
     list_messages,
     list_sessions,
     mark_session_summarized,
@@ -74,13 +72,14 @@ async def get_chat_sessions(user: CurrentUser = Depends(require_patient_access),
         for raw in pending:
             sid = raw["session_id"]
             try:
-                conv_history, user_emotions, crisis_count = await asyncio.gather(
+                conv_history, aggregates = await asyncio.gather(
                     _run_sync(get_conversation_history, sid),
-                    _run_sync(get_user_emotion_history, sid),
-                    _run_sync(get_crisis_count, sid),
+                    _run_sync(get_session_aggregates, sid),
                 )
                 user_summary = chatbot_engine._generate_user_summary(
-                    user_emotions, crisis_count, len(user_emotions)
+                    aggregates["emotion_counts"],
+                    int(aggregates["crisis_count"]),
+                    int(aggregates["patient_message_count"]),
                 )
                 updated = await _run_sync(
                     chatbot_engine.generate_long_term_summary,
@@ -126,23 +125,24 @@ async def archive_all_chat_sessions(
 async def send_message(session_id: str,payload: SendMessageRequest,user : CurrentUser = Depends(require_patient_access),
 ) -> ChatResponse:
     # Validate session ownership and gather all Firestore context concurrently
-    _, conversation_history, user_emotions, crisis_count, long_term_summary = (
+    _, conversation_history, aggregates, long_term_summary = (
         await asyncio.gather(
             _run_sync(get_session, session_id, user.uid),
             _run_sync(get_conversation_history, session_id),
-            _run_sync(get_user_emotion_history, session_id),
-            _run_sync(get_crisis_count, session_id),
+            _run_sync(get_session_aggregates, session_id),
             _run_sync(get_long_term_summary, user.uid),
         )
     )
-    total_messages = len(user_emotions)
+    emotion_counts = dict(aggregates.get("emotion_counts", {}))
+    crisis_count = int(aggregates.get("crisis_count", 0))
+    total_messages = int(aggregates.get("patient_message_count", 0))
 
     # Run the full chatbot pipeline
     result = await _run_sync(
         chatbot_engine.process_user_message,
         payload.content,
         conversation_history,
-        user_emotions,
+        emotion_counts,
         crisis_count,
         total_messages,
         long_term_summary,
@@ -161,15 +161,7 @@ async def send_message(session_id: str,payload: SendMessageRequest,user : Curren
         save_patient_message, session_id, user.uid, payload.content, analysis
     )
     await _run_sync(save_chatbot_message, session_id, user.uid, result["response"])
-
-    # Update session stats where dominant emotion is the most common across this session
-    all_emotions = user_emotions + [result["sentiment"]]
-    dominant_emotion = Counter(all_emotions).most_common(1)[0][0] if all_emotions else ""
-    new_message_count = total_messages + 1
-
-    await _run_sync(
-        update_session_stats, session_id, dominant_emotion, new_message_count
-    )
+    await _run_sync(update_session_stats, session_id, result["sentiment"], result["safety_flag"])
 
     return ChatResponse(
         response = result["response"],
@@ -190,23 +182,24 @@ async def stream_message(
     user: CurrentUser = Depends(require_patient_access),
 ):
     # fetches session details, history, and user profile data in parallel
-    _, conversation_history, user_emotions, crisis_count, long_term_summary = (
+    _, conversation_history, aggregates, long_term_summary = (
         await asyncio.gather(
             _run_sync(get_session, session_id, user.uid),
             _run_sync(get_conversation_history, session_id),
-            _run_sync(get_user_emotion_history, session_id),
-            _run_sync(get_crisis_count, session_id),
+            _run_sync(get_session_aggregates, session_id),
             _run_sync(get_long_term_summary, user.uid),
         )
     )
-    total_messages = len(user_emotions)
+    emotion_counts = dict(aggregates.get("emotion_counts", {}))
+    crisis_count = int(aggregates.get("crisis_count", 0))
+    total_messages = int(aggregates.get("patient_message_count", 0))
 
     # processes inputs to determine the emotional tone and safety status
     ctx = await _run_sync(
         chatbot_engine.prepare_streaming_context,
         payload.content,
         conversation_history,
-        user_emotions,
+        emotion_counts,
         crisis_count,
         total_messages,
         long_term_summary,
@@ -238,10 +231,6 @@ async def stream_message(
     uid = user.uid
     prompt = ctx["prompt"]
     is_crisis = ctx["is_crisis"]
-    sentiment = ctx["sentiment"]
-    all_emotions = user_emotions + [sentiment]
-    dominant_emotion = Counter(all_emotions).most_common(1)[0][0] if all_emotions else ""
-    new_msg_count = total_messages + 1
 
     async def event_generator():
         # sends metadata immediately so the UI can update while the model thinks
@@ -264,7 +253,7 @@ async def stream_message(
 
         # stores the complete bot answer and updates session metrics
         await _run_sync(save_chatbot_message, session_id, uid, full_response)
-        await _run_sync(update_session_stats, session_id, dominant_emotion, new_msg_count)
+        await _run_sync(update_session_stats, session_id, ctx["sentiment"], ctx["safety_flag"])
         # signals the end of the stream to the frontend
         done_data = json.dumps({"event": "done"})
         yield f"data: {done_data}\n\n"
@@ -280,10 +269,12 @@ async def stream_message(
 @router.get("/sessions/{session_id}/messages", response_model=list[MessageResponse])
 async def get_session_messages(
     session_id: str,
+    limit: int = Query(default=50, ge=1, le=200),
+    start_after: str | None = Query(default=None),
     user      : CurrentUser = Depends(require_patient_access),
 ) -> list[MessageResponse]:
     await _run_sync(get_session, session_id, user.uid)
-    return await _run_sync(list_messages, session_id)
+    return await _run_sync(list_messages, session_id, limit, start_after)
 
 
 # End a session and updates longTermSummary by merging old summary with this session's chatwhen the user leaves the chatbot screen
@@ -291,12 +282,11 @@ async def get_session_messages(
 async def end_session(session_id: str,user : CurrentUser = Depends(require_patient_access),
 ) -> dict[str, str]:
     # gathers all session data and the current profile summary in parallel
-    _, conversation_history, user_emotions, crisis_count, existing_summary = (
+    _, conversation_history, aggregates, existing_summary = (
         await asyncio.gather(
             _run_sync(get_session, session_id, user.uid),
             _run_sync(get_conversation_history, session_id),
-            _run_sync(get_user_emotion_history, session_id),
-            _run_sync(get_crisis_count, session_id),
+            _run_sync(get_session_aggregates, session_id),
             _run_sync(get_long_term_summary, user.uid),
         )
     )
@@ -306,7 +296,11 @@ async def end_session(session_id: str,user : CurrentUser = Depends(require_patie
         return {"status": "no_messages"}
     
     # creates a brief snapshot of the user's state during this specific session
-    user_summary = chatbot_engine._generate_user_summary(user_emotions, crisis_count, len(user_emotions))
+    user_summary = chatbot_engine._generate_user_summary(
+        aggregates["emotion_counts"],
+        int(aggregates["crisis_count"]),
+        int(aggregates["patient_message_count"]),
+    )
     # uses gemini to integrate the new session details into the master profile
     updated = await _run_sync(
         chatbot_engine.generate_long_term_summary,

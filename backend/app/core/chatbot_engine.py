@@ -59,6 +59,21 @@ CRISIS_FALLBACK_TEMPLATES = [
     "I'm with you. If you're thinking of hurting yourself, call 1990 now. Is someone near you?",
 ]
 
+GENERAL_RATE_LIMIT_FALLBACK = (
+    "I'm sorry, I'm a bit overwhelmed with requests right now. "
+    "Could you try sending your message again in a minute? I'm still here for you."
+)
+
+GENERAL_CONFIGURATION_FALLBACK = (
+    "I'm having a temporary configuration issue right now. "
+    "Please try again shortly while we fix it."
+)
+
+GENERAL_SERVICE_FALLBACK = (
+    "I'm sorry, something went wrong while generating my response. "
+    "Could you try again in a moment?"
+)
+
 # Excluded from lexical keyword matching
 DEFAULT_STOP_WORDS = {
     "where", "is", "the", "a", "an", "of", "to", "in", "for", "on", "at",
@@ -290,6 +305,60 @@ def _formulate_prompt(safety_report: dict, knowledge_context: dict | None = None
     }
 
 # Gemini generation
+def _compact_error(exc: Exception, max_len: int = 240) -> str:
+    text = str(exc).replace("\n", " ").strip()
+    if len(text) <= max_len:
+        return text
+    return text[: max_len - 3] + "..."
+
+
+def _classify_gemini_error(exc: Exception) -> str:
+    error_text = str(exc).lower()
+
+    if any(
+        keyword in error_text
+        for keyword in (
+            "api_key_invalid",
+            "api key expired",
+            "api key invalid",
+            "invalid api key",
+            "permission_denied",
+            "unauthenticated",
+        )
+    ):
+        return "credentials"
+
+    if any(
+        keyword in error_text
+        for keyword in (
+            "resourceexhausted",
+            "quota",
+            "429",
+            "exceeded",
+            "rate limit",
+        )
+    ):
+        return "quota"
+
+    if any(keyword in error_text for keyword in ("invalid_argument", "400")):
+        return "invalid_request"
+
+    return "unknown"
+
+
+def _fallback_text_for_error(error_type: str, is_crisis: bool) -> str:
+    if is_crisis:
+        return random.choice(CRISIS_FALLBACK_TEMPLATES)
+
+    if error_type == "quota":
+        return GENERAL_RATE_LIMIT_FALLBACK
+
+    if error_type == "credentials":
+        return GENERAL_CONFIGURATION_FALLBACK
+
+    return GENERAL_SERVICE_FALLBACK
+
+
 def _generate_with_gemini(user_prompt: str, is_crisis: bool = False) -> str:
     try:
         full_prompt = f"\n{SYSTEM_PROMPT}\n\nFollow the system instructions above strictly.\n\n{user_prompt}"
@@ -302,19 +371,23 @@ def _generate_with_gemini(user_prompt: str, is_crisis: bool = False) -> str:
             return text.strip()
         return str(response)
     except Exception as exc:
-        error_text = str(exc).lower()
-        is_quota = any(kw in error_text for kw in (
-            "resourceexhausted", "quota", "429", "exceeded", "rate limit",
-        ))
-        if is_quota:
-            logger.warning("Gemini quota/rate-limit hit: %s", exc)
-            if is_crisis:
-                return random.choice(CRISIS_FALLBACK_TEMPLATES)
-            return (
-                "I'm sorry, I'm a bit overwhelmed with requests right now. "
-                "Could you try sending your message again in a minute? I'm still here for you."
+        error_type = _classify_gemini_error(exc)
+        compact = _compact_error(exc)
+
+        if error_type == "quota":
+            logger.warning("Gemini quota/rate-limit hit; returning fallback. %s", compact)
+        elif error_type == "credentials":
+            logger.error(
+                "Gemini credentials are invalid/expired; returning fallback. "
+                "Update the Gemini API key and restart the backend. %s",
+                compact,
             )
-        raise
+        elif error_type == "invalid_request":
+            logger.error("Gemini rejected request as invalid; returning fallback. %s", compact)
+        else:
+            logger.exception("Unexpected Gemini error; returning fallback response.")
+
+        return _fallback_text_for_error(error_type, is_crisis)
 
 
 def _stream_with_gemini(user_prompt: str, is_crisis: bool = False):
@@ -326,21 +399,23 @@ def _stream_with_gemini(user_prompt: str, is_crisis: bool = False):
             if text:
                 yield str(text)
     except Exception as exc:
-        error_text = str(exc).lower()
-        is_quota = any(kw in error_text for kw in (
-            "resourceexhausted", "quota", "429", "exceeded", "rate limit",
-        ))
-        if is_quota:
-            logger.warning("Gemini quota/rate-limit hit during stream: %s", exc)
-            if is_crisis:
-                yield random.choice(CRISIS_FALLBACK_TEMPLATES)
-            else:
-                yield (
-                    "I'm sorry, I'm a bit overwhelmed with requests right now. "
-                    "Could you try sending your message again in a minute? I'm still here for you."
-                )
+        error_type = _classify_gemini_error(exc)
+        compact = _compact_error(exc)
+
+        if error_type == "quota":
+            logger.warning("Gemini quota/rate-limit hit during stream; returning fallback. %s", compact)
+        elif error_type == "credentials":
+            logger.error(
+                "Gemini credentials are invalid/expired during stream; returning fallback. "
+                "Update the Gemini API key and restart the backend. %s",
+                compact,
+            )
+        elif error_type == "invalid_request":
+            logger.error("Gemini invalid request during stream; returning fallback. %s", compact)
         else:
-            raise
+            logger.exception("Unexpected Gemini streaming error; returning fallback token.")
+
+        yield _fallback_text_for_error(error_type, is_crisis)
 
 
 def _format_history_for_prompt(history: list[dict]) -> str:
@@ -354,10 +429,29 @@ def _format_history_for_prompt(history: list[dict]) -> str:
 
 
 # User summary
-def _generate_user_summary(emotions: list[str], crisis_count: int, total_messages: int) -> str:
-    if not emotions:
+def _generate_user_summary(
+    emotions: list[str] | dict[str, int],
+    crisis_count: int,
+    total_messages: int,
+) -> str:
+    if isinstance(emotions, dict):
+        counts: Counter = Counter()
+        for raw_label, raw_count in emotions.items():
+            label = str(raw_label).strip()
+            if not label:
+                continue
+            try:
+                count = int(raw_count)
+            except (TypeError, ValueError):
+                continue
+            if count > 0:
+                counts[label] = count
+    else:
+        counts = Counter(emotions)
+
+    if not counts:
         return "New user, no conversation history yet."
-    counts  = Counter(emotions)
+
     top = counts.most_common(2)
     top_str = ", ".join(f"{e} ({c}x)" for e, c in top)
     return (
@@ -465,7 +559,30 @@ Rules:
         content= getattr(response, "content", None) or getattr(response, "text", None)
         return str(content).strip() if content else existing_summary
     except Exception as exc:
-        logger.warning("Could not update long-term summary (%s) — keeping existing one.", exc)
+        error_type = _classify_gemini_error(exc)
+        compact = _compact_error(exc)
+
+        if error_type == "quota":
+            logger.warning(
+                "Skipped long-term summary update due to Gemini quota/rate limit; keeping existing summary. %s",
+                compact,
+            )
+        elif error_type == "credentials":
+            logger.error(
+                "Skipped long-term summary update: Gemini API key invalid/expired. "
+                "Renew key and restart backend. %s",
+                compact,
+            )
+        elif error_type == "invalid_request":
+            logger.error(
+                "Skipped long-term summary update due to invalid Gemini request; keeping existing summary. %s",
+                compact,
+            )
+        else:
+            logger.warning(
+                "Could not update long-term summary due to Gemini error; keeping existing one. %s",
+                compact,
+            )
         return existing_summary
 
 
@@ -590,7 +707,7 @@ Keep it short unless they asked for detailed info.
 def process_user_message(
     user_message : str,
     conversation_history: list[dict],
-    user_emotions: list[str],
+    user_emotions: list[str] | dict[str, int],
     crisis_count: int,
     total_messages: int,
     long_term_summary : str = "",
@@ -743,7 +860,7 @@ Keep it short unless they asked for detailed info.
 def prepare_streaming_context(
     user_message: str,
     conversation_history: list[dict],
-    user_emotions: list[str],
+    user_emotions: list[str] | dict[str, int],
     crisis_count: int,
     total_messages: int,
     long_term_summary: str = "",
