@@ -107,6 +107,8 @@ def list_sessions(uid: str) -> list[SessionResponse]:
         .stream()
     )
     sessions = [_map_session(snap.id, snap.to_dict() or {}) for snap in snapshots]
+    # deleted sessions stay in Firestore but should be hidden from patient history.
+    sessions = [s for s in sessions if s.status.lower() != "archived"]
     # sort locally to avoid having to build composite indexes in firestore console
     sessions.sort(key=lambda s: s.last_message_at or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
     return sessions
@@ -293,6 +295,51 @@ def mark_session_summarized(session_id: str) -> None:
     })
 
 
+def archive_session(session_id: str) -> None:
+    # delete a session by marking it archived.
+    db = get_firestore_client()
+    db.collection(SESSIONS_COLLECTION).document(session_id).update({
+        "status": "archived",
+        "archivedAt": firestore.SERVER_TIMESTAMP,
+    })
+
+
+def archive_all_sessions(uid: str) -> int:
+    # delete all user sessions in batches
+    db = get_firestore_client()
+    snapshots = (
+        db.collection(SESSIONS_COLLECTION)
+        .where("userId", "==", uid)
+        .stream()
+    )
+
+    archived_count = 0
+    batch = db.batch()
+    pending_writes = 0
+
+    for snap in snapshots:
+        data = snap.to_dict() or {}
+        if str(data.get("status", "active")).lower() == "archived":
+            continue
+
+        batch.update(snap.reference, {
+            "status": "archived",
+            "archivedAt": firestore.SERVER_TIMESTAMP,
+        })
+        archived_count += 1
+        pending_writes += 1
+
+        if pending_writes >= 450:
+            batch.commit()
+            batch = db.batch()
+            pending_writes = 0
+
+    if pending_writes > 0:
+        batch.commit()
+
+    return archived_count
+
+
 def get_unsummarized_sessions(uid: str) -> list[dict]:
     #finds non empty pending sessions that need to be processed for the longterm summary
     db = get_firestore_client()
@@ -305,6 +352,8 @@ def get_unsummarized_sessions(uid: str) -> list[dict]:
     results = []
     for snap in snapshots:
         data = snap.to_dict() or {}
+        if str(data.get("status", "active")).lower() == "archived":
+            continue
         # Skip empty sessions
         try:
             if int(data.get("messageCount", 0)) == 0:

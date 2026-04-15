@@ -51,15 +51,12 @@ NEVER mention, reference, or allude to anything from that memory unless the user
 If the user says "hi" or starts small talk, respond only to what they just said. Pretend you do not remember anything from before.
 The memory is only for silent context — to adjust your tone and give accurate medical advice — NOT to bring up past events."""
 
-CRISIS_HARDCODED_PREFIX = (
-    "I am here with you right now. "
-    "If you might hurt yourself, please call 1990 now or ask someone near you to stay with you."
-)
+CRISIS_HARDCODED_PREFIX = "I'm here with you."
 
 CRISIS_FALLBACK_TEMPLATES = [
-    "I am here with you right now. Please call 1990 immediately if you are in danger. Are you safe right now?",
-    "I am here with you. Please reach out to 1990 (ambulance) right now if you are in danger. Can you tell me if you are somewhere safe?",
-    "I am with you. If you are thinking of harming yourself, please call 1990 now. Is there someone near you who can help?",
+    "I'm here with you right now. If you're in danger, call 1990. Are you safe?",
+    "I'm here. If you need help right now, call 1990. Can you tell me if you're somewhere safe?",
+    "I'm with you. If you're thinking of hurting yourself, call 1990 now. Is someone near you?",
 ]
 
 # Excluded from lexical keyword matching
@@ -487,19 +484,21 @@ def _handle_crisis_response(
     history_context = _format_history_for_prompt(conversation_history)
     memory_block = _build_memory_block(long_term_summary)
 
-    prompt = f"""Crisis Situation - Detected: {persona_packet['sentiment_label']}
+    prompt = f"""CRISIS SITUATION - Someone may be in danger.
 
-This person may be in danger right now.
+CRITICAL INSTRUCTION:
+A short message has ALREADY been sent to them: "{CRISIS_HARDCODED_PREFIX}"
 
-The FIRST part of the message has already been written for you:
-"{CRISIS_HARDCODED_PREFIX}"
+Your job is to write ONLY what comes AFTER that opening message.
+Do NOT repeat or rephrase "{CRISIS_HARDCODED_PREFIX}" in any way.
 
-You must write ONLY the continuation that follows that sentence.
-Do NOT repeat anything from that opening. Just continue naturally.
 Your continuation should:
-1. Show genuine concern and keep a calm tone.
-2. Ask if they are safe right now or if someone is with them.
-3. Keep them talking with short supportive guidance.
+1. Keep them talking - ask if they're safe right now or if someone is with them
+2. Show genuine care without sounding clinical or robotic
+3. Gently mention calling 1990 (ambulance) if they're in immediate danger
+4. Keep your tone calm, warm, and human - like a caring friend who's genuinely worried
+5. Be brief and direct - this is urgent
+
 {memory_block}
 
 Recent conversation:
@@ -507,7 +506,11 @@ Recent conversation:
 
 Session stats: {user_summary}
 
+Detected emotion: {persona_packet['sentiment_label']}
+
 What they just said: {persona_packet['user_message']}
+
+Remember: Just write the continuation. The opening "{CRISIS_HARDCODED_PREFIX}" is already there.
 """
 
     continuation = _generate_with_gemini(prompt, is_crisis=True).strip()
@@ -661,21 +664,21 @@ long_term_summary: str = "",
     memory_block = _build_memory_block(long_term_summary)
 
     if handler_type == "crisis":
-        return f"""
-        
-    Crisis Situation - Detected: {persona_packet['sentiment_label']}
+        return f"""CRISIS SITUATION - Someone may be in danger.
 
-This person may be in danger right now.
+CRITICAL INSTRUCTION:
+A short message has ALREADY been sent to them: "{CRISIS_HARDCODED_PREFIX}"
 
-The FIRST part of the message has already been written for you:
-"{CRISIS_HARDCODED_PREFIX}"
+Your job is to write ONLY what comes AFTER that opening message.
+Do NOT repeat or rephrase "{CRISIS_HARDCODED_PREFIX}" in any way.
 
-You must write ONLY the continuation that follows that sentence.
-Do NOT repeat anything from that opening. Just continue naturally.
 Your continuation should:
-1. Show genuine concern and keep a calm tone.
-2. Ask if they are safe right now or if someone is with them.
-3. Keep them talking with short supportive guidance.
+1. Keep them talking - ask if they're safe right now or if someone is with them
+2. Show genuine care without sounding clinical or robotic
+3. Gently mention calling 1990 (ambulance) if they're in immediate danger
+4. Keep your tone calm, warm, and human - like a caring friend who's genuinely worried
+5. Be brief and direct - this is urgent
+
 {memory_block}
 
 Recent conversation:
@@ -683,7 +686,11 @@ Recent conversation:
 
 Session stats: {user_summary}
 
+Detected emotion: {persona_packet['sentiment_label']}
+
 What they just said: {persona_packet['user_message']}
+
+Remember: Just write the continuation. The opening "{CRISIS_HARDCODED_PREFIX}" is already there.
 """
 
     if handler_type == "knowledge":

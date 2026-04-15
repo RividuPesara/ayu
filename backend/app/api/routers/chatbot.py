@@ -19,6 +19,8 @@ from app.schemas.chatbot import (
     SessionResponse,
 )
 from app.services.chatbot_service import (
+    archive_all_sessions,
+    archive_session,
     create_session,
     get_conversation_history,
     get_crisis_count,
@@ -99,6 +101,24 @@ async def get_chat_sessions(user: CurrentUser = Depends(require_patient_access),
                 break
 
     return sessions
+
+
+@router.post("/sessions/{session_id}/archive", status_code=status.HTTP_200_OK)
+async def archive_chat_session(
+    session_id: str,
+    user: CurrentUser = Depends(require_patient_access),
+) -> dict[str, str]:
+    await _run_sync(get_session, session_id, user.uid)
+    await _run_sync(archive_session, session_id)
+    return {"status": "archived"}
+
+
+@router.post("/sessions/archive-all", status_code=status.HTTP_200_OK)
+async def archive_all_chat_sessions(
+    user: CurrentUser = Depends(require_patient_access),
+) -> dict[str, int | str]:
+    count = await _run_sync(archive_all_sessions, user.uid)
+    return {"status": "archived", "count": count}
 
 
 # Send a message and receive Ayu's response
