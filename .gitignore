@@ -32,6 +32,11 @@ venv.bak/
 # Environment files
 .env
 
+# Firebase admin service account credentials
+*firebase-adminsdk-*.json
+firebase-adminsdk.json
+backend/secrets/
+
 # Build / distribution
 build/
 dist/
