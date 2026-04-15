@@ -75,6 +75,8 @@ flutter:
     - assets/mastercard.svg
     - assets/amex.svg
     - assets/thumbnail.png
+    - assets/forgotpass.png
+    - assets/rocket.json
 
   # To add assets to your application, add an assets section, like this:
   # assets:
