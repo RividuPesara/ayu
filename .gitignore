@@ -47,3 +47,6 @@ pip-wheel-metadata/
 
 # Data folder 
 data/
+
+# Firebase admin SDK credentials
+firebase-adminsdk.json

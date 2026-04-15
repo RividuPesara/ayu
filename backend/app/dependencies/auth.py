@@ -6,6 +6,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
+from app.core.config import get_settings
 from app.core.firebase import verify_firebase_token
 from app.services.user_service import detect_user_role, extract_uid_from_token
 
@@ -63,10 +64,18 @@ def _resolve_user_blocking(token: str) -> CurrentUser:
   )
 
 
-# Extract and build the current user from the authorization token
-async def get_current_user(
-  credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
-) -> CurrentUser:
+# Extract and build the current user from the authorization token.
+async def get_current_user(credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],) -> CurrentUser:
+  settings = get_settings()
+
+  if settings.dev_mode:
+    return CurrentUser(
+      uid = settings.dev_patient_uid,
+      email = settings.dev_patient_email,
+      role = "patient",
+      full_name = settings.dev_patient_name,
+    )
+
   if credentials is None:
     raise HTTPException(
       status_code=status.HTTP_401_UNAUTHORIZED,
@@ -92,4 +101,15 @@ async def require_doctor_user(
 async def require_doctor_access(
   user: Annotated[CurrentUser, Depends(require_doctor_user)],
 ) -> CurrentUser:
+  return user
+
+# Allow only users with patient role
+async def require_patient_access(
+  user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> CurrentUser:
+  if user.role != "patient":
+    raise HTTPException(
+      status_code=status.HTTP_403_FORBIDDEN,
+      detail="Patient role required.",
+    )
   return user

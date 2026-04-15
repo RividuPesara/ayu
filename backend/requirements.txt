@@ -7,3 +7,20 @@ cloudinary==1.44.1
 python-multipart==0.0.20
 cachetools==5.5.2
 
+ftfy
+joblib
+nltk
+numpy
+pandas
+scipy
+langchain-google-genai
+langchain-huggingface
+langchain-chroma
+langchain-core
+langchain-text-splitters
+google-genai
+scikit-learn
+xgboost
+sentence-transformers
+chromadb
+
