@@ -15,6 +15,7 @@ class _MoodStatusScreenState extends State<MoodStatusScreen> {
   String? _error;
   MoodStats? _stats;
   List<MoodHistoryItem> _cachedRecentHistory = const [];
+  String _displayStatus = 'Mainly Neutral';
 
   @override
   void initState() {
@@ -31,6 +32,7 @@ class _MoodStatusScreenState extends State<MoodStatusScreen> {
     setState(() {
       _cachedRecentHistory = MoodJournalRepository.instance
           .recentHistoryFromCache();
+      _displayStatus = MoodJournalRepository.instance.currentStatus;
     });
 
     await _loadStatus();
@@ -50,7 +52,10 @@ class _MoodStatusScreenState extends State<MoodStatusScreen> {
       }
 
       setState(() {
-        _stats = data;
+        if (_stats == null) {
+          _stats = data;
+          _displayStatus = data.currentStatus;
+        }
         _cachedRecentHistory = MoodJournalRepository.instance
             .recentHistoryFromCache();
       });
@@ -92,8 +97,7 @@ class _MoodStatusScreenState extends State<MoodStatusScreen> {
     const Color whiteSection = Color(0xFFF4F4F4);
 
     final stats = _stats;
-    final String dominantEmotion = stats?.dominantEmotion ?? 'Mainly Neutral';
-    final String statusText = dominantEmotion.toUpperCase();
+    final String statusText = _displayStatus.toUpperCase();
     final String detailText =
         stats?.emotionMessage ??
         'Keep journaling to build a clearer mood pattern.';
@@ -187,7 +191,7 @@ class _MoodStatusScreenState extends State<MoodStatusScreen> {
                           vertical: 14,
                         ),
                         decoration: BoxDecoration(
-                          color: _statusChipColor(dominantEmotion),
+                          color: _statusChipColor(_displayStatus),
                           borderRadius: BorderRadius.circular(24),
                         ),
                         child: Text(

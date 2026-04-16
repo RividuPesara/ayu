@@ -372,9 +372,9 @@ def _dominant_emotion_from_recent(uid: str, limit: int = 5) -> str:
     return max(counts, key=counts.get)
 
 
-def _dominant_emotion_display(mood_key: str, *, has_crisis: bool) -> str:
-    # Logic to prioritize safety status over general mood averages
-    if has_crisis or mood_key == "Suicidal":
+def _dominant_emotion_display(mood_key: str) -> str:
+    # Map dominant mood into a display label without crisis override
+    if mood_key == "Suicidal":
         return "Fragile"
     if mood_key in _LOW_MOOD_KEYS:
         return "Mainly Low"
@@ -401,7 +401,7 @@ def compute_and_store_mood_stats(uid: str) -> dict[str, Any]:
     pulse_recorded_today = bool(today_sources.get("pulse_recorded_today", False))
 
     dominant_key = _dominant_emotion_from_recent(uid)
-    dominant_emotion = _dominant_emotion_display(dominant_key, has_crisis=has_crisis)
+    dominant_emotion = _dominant_emotion_display(dominant_key)
     emotion_message = _dominant_emotion_message(dominant_emotion)
 
     counters = _get_user_day_counters(uid)
@@ -409,14 +409,11 @@ def compute_and_store_mood_stats(uid: str) -> dict[str, Any]:
     journal_streak = _safe_int(counters.get("journal_streak"), default=0)
     last_active_date_key = str(counters.get("last_active_date_key", "")).strip()
 
-    if has_crisis:
-        composite_status = "Fragile"
-        status_label = "Status: Fragile"
-    else:
-        composite_status = dominant_emotion
-        status_label = f"Status: {dominant_emotion}"
+    composite_status = dominant_emotion
+    status_label = f"Status: {dominant_emotion}"
 
     mood_stats = {
+        "currentStatus": composite_status,
         "compositeStatus": composite_status,
         "statusLabel": status_label,
         "dominantEmotion": dominant_emotion,
@@ -433,6 +430,7 @@ def compute_and_store_mood_stats(uid: str) -> dict[str, Any]:
     db.collection(USERS_COLLECTION).document(uid).set(
         {
             "moodStats": mood_stats,
+            "currentStatus": composite_status,
             "updatedAt": firestore.SERVER_TIMESTAMP,
         },
         merge=True,
@@ -443,6 +441,7 @@ def compute_and_store_mood_stats(uid: str) -> dict[str, Any]:
 
 def _build_mood_stats_api_payload(mood_stats: dict[str, Any], recent_history: list[dict[str, Any]]) -> dict[str, Any]:
     return {
+        "current_status": str(mood_stats.get("currentStatus", "Mainly Neutral")),
         "composite_status": str(mood_stats.get("compositeStatus", "Mainly Neutral")),
         "status_label": str(mood_stats.get("statusLabel", "")),
         "dominant_emotion": str(mood_stats.get("dominantEmotion", "Mainly Neutral")),

@@ -32,6 +32,7 @@ class MoodHistoryItem {
 }
 
 class MoodStats {
+  final String currentStatus;
   final String compositeStatus;
   final String statusLabel;
   final String dominantEmotion;
@@ -44,6 +45,7 @@ class MoodStats {
   final List<MoodHistoryItem> recentHistory;
 
   MoodStats({
+    required this.currentStatus,
     required this.compositeStatus,
     required this.statusLabel,
     required this.dominantEmotion,
@@ -58,6 +60,9 @@ class MoodStats {
 
   factory MoodStats.fromJson(Map<String, dynamic> json) {
     return MoodStats(
+      currentStatus: json['current_status'] as String? ??
+          json['composite_status'] as String? ??
+          'Mainly Neutral',
       compositeStatus: json['composite_status'] as String? ?? 'Mainly Neutral',
       statusLabel: json['status_label'] as String? ?? '',
       dominantEmotion: json['dominant_emotion'] as String? ?? 'Mainly Neutral',
@@ -220,6 +225,7 @@ class MoodJournalRepository {
   int _journalStreak = 0;
   String _lastActiveDateKey = '';
   bool _pulseRecordedToday = false;
+  String _currentStatus = 'Mainly Neutral';
 
   static const int _maxRecentEntries = 4;
   static const String _lightCacheKey = 'mood_journal_light_cache_v1';
@@ -234,6 +240,7 @@ class MoodJournalRepository {
   int get journalStreak => _journalStreak;
   String get lastActiveDateKey => _lastActiveDateKey;
   bool get pulseRecordedToday => _pulseRecordedToday;
+  String get currentStatus => _currentStatus;
 
   Future<void> ensureInitialized() async {
     if (_initialized) {
@@ -253,6 +260,7 @@ class MoodJournalRepository {
       _journalStreak = (data['journal_streak'] as num?)?.toInt() ?? 0;
       _lastActiveDateKey = data['last_active_date_key'] as String? ?? '';
       _pulseRecordedToday = data['pulse_recorded_today'] as bool? ?? false;
+      _currentStatus = data['current_status'] as String? ?? 'Mainly Neutral';
 
       final recentEntries = (data['recent_entries'] as List<dynamic>? ?? [])
           .map((item) => _entryFromJson(item as Map<String, dynamic>))
@@ -288,6 +296,9 @@ class MoodJournalRepository {
     _activeDaysCount = stats.activeDaysCount;
     _journalStreak = stats.journalStreak;
     _pulseRecordedToday = stats.pulseRecordedToday;
+    _currentStatus = stats.currentStatus.isNotEmpty
+        ? stats.currentStatus
+        : stats.dominantEmotion;
     if (stats.lastActiveDateKey.isNotEmpty) {
       _lastActiveDateKey = stats.lastActiveDateKey;
     }
@@ -522,6 +533,7 @@ class MoodJournalRepository {
       'journal_streak': _journalStreak,
       'last_active_date_key': _lastActiveDateKey,
       'pulse_recorded_today': _pulseRecordedToday,
+      'current_status': _currentStatus,
       'recent_entries': recentEntries.map(_entryToJson).toList(),
       'recent_history': _recentHistory.map(_historyToJson).toList(),
     };

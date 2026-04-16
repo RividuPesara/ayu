@@ -43,6 +43,7 @@ class MoodHistoryItem(BaseModel):
 
 class MoodStatsResponse(BaseModel):
     # Aggregated mood status with dominant emotion and safety signal.
+    current_status: str = "Mainly Neutral"
     composite_status: str = "Mainly Neutral"
     status_label: str = ""
     dominant_emotion: str = "Mainly Neutral"
