@@ -45,7 +45,19 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    _loadInitial();
+    _initializeAndLoad();
+  }
+
+  Future<void> _initializeAndLoad() async {
+    await _repository.ensureInitialized();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _syncFromRepository();
+      _activeDaysCount = _repository.activeDaysCount;
+    });
+    await _loadInitial();
   }
 
   @override
@@ -83,7 +95,7 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
         });
       }
 
-      await _repository.ensureFirstPage(sort: sort, limit: 4);
+      await _repository.refreshFirstPage(sort: sort, limit: 4);
 
       if (!mounted) {
         return;
@@ -170,7 +182,7 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
     );
 
     try {
-      final detail = await fetchJournalEntryById(entry.entryId);
+      final detail = await _repository.getEntryDetail(entry.entryId);
       if (!mounted) {
         return;
       }
@@ -530,6 +542,10 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
 
   Widget _buildJournalBody() {
     if (_isLoading) {
+      if (_entries.isEmpty) {
+        return _buildJournalSkeleton();
+      }
+
       return const Center(child: CircularProgressIndicator(color: textDark));
     }
 
@@ -606,6 +622,70 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
           subtitle: _subtitleForEntry(entry),
           moodIcon: _iconForMood(entry.userMood),
           onTap: () => _openJournalEntry(entry),
+        );
+      },
+    );
+  }
+
+  Widget _buildJournalSkeleton() {
+    return ListView.separated(
+      scrollDirection: Axis.horizontal,
+      itemCount: 4,
+      separatorBuilder: (_, __) => const SizedBox(width: 14),
+      itemBuilder: (context, index) {
+        return Container(
+          width: 200,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF7F5F3),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                height: 170,
+                width: 200,
+                margin: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE3DAD3),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+                child: Container(
+                  height: 18,
+                  width: 120,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE3DAD3),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+                child: Container(
+                  height: 18,
+                  width: 140,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE3DAD3),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+                child: Container(
+                  height: 12,
+                  width: 110,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE3DAD3),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );

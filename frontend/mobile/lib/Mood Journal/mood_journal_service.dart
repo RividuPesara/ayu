@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/network/backend_connector.dart';
 
@@ -192,12 +194,22 @@ class JournalEntriesPage {
   }
 }
 
+class _CachedEntry {
+  final JournalEntryItem entry;
+  final DateTime cachedAt;
+
+  const _CachedEntry({required this.entry, required this.cachedAt});
+}
+
 class MoodJournalRepository {
   MoodJournalRepository._();
 
   static final MoodJournalRepository instance = MoodJournalRepository._();
 
   final List<JournalEntryItem> _entries = [];
+  final Map<String, _CachedEntry> _entryCache = {};
+  List<MoodHistoryItem> _recentHistory = [];
+  bool _initialized = false;
   String? _nextCursor;
   bool _hasMore = false;
   String _currentSort = 'desc';
@@ -209,6 +221,11 @@ class MoodJournalRepository {
   String _lastActiveDateKey = '';
   bool _pulseRecordedToday = false;
 
+  static const int _maxRecentEntries = 4;
+  static const String _lightCacheKey = 'mood_journal_light_cache_v1';
+  static const String _entryCachePrefix = 'mood_journal_entry_cache_v1_';
+  static const Duration _entryCacheTtl = Duration(minutes: 20);
+
   List<JournalEntryItem> get entries => List.unmodifiable(_entries);
   String? get nextCursor => _nextCursor;
   bool get hasMore => _hasMore;
@@ -217,6 +234,45 @@ class MoodJournalRepository {
   int get journalStreak => _journalStreak;
   String get lastActiveDateKey => _lastActiveDateKey;
   bool get pulseRecordedToday => _pulseRecordedToday;
+
+  Future<void> ensureInitialized() async {
+    if (_initialized) {
+      return;
+    }
+
+    _initialized = true;
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_lightCacheKey);
+    if (raw == null || raw.isEmpty) {
+      return;
+    }
+
+    try {
+      final data = jsonDecode(raw) as Map<String, dynamic>;
+      _activeDaysCount = (data['active_days_count'] as num?)?.toInt() ?? 0;
+      _journalStreak = (data['journal_streak'] as num?)?.toInt() ?? 0;
+      _lastActiveDateKey = data['last_active_date_key'] as String? ?? '';
+      _pulseRecordedToday = data['pulse_recorded_today'] as bool? ?? false;
+
+      final recentEntries = (data['recent_entries'] as List<dynamic>? ?? [])
+          .map((item) => _entryFromJson(item as Map<String, dynamic>))
+          .toList();
+      if (recentEntries.isNotEmpty) {
+        _entries
+          ..clear()
+          ..addAll(recentEntries);
+        _currentSort = 'desc';
+        _nextCursor = null;
+        _hasMore = false;
+      }
+
+      _recentHistory = (data['recent_history'] as List<dynamic>? ?? [])
+          .map((item) => _historyFromJson(item as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      // Ignore malformed local cache.
+    }
+  }
 
   bool hasCacheForSort(String sort) {
     return _entries.isNotEmpty && _currentSort == sort;
@@ -235,6 +291,10 @@ class MoodJournalRepository {
     if (stats.lastActiveDateKey.isNotEmpty) {
       _lastActiveDateKey = stats.lastActiveDateKey;
     }
+    if (stats.recentHistory.isNotEmpty) {
+      _recentHistory = stats.recentHistory;
+    }
+    _persistLightCache();
   }
 
   void syncFromJournalCreateResult(JournalCreateResult result) {
@@ -243,14 +303,17 @@ class MoodJournalRepository {
     if (result.lastActiveDateKey.isNotEmpty) {
       _lastActiveDateKey = result.lastActiveDateKey;
     }
+    _persistLightCache();
   }
 
   void markPulseRecordedTodayLocally() {
     _pulseRecordedToday = true;
+    _persistLightCache();
   }
 
   void clearLocalPulseFlag() {
     _pulseRecordedToday = false;
+    _persistLightCache();
   }
 
   bool incrementActiveDayIfNeeded({DateTime? when}) {
@@ -269,6 +332,7 @@ class MoodJournalRepository {
       _journalStreak = 1;
     }
     _lastActiveDateKey = todayKey;
+    _persistLightCache();
     return true;
   }
 
@@ -280,6 +344,7 @@ class MoodJournalRepository {
     _activeDaysCount = activeDaysCount;
     _journalStreak = journalStreak;
     _lastActiveDateKey = lastActiveDateKey;
+    _persistLightCache();
   }
 
   String _dateKey(DateTime dt) {
@@ -321,6 +386,27 @@ class MoodJournalRepository {
         ..addAll(page.entries);
       _nextCursor = page.nextCursor;
       _hasMore = page.hasMore;
+      _persistLightCache();
+    } finally {
+      _isFetchingFirstPage = false;
+    }
+  }
+
+  Future<void> refreshFirstPage({String sort = 'desc', int limit = 4}) async {
+    if (_isFetchingFirstPage) {
+      return;
+    }
+
+    _isFetchingFirstPage = true;
+    try {
+      final page = await fetchJournalEntriesPage(sort: sort, limit: limit);
+      _currentSort = sort;
+      _entries
+        ..clear()
+        ..addAll(page.entries);
+      _nextCursor = page.nextCursor;
+      _hasMore = page.hasMore;
+      _persistLightCache();
     } finally {
       _isFetchingFirstPage = false;
     }
@@ -346,6 +432,7 @@ class MoodJournalRepository {
       _entries.addAll(page.entries);
       _nextCursor = page.nextCursor;
       _hasMore = page.hasMore;
+      _persistLightCache();
     } finally {
       _isFetchingNextPage = false;
     }
@@ -354,48 +441,207 @@ class MoodJournalRepository {
   void insertOptimisticEntry(JournalEntryItem entry) {
     _entries.removeWhere((item) => item.entryId == entry.entryId);
     _entries.insert(0, entry);
+    _cacheEntry(entry);
+    _persistLightCache();
   }
 
   void replaceEntry(String targetEntryId, JournalEntryItem replacement) {
     final index = _entries.indexWhere((item) => item.entryId == targetEntryId);
     if (index >= 0) {
       _entries[index] = replacement;
+      _cacheEntry(replacement);
+      _persistLightCache();
       return;
     }
 
     _entries.insert(0, replacement);
+    _cacheEntry(replacement);
+    _persistLightCache();
   }
 
   void removeEntryById(String entryId) {
     _entries.removeWhere((item) => item.entryId == entryId);
+    _entryCache.remove(entryId);
+    _persistLightCache();
   }
 
-  List<MoodHistoryItem> recentHistoryFromCache({int limit = 3}) {
-    final visible = _entries.take(limit).toList();
-    return visible.map((entry) {
-      final now = DateTime.now();
-      final dt = entry.entryDate ?? now;
-      const months = [
-        'JAN',
-        'FEB',
-        'MAR',
-        'APR',
-        'MAY',
-        'JUN',
-        'JUL',
-        'AUG',
-        'SEP',
-        'OCT',
-        'NOV',
-        'DEC',
-      ];
-      return MoodHistoryItem(
-        month: months[dt.month - 1],
-        day: dt.day.toString().padLeft(2, '0'),
-        title: entry.title,
-        mood: entry.userMood.toUpperCase(),
-      );
-    }).toList();
+  List<MoodHistoryItem> recentHistoryFromCache({int limit = _maxRecentEntries}) {
+    final visibleEntries = _entries.take(limit).toList();
+    if (visibleEntries.isNotEmpty) {
+      return visibleEntries.map((entry) => _historyFromEntry(entry)).toList();
+    }
+
+    return _recentHistory.take(limit).toList();
+  }
+
+  Future<JournalEntryItem> getEntryDetail(String entryId) async {
+    final cached = await _tryGetCachedEntry(entryId);
+    if (cached != null) {
+      return cached;
+    }
+
+    final entry = await fetchJournalEntryById(entryId);
+    _cacheEntry(entry);
+    return entry;
+  }
+
+  MoodHistoryItem _historyFromEntry(JournalEntryItem entry) {
+    final now = DateTime.now();
+    final dt = entry.entryDate ?? now;
+    const months = [
+      'JAN',
+      'FEB',
+      'MAR',
+      'APR',
+      'MAY',
+      'JUN',
+      'JUL',
+      'AUG',
+      'SEP',
+      'OCT',
+      'NOV',
+      'DEC',
+    ];
+    return MoodHistoryItem(
+      month: months[dt.month - 1],
+      day: dt.day.toString().padLeft(2, '0'),
+      title: entry.title,
+      mood: entry.userMood.toUpperCase(),
+    );
+  }
+
+  Future<void> _persistLightCache() async {
+    if (!_initialized) {
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final recentEntries = _entries.take(_maxRecentEntries).toList();
+    final payload = <String, dynamic>{
+      'active_days_count': _activeDaysCount,
+      'journal_streak': _journalStreak,
+      'last_active_date_key': _lastActiveDateKey,
+      'pulse_recorded_today': _pulseRecordedToday,
+      'recent_entries': recentEntries.map(_entryToJson).toList(),
+      'recent_history': _recentHistory.map(_historyToJson).toList(),
+    };
+
+    await prefs.setString(_lightCacheKey, jsonEncode(payload));
+  }
+
+  Future<JournalEntryItem?> _tryGetCachedEntry(String entryId) async {
+    _pruneExpiredEntryCache();
+
+    final cached = _entryCache[entryId];
+    if (cached != null && _isCacheValid(cached.cachedAt)) {
+      return cached.entry;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('$_entryCachePrefix$entryId');
+    if (raw == null || raw.isEmpty) {
+      return null;
+    }
+
+    try {
+      final data = jsonDecode(raw) as Map<String, dynamic>;
+      final cachedAt = DateTime.tryParse(data['cached_at'] as String? ?? '');
+      if (cachedAt == null || !_isCacheValid(cachedAt)) {
+        await prefs.remove('$_entryCachePrefix$entryId');
+        return null;
+      }
+
+      final entry = _entryFromJson(data['entry'] as Map<String, dynamic>);
+      _entryCache[entryId] = _CachedEntry(entry: entry, cachedAt: cachedAt);
+      return entry;
+    } catch (_) {
+      await prefs.remove('$_entryCachePrefix$entryId');
+      return null;
+    }
+  }
+
+  bool _isCacheValid(DateTime cachedAt) {
+    return DateTime.now().difference(cachedAt) <= _entryCacheTtl;
+  }
+
+  Future<void> _cacheEntry(JournalEntryItem entry) async {
+    if (entry.content.isEmpty) {
+      return;
+    }
+
+    final cachedAt = DateTime.now();
+    _entryCache[entry.entryId] = _CachedEntry(entry: entry, cachedAt: cachedAt);
+
+    if (!_initialized) {
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final payload = jsonEncode(
+      {
+        'cached_at': cachedAt.toIso8601String(),
+        'entry': _entryToJson(entry),
+      },
+    );
+    await prefs.setString('$_entryCachePrefix${entry.entryId}', payload);
+  }
+
+  void _pruneExpiredEntryCache() {
+    final now = DateTime.now();
+    final expiredKeys = _entryCache.entries
+        .where((entry) => now.difference(entry.value.cachedAt) > _entryCacheTtl)
+        .map((entry) => entry.key)
+        .toList();
+
+    for (final key in expiredKeys) {
+      _entryCache.remove(key);
+    }
+  }
+
+  Map<String, dynamic> _entryToJson(JournalEntryItem entry) {
+    return {
+      'entry_id': entry.entryId,
+      'title': entry.title,
+      'content': entry.content,
+      'user_mood': entry.userMood,
+      'ai_mood': entry.aiMood,
+      'is_mismatch': entry.isMismatch,
+      'safety_flag': entry.safetyFlag,
+      'entry_date': entry.entryDate?.toIso8601String(),
+    };
+  }
+
+  JournalEntryItem _entryFromJson(Map<String, dynamic> json) {
+    return JournalEntryItem(
+      entryId: json['entry_id'] as String? ?? '',
+      title: json['title'] as String? ?? '',
+      content: json['content'] as String? ?? '',
+      userMood: json['user_mood'] as String? ?? 'Normal',
+      aiMood: json['ai_mood'] as String? ?? 'pending',
+      isMismatch: json['is_mismatch'] as bool? ?? false,
+      safetyFlag: json['safety_flag'] as String? ?? 'non_crisis',
+      entryDate: json['entry_date'] != null
+          ? DateTime.tryParse(json['entry_date'] as String)
+          : null,
+    );
+  }
+
+  Map<String, dynamic> _historyToJson(MoodHistoryItem item) {
+    return {
+      'month': item.month,
+      'day': item.day,
+      'title': item.title,
+      'mood': item.mood,
+    };
+  }
+
+  MoodHistoryItem _historyFromJson(Map<String, dynamic> json) {
+    return MoodHistoryItem(
+      month: json['month'] as String? ?? '---',
+      day: json['day'] as String? ?? '--',
+      title: json['title'] as String? ?? '',
+      mood: json['mood'] as String? ?? 'NORMAL',
+    );
   }
 }
 

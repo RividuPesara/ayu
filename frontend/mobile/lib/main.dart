@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_app/splashScreen.dart';
+import 'package:mobile_app/Mood Journal/moodSelectorScreen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -17,8 +18,7 @@ class MyApp extends StatelessWidget {
         colorScheme: .fromSeed(seedColor: Colors.deepPurple),
         fontFamily: 'Urbanist',
       ),
-      home: SplashScreen(),
+      home: MoodSelectorScreen(),
     );
   }
 }
-

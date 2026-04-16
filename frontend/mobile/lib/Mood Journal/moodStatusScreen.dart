@@ -19,9 +19,21 @@ class _MoodStatusScreenState extends State<MoodStatusScreen> {
   @override
   void initState() {
     super.initState();
-    _cachedRecentHistory = MoodJournalRepository.instance
-        .recentHistoryFromCache();
-    _loadStatus();
+    _initializeAndLoad();
+  }
+
+  Future<void> _initializeAndLoad() async {
+    await MoodJournalRepository.instance.ensureInitialized();
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _cachedRecentHistory = MoodJournalRepository.instance
+          .recentHistoryFromCache();
+    });
+
+    await _loadStatus();
   }
 
   Future<void> _loadStatus() async {
@@ -299,9 +311,7 @@ class _MoodStatusScreenState extends State<MoodStatusScreen> {
 
   Widget _buildHistoryList(List<MoodHistoryItem> history) {
     if (_isLoading && history.isEmpty) {
-      return const Center(
-        child: CircularProgressIndicator(color: Color(0xFF4B3326)),
-      );
+      return _buildHistorySkeleton();
     }
 
     if (_error != null && history.isEmpty) {
@@ -334,6 +344,62 @@ class _MoodStatusScreenState extends State<MoodStatusScreen> {
           day: item.day,
           title: item.title,
           mood: item.mood,
+        );
+      },
+    );
+  }
+
+  Widget _buildHistorySkeleton() {
+    return ListView.separated(
+      padding: EdgeInsets.zero,
+      itemCount: 4,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        return Container(
+          height: 92,
+          decoration: BoxDecoration(
+            color: const Color(0xFFEDE6E1),
+            borderRadius: BorderRadius.circular(24),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 58,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF7F4F2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      height: 16,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD9CFC8),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      height: 12,
+                      width: 120,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD9CFC8),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         );
       },
     );

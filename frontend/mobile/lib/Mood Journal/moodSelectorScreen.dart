@@ -61,6 +61,7 @@ class _MoodSelectorScreenState extends State<MoodSelectorScreen> {
 
   Future<void> _checkTodayPulseAndRoute() async {
     final repository = MoodJournalRepository.instance;
+    await repository.ensureInitialized();
 
     if (repository.pulseRecordedToday) {
       if (!mounted) {

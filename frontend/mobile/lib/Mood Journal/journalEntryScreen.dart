@@ -57,6 +57,7 @@ class _NewJournalEntryPageState extends State<NewJournalEntryPage> {
     super.initState();
 
     _entryController.addListener(_handleEntryTextChanged);
+    unawaited(MoodJournalRepository.instance.ensureInitialized());
   }
 
   void _handleEntryTextChanged() {

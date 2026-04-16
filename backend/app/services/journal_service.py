@@ -185,7 +185,7 @@ def get_journal_entry(uid: str, entry_id: str) -> JournalEntryResponse:
     return _map_journal_entry(entry_id, data, include_content=True)
 
 
-def list_recent_mood_history(uid: str, limit: int = 3) -> list[MoodHistoryItem]:
+def list_recent_mood_history(uid: str, limit: int = 4) -> list[MoodHistoryItem]:
     # Read lightweight history cards from most recent journal entries
     entries = list_journal_entries(uid, limit=limit, descending=True)
     history: list[MoodHistoryItem] = []
