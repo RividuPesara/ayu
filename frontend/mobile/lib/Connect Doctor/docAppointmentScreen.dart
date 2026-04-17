@@ -1,8 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_app/Connect%20Doctor/detailDoctorScreen.dart';
+import 'package:mobile_app/Connect Doctor/mySessions.dart';
 
-class DoctorAppointmentScreen extends StatelessWidget {
+class DoctorAppointmentScreen extends StatefulWidget {
   const DoctorAppointmentScreen({super.key});
+
+  State<DoctorAppointmentScreen> createState() =>
+      _DoctorAppointmentScreenState();
+}
+
+class _DoctorAppointmentScreenState extends State<DoctorAppointmentScreen> {
+  String selectedCategory = "All";
+
+  final List<Map<String, String>> doctors = [
+    {"name": "Mr. Carlos Mendez", "specialty": "Cardiologist"},
+    {"name": "Dr. Emily Watson", "specialty": "Oncologist"},
+    {"name": "Dr. Sarah Lee", "specialty": "Psychologist"},
+    {"name": "Dr. James Miller", "specialty": "Oncologist"},
+  ];
+
+  List<Map<String, String>> get filteredDoctors {
+    if (selectedCategory == "All") return doctors;
+    return doctors
+        .where((doctor) => doctor["specialty"] == selectedCategory)
+        .toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -16,7 +38,7 @@ class DoctorAppointmentScreen extends StatelessWidget {
         children: [
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(16, 55, 16, 24),
+            padding: const EdgeInsets.fromLTRB(16, 40, 16, 24),
             decoration: const BoxDecoration(
               color: purple,
               borderRadius: BorderRadius.only(
@@ -87,7 +109,7 @@ class DoctorAppointmentScreen extends StatelessWidget {
           ),
 
           Expanded(
-            child: SingleChildScrollView(
+            child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -104,32 +126,92 @@ class DoctorAppointmentScreen extends StatelessWidget {
 
                   Row(
                     children: [
-                      _buildCategoryItem(
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            selectedCategory = "Oncologist";
+                          });
+                        },
+                        child: _buildCategoryItem(
                         color: const Color(0xFF9C8CFF),
                         icon: Icons.hourglass_empty,
                         label: "Oncologist",
                       ),
-                      const SizedBox(width: 18),
-                      _buildCategoryItem(
-                        color: const Color(0xFFFF914D),
-                        icon: Icons.medical_services_outlined,
-                        label: "Oncologist",
                       ),
                       const SizedBox(width: 18),
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            selectedCategory = "Psychologist";
+                          });
+                        },
+                        child: _buildCategoryItem(
+                        color: const Color(0xFFFF914D),
+                        icon: Icons.medical_services_outlined,
+                        label: "Psychologist",
+                      ),
+                      ),
+                      const SizedBox(width: 18),
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            selectedCategory = "Counsellor";
+                          });
+                        },
+                        child:
                       _buildCategoryItem(
                         color: const Color(0xFFF7C95C),
                         icon: Icons.lightbulb_outline,
-                        label: "Oncologist",
+                        label: "Counsellor",
+                      ),
+                      ),
+
+                      const SizedBox(width: 45),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const MyAppointmentScreen(),
+                            ),
+                          );
+                        },
+                        child: _buildCategoryItem(
+                          color: const Color(0xFF74C144),
+                          icon: Icons.event_note,
+                          label: "My Sessions",
+                        ),
                       ),
                     ],
                   ),
 
-                  const SizedBox(height: 26),
-
-                  _buildDoctorCard(
-                    context,
-                    name: "Mr. Carlos Mendez",
-                    specialty: "Cardiologist",
+                  Expanded(
+                    child: ListView(
+                      children: [
+                        if (filteredDoctors.isEmpty)
+                          const Center(
+                            child: Text(
+                              "No doctors found",
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Color(0xFF4B3425),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          )
+                        else
+                          ...filteredDoctors.map(
+                                (doctor) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _buildDoctorCard(
+                                context,
+                                name: doctor["name"]!,
+                                specialty: doctor["specialty"]!,
+                              ),
+                                ),
+                          ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -162,7 +244,7 @@ class DoctorAppointmentScreen extends StatelessWidget {
           style: const TextStyle(
             fontSize: 16,
             color: Color(0xFF4B3425),
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ],
@@ -222,7 +304,7 @@ class DoctorAppointmentScreen extends StatelessWidget {
                 Text(
                   name,
                   style: const TextStyle(
-                    fontSize: 19,
+                    fontSize: 20,
                     fontWeight: FontWeight.w800,
                     color: Color(0xFF4B3425),
                   ),
@@ -231,7 +313,7 @@ class DoctorAppointmentScreen extends StatelessWidget {
                 Text(
                   specialty,
                   style: const TextStyle(
-                    fontSize: 17,
+                    fontSize: 19,
                     color: Color(0xFF4B3425),
                     fontWeight: FontWeight.w500,
                   ),
