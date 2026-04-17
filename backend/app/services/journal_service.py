@@ -384,10 +384,10 @@ def _dominant_emotion_display(mood_key: str) -> str:
 def _dominant_emotion_message(label: str) -> str:
     # Contextual supportive messaging based on current mood state
     if label == "Fragile":
-        return "Please reach out to a trusted person and seek support right now."
+        return "Maybe reach out to someone you trust,you’re not alone"
     if label == "Mainly Low":
-        return "You seem under strain. Try lighter routines and small recovery breaks today."
-    return "Your mood looks steady. Keep checking in and journaling consistently."
+        return "Take it easy today and give yourself a few breaks."
+    return "You’re doing okay, keep checking in with yourself"
 
 
 def compute_and_store_mood_stats(uid: str) -> dict[str, Any]:

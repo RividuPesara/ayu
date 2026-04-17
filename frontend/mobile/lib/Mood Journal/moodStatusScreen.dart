@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:mobile_app/Mood Journal/journalEntryScreen.dart';
 import 'package:mobile_app/Mood Journal/mood_journal_service.dart';
@@ -16,6 +18,7 @@ class _MoodStatusScreenState extends State<MoodStatusScreen> {
   MoodStats? _stats;
   List<MoodHistoryItem> _cachedRecentHistory = const [];
   String _displayStatus = 'Mainly Neutral';
+  String _cachedEmotionMessage = '';
 
   @override
   void initState() {
@@ -33,6 +36,7 @@ class _MoodStatusScreenState extends State<MoodStatusScreen> {
       _cachedRecentHistory = MoodJournalRepository.instance
           .recentHistoryFromCache();
       _displayStatus = MoodJournalRepository.instance.currentStatus;
+      _cachedEmotionMessage = MoodJournalRepository.instance.emotionMessage;
     });
 
     await _loadStatus();
@@ -52,10 +56,9 @@ class _MoodStatusScreenState extends State<MoodStatusScreen> {
       }
 
       setState(() {
-        if (_stats == null) {
-          _stats = data;
-          _displayStatus = data.currentStatus;
-        }
+        _stats = data;
+        _displayStatus = data.currentStatus;
+        _cachedEmotionMessage = data.emotionMessage;
         _cachedRecentHistory = MoodJournalRepository.instance
             .recentHistoryFromCache();
       });
@@ -100,7 +103,9 @@ class _MoodStatusScreenState extends State<MoodStatusScreen> {
     final String statusText = _displayStatus.toUpperCase();
     final String detailText =
         stats?.emotionMessage ??
-        'Keep journaling to build a clearer mood pattern.';
+        (_cachedEmotionMessage.isNotEmpty
+            ? _cachedEmotionMessage
+            : 'Keep journaling to build a mood pattern.');
     final history = _cachedRecentHistory.isNotEmpty
         ? _cachedRecentHistory
         : (stats?.recentHistory ?? const <MoodHistoryItem>[]);
@@ -240,8 +245,12 @@ class _MoodStatusScreenState extends State<MoodStatusScreen> {
                               _cachedRecentHistory = MoodJournalRepository
                                   .instance
                                   .recentHistoryFromCache();
+                              _displayStatus =
+                                  MoodJournalRepository.instance.currentStatus;
+                              _cachedEmotionMessage =
+                                  MoodJournalRepository.instance.emotionMessage;
                             });
-                            await _loadStatus();
+                            unawaited(_loadStatus());
                           },
                           borderRadius: BorderRadius.circular(30),
                           child: Ink(
@@ -288,7 +297,19 @@ class _MoodStatusScreenState extends State<MoodStatusScreen> {
                                     const PastJournalEntriesScreen(),
                               ),
                             );
-                            await _loadStatus();
+                            if (!mounted) {
+                              return;
+                            }
+                            setState(() {
+                              _cachedRecentHistory = MoodJournalRepository
+                                  .instance
+                                  .recentHistoryFromCache();
+                              _displayStatus =
+                                  MoodJournalRepository.instance.currentStatus;
+                              _cachedEmotionMessage =
+                                  MoodJournalRepository.instance.emotionMessage;
+                            });
+                            unawaited(_loadStatus());
                           },
                           child: const Text(
                             'View All',

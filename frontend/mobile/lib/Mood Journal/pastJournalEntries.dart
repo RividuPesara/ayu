@@ -545,8 +545,6 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
       if (_entries.isEmpty) {
         return _buildJournalSkeleton();
       }
-
-      return const Center(child: CircularProgressIndicator(color: textDark));
     }
 
     if (_error != null) {
@@ -582,7 +580,12 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
       );
     }
 
-    final itemCount = _entries.length + (_hasMore || _isLoadingMore ? 1 : 0);
+    final showRefreshSlot = _isLoading && _entries.isNotEmpty;
+    final refreshSlotCount = showRefreshSlot ? 1 : 0;
+    final moreSlotCount = _hasMore || _isLoadingMore ? 1 : 0;
+    final itemCount = _entries.length + refreshSlotCount + moreSlotCount;
+    final refreshIndex = _entries.length;
+    final moreIndex = _entries.length + refreshSlotCount;
 
     return ListView.separated(
       controller: _scrollController,
@@ -590,7 +593,11 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
       itemCount: itemCount,
       separatorBuilder: (_, __) => const SizedBox(width: 14),
       itemBuilder: (context, index) {
-        if (index >= _entries.length) {
+        if (showRefreshSlot && index == refreshIndex) {
+          return _buildRefreshCard();
+        }
+
+        if (index == moreIndex) {
           if (_isLoadingMore) {
             return Container(
               width: 120,
@@ -688,6 +695,63 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildRefreshCard() {
+    return Container(
+      width: 200,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F5F3),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            height: 170,
+            width: 200,
+            margin: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE3DAD3),
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+            child: Container(
+              height: 18,
+              width: 120,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE3DAD3),
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+            child: Container(
+              height: 18,
+              width: 140,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE3DAD3),
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+            child: Container(
+              height: 12,
+              width: 110,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE3DAD3),
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

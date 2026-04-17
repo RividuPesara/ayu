@@ -226,6 +226,7 @@ class MoodJournalRepository {
   String _lastActiveDateKey = '';
   bool _pulseRecordedToday = false;
   String _currentStatus = 'Mainly Neutral';
+  String _emotionMessage = '';
 
   static const int _maxRecentEntries = 4;
   static const String _lightCacheKey = 'mood_journal_light_cache_v1';
@@ -241,6 +242,7 @@ class MoodJournalRepository {
   String get lastActiveDateKey => _lastActiveDateKey;
   bool get pulseRecordedToday => _pulseRecordedToday;
   String get currentStatus => _currentStatus;
+  String get emotionMessage => _emotionMessage;
 
   Future<void> ensureInitialized() async {
     if (_initialized) {
@@ -261,6 +263,7 @@ class MoodJournalRepository {
       _lastActiveDateKey = data['last_active_date_key'] as String? ?? '';
       _pulseRecordedToday = data['pulse_recorded_today'] as bool? ?? false;
       _currentStatus = data['current_status'] as String? ?? 'Mainly Neutral';
+      _emotionMessage = data['emotion_message'] as String? ?? '';
 
       final recentEntries = (data['recent_entries'] as List<dynamic>? ?? [])
           .map((item) => _entryFromJson(item as Map<String, dynamic>))
@@ -299,6 +302,7 @@ class MoodJournalRepository {
     _currentStatus = stats.currentStatus.isNotEmpty
         ? stats.currentStatus
         : stats.dominantEmotion;
+    _emotionMessage = stats.emotionMessage;
     if (stats.lastActiveDateKey.isNotEmpty) {
       _lastActiveDateKey = stats.lastActiveDateKey;
     }
@@ -392,9 +396,10 @@ class MoodJournalRepository {
     try {
       final page = await fetchJournalEntriesPage(sort: sort, limit: limit);
       _currentSort = sort;
+      final merged = _mergeWithPendingEntries(page.entries, sort: sort);
       _entries
         ..clear()
-        ..addAll(page.entries);
+        ..addAll(merged);
       _nextCursor = page.nextCursor;
       _hasMore = page.hasMore;
       _persistLightCache();
@@ -412,9 +417,10 @@ class MoodJournalRepository {
     try {
       final page = await fetchJournalEntriesPage(sort: sort, limit: limit);
       _currentSort = sort;
+      final merged = _mergeWithPendingEntries(page.entries, sort: sort);
       _entries
         ..clear()
-        ..addAll(page.entries);
+        ..addAll(merged);
       _nextCursor = page.nextCursor;
       _hasMore = page.hasMore;
       _persistLightCache();
@@ -440,7 +446,9 @@ class MoodJournalRepository {
         limit: limit,
         cursor: _nextCursor,
       );
-      _entries.addAll(page.entries);
+      final existingIds = _entries.map((item) => item.entryId).toSet();
+      final unique = page.entries.where((item) => !existingIds.contains(item.entryId));
+      _entries.addAll(unique);
       _nextCursor = page.nextCursor;
       _hasMore = page.hasMore;
       _persistLightCache();
@@ -452,20 +460,24 @@ class MoodJournalRepository {
   void insertOptimisticEntry(JournalEntryItem entry) {
     _entries.removeWhere((item) => item.entryId == entry.entryId);
     _entries.insert(0, entry);
+    _updateRecentHistoryFromEntry(entry);
     _cacheEntry(entry);
     _persistLightCache();
   }
 
   void replaceEntry(String targetEntryId, JournalEntryItem replacement) {
+    _entries.removeWhere((item) => item.entryId == replacement.entryId);
     final index = _entries.indexWhere((item) => item.entryId == targetEntryId);
     if (index >= 0) {
       _entries[index] = replacement;
+      _updateRecentHistoryFromEntry(replacement);
       _cacheEntry(replacement);
       _persistLightCache();
       return;
     }
 
     _entries.insert(0, replacement);
+    _updateRecentHistoryFromEntry(replacement);
     _cacheEntry(replacement);
     _persistLightCache();
   }
@@ -477,12 +489,31 @@ class MoodJournalRepository {
   }
 
   List<MoodHistoryItem> recentHistoryFromCache({int limit = _maxRecentEntries}) {
-    final visibleEntries = _entries.take(limit).toList();
-    if (visibleEntries.isNotEmpty) {
-      return visibleEntries.map((entry) => _historyFromEntry(entry)).toList();
+    final fromEntries = _recentEntriesForHistory(limit: limit)
+        .map((entry) => _historyFromEntry(entry))
+        .toList();
+
+    final merged = <MoodHistoryItem>[];
+    final seen = <String>{};
+
+    void addIfUnique(MoodHistoryItem item) {
+      final signature = _historySignature(item);
+      if (seen.add(signature)) {
+        merged.add(item);
+      }
     }
 
-    return _recentHistory.take(limit).toList();
+    for (final item in fromEntries) {
+      addIfUnique(item);
+    }
+    for (final item in _recentHistory) {
+      if (merged.length >= limit) {
+        break;
+      }
+      addIfUnique(item);
+    }
+
+    return merged.take(limit).toList();
   }
 
   Future<JournalEntryItem> getEntryDetail(String entryId) async {
@@ -521,19 +552,95 @@ class MoodJournalRepository {
     );
   }
 
+  Iterable<JournalEntryItem> _recentEntriesForHistory({int limit = _maxRecentEntries}) {
+    if (_entries.isEmpty) {
+      return const <JournalEntryItem>[];
+    }
+
+    if (_currentSort == 'asc') {
+      final startIndex = _entries.length - limit;
+      final start = startIndex < 0 ? 0 : startIndex;
+      return _entries.sublist(start).reversed;
+    }
+
+    return _entries.take(limit);
+  }
+
+  void _updateRecentHistoryFromEntry(JournalEntryItem entry) {
+    final newItem = _historyFromEntry(entry);
+    final updated = <MoodHistoryItem>[newItem];
+    final newSignature = _historySignature(newItem);
+
+    for (final item in _recentHistory) {
+      if (updated.length >= _maxRecentEntries) {
+        break;
+      }
+      if (_historySignature(item) == newSignature) {
+        continue;
+      }
+      updated.add(item);
+    }
+
+    _recentHistory = updated;
+  }
+
+  String _entryMatchKey(JournalEntryItem entry) {
+    final title = entry.title.trim().toLowerCase();
+    final mood = entry.userMood.trim().toLowerCase();
+    final date = entry.entryDate?.toIso8601String().substring(0, 10) ?? '';
+    return '$title|$mood|$date';
+  }
+
+  String _historySignature(MoodHistoryItem item) {
+    final title = item.title.trim().toLowerCase();
+    final day = item.day.trim();
+    final mood = item.mood.trim().toLowerCase();
+    return '$title|$day|$mood';
+  }
+
+  List<JournalEntryItem> _mergeWithPendingEntries(
+    List<JournalEntryItem> serverEntries, {
+    required String sort,
+  }) {
+    final seenServerIds = <String>{};
+    final uniqueServer = <JournalEntryItem>[];
+    for (final entry in serverEntries) {
+      if (seenServerIds.add(entry.entryId)) {
+        uniqueServer.add(entry);
+      }
+    }
+
+    final pending = _entries.where((item) => item.entryId.startsWith('local_')).toList();
+    if (pending.isEmpty) {
+      return uniqueServer;
+    }
+
+    final serverSignatures = uniqueServer.map(_entryMatchKey).toSet();
+    final filteredPending = pending
+      .where((entry) => !serverSignatures.contains(_entryMatchKey(entry)))
+        .toList();
+
+    if (sort == 'asc') {
+      return [...uniqueServer, ...filteredPending];
+    }
+
+    return [...filteredPending, ...uniqueServer];
+  }
+
   Future<void> _persistLightCache() async {
     if (!_initialized) {
       return;
     }
 
     final prefs = await SharedPreferences.getInstance();
-    final recentEntries = _entries.take(_maxRecentEntries).toList();
+    final recentEntries = _recentEntriesForHistory(limit: _maxRecentEntries).toList();
     final payload = <String, dynamic>{
       'active_days_count': _activeDaysCount,
       'journal_streak': _journalStreak,
       'last_active_date_key': _lastActiveDateKey,
       'pulse_recorded_today': _pulseRecordedToday,
       'current_status': _currentStatus,
+      'emotion_message': _emotionMessage,
       'recent_entries': recentEntries.map(_entryToJson).toList(),
       'recent_history': _recentHistory.map(_historyToJson).toList(),
     };
