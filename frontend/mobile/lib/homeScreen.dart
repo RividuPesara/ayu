@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:mobile_app/Chatbot/chatbotScreen.dart';
 import 'package:mobile_app/signInScreen.dart';
 
 class WelcomeScreen extends StatelessWidget {
@@ -86,39 +85,7 @@ class WelcomeScreen extends StatelessWidget {
                       ),
                     ),
 
-                    const SizedBox(height: 36),
-
-                    // Open Ayu chatbot (backend URL is set in Chatbot/chatbot_service.dart)
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const Chatbot(),
-                            ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF64548E),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                        child: Text(
-                          'Chat with Ayu',
-                          style: GoogleFonts.urbanist(
-                            fontSize: 19,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 70),
 
                     // Sign In
                     GestureDetector(

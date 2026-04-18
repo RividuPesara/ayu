@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_app/splashScreen.dart';
+import 'package:mobile_app/Mood Journal/moodSelectorScreen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -16,10 +16,9 @@ class MyApp extends StatelessWidget {
       title: 'Flutter Demo',
       theme: ThemeData(
         colorScheme: .fromSeed(seedColor: Colors.deepPurple),
-        textTheme: GoogleFonts.urbanistTextTheme(),
+        fontFamily: 'Urbanist',
       ),
-      home: SplashScreen(),
+      home: MoodSelectorScreen(),
     );
   }
 }
-
