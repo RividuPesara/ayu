@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import Header from "./components/header";
 import Calendar from "./components/calendar";
 import Stats from "./components/stats";
@@ -81,6 +81,8 @@ export default function DashboardPage() {
   const [selectedDate, setSelectedDate] = useState<Date>(today);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const selectedDateKey = toDateKey(selectedDate);
+  const autoLogoutTimer = useRef<number | null>(null);
+  const AUTO_LOGOUT_IDLE_MS = 60* 60 * 1000; //  60mins
 
   const redirectToLogin = useCallback(() => {
     setIsAppointmentsLoading(false);
@@ -88,10 +90,25 @@ export default function DashboardPage() {
     router.replace("/login");
   }, [router]);
 
-  const showToast = (message: string, type: "success" | "error" | "info") => {
+  const showToast = useCallback((message: string, type: "success" | "error" | "info") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
-  };
+  }, []);
+
+  const scheduleAutoLogout = useCallback(() => {
+    if (autoLogoutTimer.current) {
+      window.clearTimeout(autoLogoutTimer.current);
+    }
+
+    autoLogoutTimer.current = window.setTimeout(async () => {
+      try {
+        await signOut(auth);
+      } finally {
+        showToast("You were logged out due to inactivity.", "info");
+        redirectToLogin();
+      }
+    }, AUTO_LOGOUT_IDLE_MS);
+  }, [redirectToLogin, showToast]);
 
   const selectedDateAppointments = useMemo(() => {
     return allAppointments.filter((appointment) => appointment.date === selectedDateKey);
@@ -212,14 +229,39 @@ export default function DashboardPage() {
         return;
       }
 
+      scheduleAutoLogout();
       bootstrapDashboard();
     });
+
+    const activityEvents = [
+      "mousemove",
+      "mousedown",
+      "keydown",
+      "scroll",
+      "touchstart",
+    ];
+
+    const handleUserActivity = () => {
+      if (auth.currentUser) {
+        scheduleAutoLogout();
+      }
+    };
+
+    activityEvents.forEach((eventName) =>
+      window.addEventListener(eventName, handleUserActivity),
+    );
 
     return () => {
       isMounted = false;
       unsubscribe();
+      if (autoLogoutTimer.current) {
+        window.clearTimeout(autoLogoutTimer.current);
+      }
+      activityEvents.forEach((eventName) =>
+        window.removeEventListener(eventName, handleUserActivity),
+      );
     };
-  }, [redirectToLogin]);
+  }, [redirectToLogin, scheduleAutoLogout]);
 
   if (!isDashboardReady) {
     return (
