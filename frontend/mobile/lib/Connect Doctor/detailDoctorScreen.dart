@@ -23,8 +23,6 @@ class DetailDoctorPage extends StatefulWidget {
 class _DetailDoctorPageState extends State<DetailDoctorPage> {
   final AppointmentService _appointmentService = AppointmentService();
   List<AppointmentSlotDate> _slotDates = [];
-  bool _isLoadingSlots = true;
-  String? _slotError;
   AppointmentSlotDate? _selectedDate;
   AppointmentSlotTime? _selectedTime;
 
@@ -42,15 +40,12 @@ class _DetailDoctorPageState extends State<DetailDoctorPage> {
       if (!mounted) return;
       setState(() {
         _slotDates = response.dates;
-        _isLoadingSlots = false;
       });
       _selectFirstAvailable();
     } catch (error) {
       if (!mounted) return;
       setState(() {
         _slotDates = [];
-        _isLoadingSlots = false;
-        _slotError = "Failed to load slots.";
       });
       _selectFirstAvailable();
     }
