@@ -42,5 +42,15 @@ def detect_user_role(uid: str) -> str:
     _role_cache[uid] = role
     return role
 
+  doctor_profile = data.get("doctorProfile")
+  if isinstance(doctor_profile, dict) and doctor_profile:
+    _role_cache[uid] = "doctor"
+    return "doctor"
+
+  patient_profile = data.get("patientProfile")
+  if isinstance(patient_profile, dict) and patient_profile:
+    _role_cache[uid] = "patient"
+    return "patient"
+
   _role_cache[uid] = "user"
   return "user"

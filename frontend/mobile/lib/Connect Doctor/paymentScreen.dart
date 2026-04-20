@@ -1,8 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:mobile_app/Connect%20Doctor/appointment_service.dart';
+import 'package:mobile_app/Connect Doctor/mySessions.dart';
 
 class PaymentScreen extends StatefulWidget {
-  const PaymentScreen({super.key});
+  const PaymentScreen({
+    super.key,
+    required this.doctorName,
+    required this.doctorSpecialty,
+    required this.doctorUid,
+    required this.dateKey,
+    required this.dateLabel,
+    required this.timeValue,
+    required this.timeLabel,
+  });
+
+  final String doctorName;
+  final String doctorSpecialty;
+  final String doctorUid;
+  final String dateKey;
+  final String dateLabel;
+  final String timeValue;
+  final String timeLabel;
 
   @override
   State<PaymentScreen> createState() => _PaymentScreenState();
@@ -10,6 +29,8 @@ class PaymentScreen extends StatefulWidget {
 
 class _PaymentScreenState extends State<PaymentScreen> {
   String selectedMethod = "visa";
+  bool _isSubmitting = false;
+  final AppointmentService _appointmentService = AppointmentService();
 
   @override
   Widget build(BuildContext context) {
@@ -78,10 +99,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
               const Text(
                 "Select Payment Method",
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
 
               const SizedBox(height: 15),
@@ -90,17 +108,18 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   paymentOption("visa", "assets/visa.svg", size: 60),
-                  paymentOption("mastercard", "assets/mastercard.svg", size: 60),
+                  paymentOption(
+                    "mastercard",
+                    "assets/mastercard.svg",
+                    size: 60,
+                  ),
                   paymentOption("amex", "assets/amex.svg", size: 60),
                 ],
               ),
 
               const SizedBox(height: 35),
 
-              const Text(
-                "Cardholder name",
-                style: TextStyle(fontSize: 14),
-              ),
+              const Text("Cardholder name", style: TextStyle(fontSize: 14)),
               const SizedBox(height: 5),
               inputField(
                 hint: "Jannet Klein",
@@ -109,10 +128,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
               const SizedBox(height: 15),
 
-              const Text(
-                "Card number",
-                style: TextStyle(fontSize: 14),
-              ),
+              const Text("Card number", style: TextStyle(fontSize: 14)),
               const SizedBox(height: 5),
               inputField(
                 hint: "7236 xxxx xxxx 2345",
@@ -127,10 +143,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          "Exp. Date",
-                          style: TextStyle(fontSize: 14),
-                        ),
+                        const Text("Exp. Date", style: TextStyle(fontSize: 14)),
                         const SizedBox(height: 5),
                         inputField(
                           hint: "MM/YY",
@@ -144,10 +157,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          "CVV",
-                          style: TextStyle(fontSize: 14),
-                        ),
+                        const Text("CVV", style: TextStyle(fontSize: 14)),
                         const SizedBox(height: 5),
                         inputField(
                           hint: "123",
@@ -164,7 +174,44 @@ class _PaymentScreenState extends State<PaymentScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {},
+                  onPressed: _isSubmitting
+                      ? null
+                      : () async {
+                          setState(() {
+                            _isSubmitting = true;
+                          });
+
+                          try {
+                            await _appointmentService.bookAppointment(
+                              BookAppointmentRequest(
+                                dateKey: widget.dateKey,
+                                time: widget.timeValue,
+                                doctorUid: widget.doctorUid,
+                                doctorName: widget.doctorName,
+                                doctorSpecialty: widget.doctorSpecialty,
+                              ),
+                            );
+
+                            if (!mounted) return;
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const MyAppointmentScreen(),
+                              ),
+                              (route) => false,
+                            );
+                          } catch (error) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(error.toString())),
+                            );
+                          } finally {
+                            if (!mounted) return;
+                            setState(() {
+                              _isSubmitting = false;
+                            });
+                          }
+                        },
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 15),
                     backgroundColor: const Color(0xFF4B3425),
@@ -244,10 +291,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
         child: SizedBox(
           width: size,
           height: size,
-          child: SvgPicture.asset(
-            imagePath,
-            fit: BoxFit.contain,
-          ),
+          child: SvgPicture.asset(imagePath, fit: BoxFit.contain),
         ),
       ),
     );

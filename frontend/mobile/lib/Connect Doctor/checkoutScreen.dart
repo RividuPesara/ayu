@@ -2,7 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:mobile_app/Connect%20Doctor/paymentScreen.dart';
 
 class CheckoutPage extends StatelessWidget {
-  const CheckoutPage({super.key});
+  const CheckoutPage({
+    super.key,
+    required this.doctorName,
+    required this.doctorSpecialty,
+    required this.doctorUid,
+    required this.dateKey,
+    required this.dateLabel,
+    required this.timeValue,
+    required this.timeLabel,
+  });
+
+  final String doctorName;
+  final String doctorSpecialty;
+  final String doctorUid;
+  final String dateKey;
+  final String dateLabel;
+  final String timeValue;
+  final String timeLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +42,10 @@ class CheckoutPage extends StatelessWidget {
                 height: 44,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: Color(0xFF4B3425).withOpacity(0.8), width: 1),
+                  border: Border.all(
+                    color: Color(0xFF4B3425).withOpacity(0.8),
+                    width: 1,
+                  ),
                 ),
                 child: IconButton(
                   padding: EdgeInsets.zero,
@@ -67,44 +87,25 @@ class CheckoutPage extends StatelessWidget {
 
               const SizedBox(height: 22),
 
-              Divider(
-                color: Colors.grey.shade300,
-                thickness: 1,
-              ),
+              Divider(color: Colors.grey.shade300, thickness: 1),
 
               const SizedBox(height: 14),
 
-              const _DetailRow(
-                label: 'Doctor',
-                value: 'Dr. Jenny Wilson',
-                boldValue: true,
-              ),
+              _DetailRow(label: 'Doctor', value: doctorName, boldValue: true),
               const SizedBox(height: 18),
 
-              const _DetailRow(
-                label: 'Speciality',
-                value: 'Oncologist',
-              ),
+              _DetailRow(label: 'Speciality', value: doctorSpecialty),
               const SizedBox(height: 18),
 
-              const _DetailRow(
-                label: 'Date',
-                value: '19 Tuesday',
-              ),
+              _DetailRow(label: 'Date', value: dateLabel),
               const SizedBox(height: 18),
 
-              const _DetailRow(
-                label: 'Time',
-                value: '4.30 P.M.',
-              ),
+              _DetailRow(label: 'Time', value: timeLabel),
               const SizedBox(height: 58),
 
               const Text(
                 "Payment Details",
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 18),
 
@@ -124,10 +125,7 @@ class CheckoutPage extends StatelessWidget {
 
               const SizedBox(height: 9),
 
-              Divider(
-                color: Colors.grey.shade400,
-                thickness: 1.5,
-              ),
+              Divider(color: Colors.grey.shade400, thickness: 1.5),
 
               const SizedBox(height: 8),
 
@@ -160,15 +158,8 @@ class CheckoutPage extends StatelessWidget {
 
               Column(
                 children: [
-                  Divider(
-                    color: Colors.grey.shade400,
-                    thickness: 1,
-                    height: 0,
-                  ),
-                  Divider(
-                    color: Colors.grey.shade400,
-                    thickness: 1,
-                  ),
+                  Divider(color: Colors.grey.shade400, thickness: 1, height: 0),
+                  Divider(color: Colors.grey.shade400, thickness: 1),
                 ],
               ),
 
@@ -182,7 +173,17 @@ class CheckoutPage extends StatelessWidget {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => PaymentScreen()),
+                      MaterialPageRoute(
+                        builder: (context) => PaymentScreen(
+                          doctorName: doctorName,
+                          doctorSpecialty: doctorSpecialty,
+                          doctorUid: doctorUid,
+                          dateKey: dateKey,
+                          dateLabel: dateLabel,
+                          timeValue: timeValue,
+                          timeLabel: timeLabel,
+                        ),
+                      ),
                     );
                   },
                   style: ElevatedButton.styleFrom(

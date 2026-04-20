@@ -2,7 +2,7 @@ import asyncio
 import functools
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
@@ -64,17 +64,36 @@ def _resolve_user_blocking(token: str) -> CurrentUser:
   )
 
 
-# Extract and build the current user from the authorization token.
-async def get_current_user(credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],) -> CurrentUser:
+# Extract and build the current user from the authorization token
+def _build_dev_user(settings, request: Request) -> CurrentUser:
+  raw_role = request.headers.get("x-dev-role", "patient")
+  role = raw_role.strip().lower() if raw_role else "patient"
+
+  if role == "doctor":
+    return CurrentUser(
+      uid = request.headers.get("x-dev-uid") or settings.dev_doctor_uid or settings.dev_patient_uid,
+      email = request.headers.get("x-dev-email") or settings.dev_doctor_email or settings.dev_patient_email,
+      role = "doctor",
+      full_name = request.headers.get("x-dev-name") or settings.dev_doctor_name or settings.dev_patient_name,
+    )
+
+  return CurrentUser(
+    uid = request.headers.get("x-dev-uid") or settings.dev_patient_uid,
+    email = request.headers.get("x-dev-email") or settings.dev_patient_email,
+    role = "patient",
+    full_name = request.headers.get("x-dev-name") or settings.dev_patient_name,
+  )
+
+
+# Extract and build the current user from the authorization token
+async def get_current_user(
+  request: Request,
+  credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+) -> CurrentUser:
   settings = get_settings()
 
   if settings.dev_mode:
-    return CurrentUser(
-      uid = settings.dev_patient_uid,
-      email = settings.dev_patient_email,
-      role = "patient",
-      full_name = settings.dev_patient_name,
-    )
+    return _build_dev_user(settings, request)
 
   if credentials is None:
     raise HTTPException(

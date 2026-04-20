@@ -1,22 +1,62 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:mobile_app/Connect%20Doctor/appointment_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class AppointmentDetailScreen extends StatelessWidget {
-  const AppointmentDetailScreen({super.key});
+  const AppointmentDetailScreen({super.key, required this.appointment});
+
+  final MobileAppointment appointment;
+
+  Future<void> _joinMeeting(BuildContext context) async {
+    final fallbackJoinUrl = _buildZoomJoinUrl(
+      appointment.zoomMeetingId ?? "",
+      appointment.zoomPasscode,
+    );
+    final url = appointment.zoomJoinUrl ?? fallbackJoinUrl;
+
+    if (url.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Zoom meeting link is not available.")),
+      );
+      return;
+    }
+
+    final uri = Uri.tryParse(url);
+    if (uri == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Invalid meeting link.")));
+      return;
+    }
+
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!launched && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Unable to open Zoom meeting.")),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final prescriptions = <PrescriptionItem>[
-      PrescriptionItem(
-        name: 'Prescription_16_Mar_2026.pdf',
-        uploadedBy: 'Dr. Jenny',
-        uploadedAt: '16 Mar 2026',
-      ),
-      PrescriptionItem(
-        name: 'Followup_Medication_Note.pdf',
-        uploadedBy: 'Dr. Jenny',
-        uploadedAt: '14 Mar 2026',
-      ),
+      if (appointment.prescriptionUrl != null &&
+          appointment.prescriptionUrl!.isNotEmpty)
+        PrescriptionItem(
+          name: appointment.prescriptionFilename ?? 'Prescription',
+          uploadedBy: appointment.doctorName,
+          uploadedAt: appointment.displayDate,
+          url: appointment.prescriptionUrl,
+        ),
+      if (appointment.documentationUrl != null &&
+          appointment.documentationUrl!.isNotEmpty)
+        PrescriptionItem(
+          name: appointment.documentationFilename ?? 'Documentation',
+          uploadedBy: appointment.doctorName,
+          uploadedAt: appointment.displayDate,
+          url: appointment.documentationUrl,
+        ),
     ];
 
     return Scaffold(
@@ -63,9 +103,9 @@ class AppointmentDetailScreen extends StatelessWidget {
 
               const SizedBox(height: 8),
 
-              const Text(
-                'Zoom Meeting Details Dr. Jenny',
-                style: TextStyle(
+              Text(
+                'Zoom Meeting Details ${appointment.doctorName}',
+                style: const TextStyle(
                   fontSize: 19,
                   fontWeight: FontWeight.w500,
                   color: Color(0xFF7B6E67),
@@ -129,8 +169,8 @@ class AppointmentDetailScreen extends StatelessWidget {
                         ),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
-                          children: const [
-                            Text(
+                          children: [
+                            const Text(
                               'AT',
                               style: TextStyle(
                                 fontSize: 14,
@@ -139,10 +179,10 @@ class AppointmentDetailScreen extends StatelessWidget {
                                 color: Color(0xFF7B6E67),
                               ),
                             ),
-                            SizedBox(height: 6),
+                            const SizedBox(height: 6),
                             Text(
-                              '09:00 AM',
-                              style: TextStyle(
+                              appointment.displayTime,
+                              style: const TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w800,
                                 color: Color(0xFF4B3425),
@@ -157,12 +197,14 @@ class AppointmentDetailScreen extends StatelessWidget {
 
                     _DetailRow(
                       label: 'MEETING ID',
-                      value: '842 9011 4452',
+                      value: appointment.zoomMeetingId ?? '—',
                       showCopy: true,
                       onCopy: () {
-                        Clipboard.setData(
-                          const ClipboardData(text: '842 9011 4452'),
-                        );
+                        if (appointment.zoomMeetingId != null) {
+                          Clipboard.setData(
+                            ClipboardData(text: appointment.zoomMeetingId!),
+                          );
+                        }
                       },
                     ),
 
@@ -170,12 +212,14 @@ class AppointmentDetailScreen extends StatelessWidget {
 
                     _DetailRow(
                       label: 'PASSCODE',
-                      value: 'SANCTUARY7',
+                      value: appointment.zoomPasscode ?? '—',
                       showCopy: true,
                       onCopy: () {
-                        Clipboard.setData(
-                          const ClipboardData(text: 'SANCTUARY7'),
-                        );
+                        if (appointment.zoomPasscode != null) {
+                          Clipboard.setData(
+                            ClipboardData(text: appointment.zoomPasscode!),
+                          );
+                        }
                       },
                     ),
                   ],
@@ -188,9 +232,7 @@ class AppointmentDetailScreen extends StatelessWidget {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: () {
-
-                  },
+                  onPressed: () => _joinMeeting(context),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF4B3425),
                     elevation: 0,
@@ -212,7 +254,7 @@ class AppointmentDetailScreen extends StatelessWidget {
               const SizedBox(height: 48),
 
               const Text(
-                'Uploaded Prescriptions',
+                'Uploaded Documents',
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
@@ -224,34 +266,34 @@ class AppointmentDetailScreen extends StatelessWidget {
 
               prescriptions.isEmpty
                   ? Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 18,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: const Text(
-                  'No prescriptions uploaded by the doctor yet.',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF8A7E78),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              )
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 18,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: const Text(
+                        'No documents uploaded by the doctor yet.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF8A7E78),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    )
                   : Column(
-                children: prescriptions
-                    .map(
-                      (item) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: _PrescriptionCard(item: item),
-                  ),
-                )
-                    .toList(),
-              ),
+                      children: prescriptions
+                          .map(
+                            (item) => Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: _PrescriptionCard(item: item),
+                            ),
+                          )
+                          .toList(),
+                    ),
 
               const SizedBox(height: 22),
             ],
@@ -260,6 +302,19 @@ class AppointmentDetailScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+String _buildZoomJoinUrl(String meetingId, String? passcode) {
+  final cleanedId = meetingId.replaceAll(RegExp(r"\s+"), "");
+  if (cleanedId.isEmpty) {
+    return "";
+  }
+
+  if (passcode == null || passcode.isEmpty) {
+    return "https://zoom.us/j/$cleanedId";
+  }
+
+  return "https://zoom.us/j/$cleanedId?pwd=$passcode";
 }
 
 class _DetailRow extends StatelessWidget {
@@ -312,9 +367,7 @@ class _DetailRow extends StatelessWidget {
               height: 34,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: const Color(0xFFDCD5F3),
-                ),
+                border: Border.all(color: const Color(0xFFDCD5F3)),
               ),
               child: const Icon(
                 Icons.copy_rounded,
@@ -386,8 +439,14 @@ class _PrescriptionCard extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           GestureDetector(
-            onTap: () {
-
+            onTap: () async {
+              if (item.url == null || item.url!.isEmpty) {
+                return;
+              }
+              final uri = Uri.tryParse(item.url!);
+              if (uri != null) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              }
             },
             child: const Icon(
               Icons.chevron_right_rounded,
@@ -405,11 +464,12 @@ class PrescriptionItem {
   final String name;
   final String uploadedBy;
   final String uploadedAt;
+  final String? url;
 
   PrescriptionItem({
     required this.name,
     required this.uploadedBy,
     required this.uploadedAt,
+    this.url,
   });
 }
-

@@ -2,7 +2,7 @@ import os
 import re
 import tempfile
 from datetime import date as date_type
-from datetime import datetime, timezone, tzinfo
+from datetime import datetime, timedelta, timezone, tzinfo
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -62,6 +62,8 @@ def resolve_dashboard_timezone() -> tzinfo:
     try:
         return ZoneInfo(timezone_name)
     except ZoneInfoNotFoundError:
+        if timezone_name == "Asia/Colombo":
+            return timezone(timedelta(hours=5, minutes=30))
         return timezone.utc
 
 
