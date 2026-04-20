@@ -1,8 +1,9 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:lottie/lottie.dart';
+import 'package:mobile_app/Mood Journal/mood_journal_service.dart';
 
 class NewJournalEntryPage extends StatefulWidget {
   const NewJournalEntryPage({super.key});
@@ -25,6 +26,14 @@ class _NewJournalEntryPageState extends State<NewJournalEntryPage> {
 
   File? _selectedImage;
   bool _isUndoRedoAction = false;
+  bool _isSubmitting = false;
+
+  static const List<String> _journalMoodKeys = [
+    'Depression',
+    'Anxiety',
+    'Normal',
+    'Normal',
+  ];
 
   int selectedMood = 0;
   static const int _maxChars = 300;
@@ -48,6 +57,7 @@ class _NewJournalEntryPageState extends State<NewJournalEntryPage> {
     super.initState();
 
     _entryController.addListener(_handleEntryTextChanged);
+    unawaited(MoodJournalRepository.instance.ensureInitialized());
   }
 
   void _handleEntryTextChanged() {
@@ -74,7 +84,9 @@ class _NewJournalEntryPageState extends State<NewJournalEntryPage> {
   }
 
   Future<void> _pickPhoto() async {
-    final XFile? pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+    final XFile? pickedFile = await _picker.pickImage(
+      source: ImageSource.gallery,
+    );
 
     if (pickedFile != null) {
       setState(() {
@@ -83,69 +95,93 @@ class _NewJournalEntryPageState extends State<NewJournalEntryPage> {
     }
   }
 
-  void _showSuccessDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Lottie Animation
-                SizedBox(
-                  height: 200,
-                  child: Lottie.asset('assets/thumb.json'),
-                ),
+  Future<void> _persistEntryInBackground({
+    required String tempId,
+    required String title,
+    required String content,
+    required String userMood,
+    required bool incrementedDay,
+    required int previousActiveDaysCount,
+    required int previousJournalStreak,
+    required String previousLastActiveDateKey,
+  }) async {
+    final repository = MoodJournalRepository.instance;
 
-                const SizedBox(height: 8),
-
-                const Text(
-                  "Thanks! We created your journal.",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 19,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF4B3425),
-                  ),
-                ),
-
-                const SizedBox(height: 22),
-
-                SizedBox(
-                  width: double.infinity,
-                  height: 46,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      Navigator.pop(context);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF4B3425),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                    ),
-                    child: const Text(
-                      "Back to Journal Entries",
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+    try {
+      final result = await createJournalEntry(
+        title: title,
+        content: content,
+        userMood: userMood,
+      );
+      repository.replaceEntry(tempId, result.entry);
+      repository.syncFromJournalCreateResult(result);
+    } catch (_) {
+      repository.removeEntryById(tempId);
+      if (incrementedDay) {
+        repository.restoreDayCounters(
+          activeDaysCount: previousActiveDaysCount,
+          journalStreak: previousJournalStreak,
+          lastActiveDateKey: previousLastActiveDateKey,
         );
-      },
+      }
+    } finally {
+      _isSubmitting = false;
+    }
+  }
+
+  Future<void> _submitEntry() async {
+    if (_isSubmitting) {
+      return;
+    }
+
+    final title = _titleController.text.trim();
+    final content = _entryController.text.trim();
+
+    if (title.isEmpty || content.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill in both title and entry')),
+      );
+      return;
+    }
+
+    final selectedMoodKey = _journalMoodKeys[selectedMood];
+    final tempId = 'local_${DateTime.now().microsecondsSinceEpoch}';
+    final repository = MoodJournalRepository.instance;
+    final previousActiveDaysCount = repository.activeDaysCount;
+    final previousJournalStreak = repository.journalStreak;
+    final previousLastActiveDateKey = repository.lastActiveDateKey;
+    final incrementedDay = repository.incrementActiveDayIfNeeded();
+
+    repository.insertOptimisticEntry(
+      JournalEntryItem(
+        entryId: tempId,
+        title: title,
+        content: content,
+        userMood: selectedMoodKey,
+        aiMood: 'pending',
+        isMismatch: false,
+        safetyFlag: 'non_crisis',
+        entryDate: DateTime.now(),
+      ),
+    );
+
+    _isSubmitting = true;
+
+    if (mounted) {
+      Navigator.pop(context);
+    }
+
+    unawaited(
+      _persistEntryInBackground(
+        tempId: tempId,
+        title: title,
+        content: content,
+        userMood: selectedMoodKey,
+        incrementedDay: incrementedDay,
+        previousActiveDaysCount: previousActiveDaysCount,
+        previousJournalStreak: previousJournalStreak,
+        previousLastActiveDateKey: previousLastActiveDateKey,
+      ),
     );
   }
 
@@ -197,13 +233,13 @@ class _NewJournalEntryPageState extends State<NewJournalEntryPage> {
           shape: BoxShape.circle,
           boxShadow: isSelected
               ? [
-            BoxShadow(
-              color: moodShadowColors[index].withOpacity(0.35),
-              blurRadius: 4,
-              spreadRadius: 2,
-              offset: const Offset(0, 0),
-            ),
-          ]
+                  BoxShadow(
+                    color: moodShadowColors[index].withOpacity(0.35),
+                    blurRadius: 4,
+                    spreadRadius: 2,
+                    offset: const Offset(0, 0),
+                  ),
+                ]
               : [],
         ),
         child: Center(
@@ -211,10 +247,7 @@ class _NewJournalEntryPageState extends State<NewJournalEntryPage> {
             width: 70,
             height: 70,
             child: ClipOval(
-              child: Image.asset(
-                moodImages[index],
-                fit: BoxFit.contain,
-              ),
+              child: Image.asset(moodImages[index], fit: BoxFit.contain),
             ),
           ),
         ),
@@ -322,7 +355,11 @@ class _NewJournalEntryPageState extends State<NewJournalEntryPage> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.description_outlined, color: brown, size: 18),
+                      const Icon(
+                        Icons.description_outlined,
+                        color: brown,
+                        size: 18,
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: TextField(
@@ -330,7 +367,9 @@ class _NewJournalEntryPageState extends State<NewJournalEntryPage> {
                           focusNode: _titleFocusNode,
                           textInputAction: TextInputAction.next,
                           onSubmitted: (_) {
-                            FocusScope.of(context).requestFocus(_entryFocusNode);
+                            FocusScope.of(
+                              context,
+                            ).requestFocus(_entryFocusNode);
                           },
                           style: const TextStyle(
                             fontSize: 19,
@@ -429,7 +468,8 @@ class _NewJournalEntryPageState extends State<NewJournalEntryPage> {
                           decoration: const InputDecoration(
                             border: InputBorder.none,
                             counterText: "",
-                            hintText: "I had a bad day today, at\nschool... It’s fine I guess...",
+                            hintText:
+                                "I had a bad day today, at\nschool... It’s fine I guess...",
                             hintStyle: TextStyle(
                               fontSize: 28,
                               height: 1.35,
@@ -471,10 +511,11 @@ class _NewJournalEntryPageState extends State<NewJournalEntryPage> {
                           const Spacer(),
                           TextButton.icon(
                             onPressed: _pickPhoto,
-                            style: TextButton.styleFrom(
-                              foregroundColor: brown,
+                            style: TextButton.styleFrom(foregroundColor: brown),
+                            icon: const Icon(
+                              Icons.camera_alt_outlined,
+                              size: 18,
                             ),
-                            icon: const Icon(Icons.camera_alt_outlined, size: 18),
                             label: const Text(
                               "Add Photo",
                               style: TextStyle(
@@ -504,18 +545,7 @@ class _NewJournalEntryPageState extends State<NewJournalEntryPage> {
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
-                    onPressed: () {
-                      if (_titleController.text.isEmpty || _entryController.text.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text("Please fill in both title and entry"),
-                          ),
-                        );
-                        return;
-                      }
-
-                      _showSuccessDialog();
-                    },
+                    onPressed: _submitEntry,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: brown,
                       shape: RoundedRectangleBorder(
