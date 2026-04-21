@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_app/Login%20Section/otpScreen.dart';
 import 'package:mobile_app/Login%20Section/signUpScreen.dart';
+import 'package:mobile_app/Login Section/forgotPasswordScreen.dart';
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
@@ -193,7 +194,12 @@ class LoginScreen extends StatelessWidget {
 
                   Center(
                     child: GestureDetector(
-                      onTap: () {},
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => ForgotPasswordScreen()),
+                        );
+                      },
                       child: Text(
                         "Forgot Password",
                         style: TextStyle(
