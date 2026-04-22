@@ -79,7 +79,16 @@ flutter:
     - assets/thumbnail.png
     - assets/forgotpass.png
     - assets/rocket.json
+    - assets/moodselector.png
+    - assets/moodjournal.png
+    - assets/thumb.json
+    - assets/moodentries.png
+    - assets/success.json
 
+    - assets/faces/sad.png
+    - assets/faces/anxiety.png
+    - assets/faces/happy.png
+    - assets/faces/normal.png
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg
