@@ -162,6 +162,8 @@ class AuthService {
         ),
         email: email,
       );
+    } on FirebaseAuthException catch (error) {
+      throw StateError(_mapFirebaseAuthErrorMessage(error));
     }
   }
 
@@ -321,7 +323,11 @@ class AuthService {
     if (trimmed.isEmpty) {
       throw StateError('Please enter your email address first.');
     }
-    await _auth.sendPasswordResetEmail(email: trimmed);
+    try {
+      await _auth.sendPasswordResetEmail(email: trimmed);
+    } on FirebaseAuthException catch (error) {
+      throw StateError(_mapFirebaseAuthErrorMessage(error));
+    }
   }
 
   // Calls custom backend to get the user's specific role and status
@@ -416,6 +422,25 @@ class AuthService {
     }
 
     return error;
+  }
+
+  String _mapFirebaseAuthErrorMessage(FirebaseAuthException error) {
+    switch (error.code) {
+      case 'invalid-email':
+        return 'Please enter a valid email address.';
+      case 'user-disabled':
+        return 'This account has been disabled. Please contact support.';
+      case 'user-not-found':
+        return 'No account was found with that email.';
+      case 'wrong-password':
+        return 'Incorrect password. Please try again.';
+      case 'too-many-requests':
+        return 'Too many attempts. Please wait a moment and try again.';
+      case 'network-request-failed':
+        return 'Network issue. Check your connection and try again.';
+      default:
+        return error.message ?? 'Authentication failed. Please try again.';
+    }
   }
 
   Future<void> _sendEmailVerification(User user) async {

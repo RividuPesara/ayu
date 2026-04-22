@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_app/core/auth/auth_service.dart';
@@ -16,6 +17,8 @@ class _LoginScreenState extends State<LoginScreen> {
   // Controllers to capture text input for email and password
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  bool _isPasswordVisible = false;
+  String? _errorMessage;
 
   @override
   void dispose() {
@@ -30,9 +33,12 @@ class _LoginScreenState extends State<LoginScreen> {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
+    // Clear any previous error message before trying again
+    _clearError();
+
     // Basic validation to ensure fields aren't empty before calling the service
     if (email.isEmpty || password.isEmpty) {
-      _showMessage('Please enter email and password.');
+      _setError('Please enter both email and password.');
       return;
     }
 
@@ -71,8 +77,7 @@ class _LoginScreenState extends State<LoginScreen> {
         MaterialPageRoute(builder: (context) => OtpScreen(session: session)),
       );
     } catch (error) {
-      // Displays error messages to the user
-      _showMessage('Sign in failed. ${_formatError(error)}');
+      _setError(_formatError(error));
     }
   }
 
@@ -83,8 +88,24 @@ class _LoginScreenState extends State<LoginScreen> {
       await AuthService.instance.sendPasswordResetEmail(email);
       _showMessage('Password reset email sent.');
     } catch (error) {
-      _showMessage('Reset failed. ${_formatError(error)}');
+      _setError(_formatError(error));
     }
+  }
+
+  // Helper function to save an inline error message for the UI
+  void _setError(String message) {
+    if (!mounted) return;
+    setState(() {
+      _errorMessage = message;
+    });
+  }
+
+  // Helper function to clear the inline error message
+  void _clearError() {
+    if (!mounted) return;
+    setState(() {
+      _errorMessage = null;
+    });
   }
 
   // Helper function to show a Snackbar message at the bottom of the screen
@@ -99,7 +120,25 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // Cleans up system error strings to make them more readable for users
   String _formatError(Object error) {
-    return error.toString().replaceFirst('Exception: ', '');
+    if (error is FirebaseAuthException) {
+      final code = error.code.toLowerCase();
+      if (code.contains('invalid-email') ||
+          error.message?.toLowerCase().contains('invalid email') == true) {
+        return 'Please enter a valid email address.';
+      }
+      return 'Incorrect password. Please try again.';
+    }
+
+    if (error is StateError) {
+      return error.message;
+    }
+
+    final message = error.toString();
+    final lower = message.toLowerCase();
+    if (lower.contains('invalid-email') || lower.contains('invalid email')) {
+      return 'Please enter a valid email address.';
+    }
+    return 'Incorrect password. Please try again.';
   }
 
   @override
@@ -141,8 +180,37 @@ class _LoginScreenState extends State<LoginScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 16),
-
-                  // Email Field
+                  if (_errorMessage != null) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      margin: const EdgeInsets.only(bottom: 18),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFE4E1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFFFFB3B0)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
+                            color: Color(0xFFD32F2F),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              _errorMessage!,
+                              style: const TextStyle(
+                                color: Color(0xFFD32F2F),
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   Text(
                     "Email Address",
                     style: GoogleFonts.urbanist(
@@ -213,14 +281,27 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     child: TextField(
                       controller: _passwordController,
-                      obscureText: true,
+                      obscureText: !_isPasswordVisible,
                       textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => _handleSignIn(),
                       decoration: InputDecoration(
                         prefixIcon: const Icon(Icons.lock_outline),
                         hintText: "Enter your password...",
                         filled: true,
                         fillColor: Colors.white,
-                        suffixIcon: const Icon(Icons.visibility),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _isPasswordVisible
+                                ? Icons.visibility
+                                : Icons.visibility_off,
+                            color: const Color(0xFF4B3425),
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _isPasswordVisible = !_isPasswordVisible;
+                            });
+                          },
+                        ),
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 16,
                           vertical: 0,
