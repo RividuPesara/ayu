@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 # App settings loaded from environment variables
@@ -31,6 +32,11 @@ class Settings(BaseSettings):
     zoom_client_secret: str | None = None
     zoom_user_id: str | None = None
     appointment_duration_minutes: int = 30
+    youtube_api_key: str | None = None
+    ollama_cf_client_id: str | None = None
+    ollama_cf_client_secret: str | None = None
+    ollama_host: str | None = None
+    ollama_model: str = Field(default="qwen3.5:9b", validation_alias="MODEL")
 
     dev_mode: bool = False
     dev_patient_uid: str = "dev-rividu-pesara"
