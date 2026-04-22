@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:mobile_app/core/auth/auth_service.dart';
 import 'onboardingQuiz.dart';
 
 class OtpScreen extends StatefulWidget {
-  const OtpScreen({super.key});
+  final AuthOtpSession session;
+  final VoidCallback? onVerified;
+
+  OtpScreen({required this.session, this.onVerified, super.key});
 
   @override
   State<OtpScreen> createState() => _OtpScreenState();
@@ -17,13 +21,14 @@ class _OtpScreenState extends State<OtpScreen> {
   @override
   void initState() {
     super.initState();
-    controllers =
-        List.generate(otpLength, (index) => TextEditingController());
+    // Initialize a controller and focus node for each of the 6 OTP digits
+    controllers = List.generate(otpLength, (index) => TextEditingController());
     focusNodes = List.generate(otpLength, (index) => FocusNode());
   }
 
   @override
   void dispose() {
+    // Clean up all controllers and focus nodes when leaving the screen
     for (var c in controllers) {
       c.dispose();
     }
@@ -33,20 +38,25 @@ class _OtpScreenState extends State<OtpScreen> {
     super.dispose();
   }
 
+  // Manages moving the cursor automatically between boxes as the user types
   void onChanged(String value, int index) {
     if (value.isNotEmpty) {
       if (index < otpLength - 1) {
+        // Move to the next box if a digit was entered
         focusNodes[index + 1].requestFocus();
       } else {
+        // Hide keyboard if the last digit was entered
         focusNodes[index].unfocus();
       }
     } else {
       if (index > 0) {
+        // Move back to the previous box if the digit was deleted
         focusNodes[index - 1].requestFocus();
       }
     }
   }
 
+  // Combines the text from all 6 individual boxes into a single OTP string
   String getOtp() {
     return controllers.map((c) => c.text).join();
   }
@@ -86,7 +96,7 @@ class _OtpScreenState extends State<OtpScreen> {
                       fontWeight: FontWeight.bold,
                       color: Color(0xFF4B3425),
                     ),
-                  )
+                  ),
                 ],
               ),
 
@@ -122,10 +132,7 @@ class _OtpScreenState extends State<OtpScreen> {
               // OTP Input Boxes
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(
-                  otpLength,
-                      (index) => otpBox(index),
-                ),
+                children: List.generate(otpLength, (index) => otpBox(index)),
               ),
 
               const SizedBox(height: 60),
@@ -133,16 +140,7 @@ class _OtpScreenState extends State<OtpScreen> {
               // Continue Button
               GestureDetector(
                 onTap: () {
-                  String otp = getOtp();
-                  print("OTP Entered: $otp");
-
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const Quiz(),
-                    ),
-                  );
-
+                  _handleVerify(context);
                 },
                 child: Container(
                   width: double.infinity,
@@ -197,11 +195,46 @@ class _OtpScreenState extends State<OtpScreen> {
     );
   }
 
+  // Sends the OTP to the backend and navigates to the next screen upon success
+  Future<void> _handleVerify(BuildContext context) async {
+    final otp = getOtp();
+    try {
+      // Calls the auth service to validate the entered code
+      await AuthService.instance.verifyOtp(widget.session, otp);
+      if (!mounted) {
+        return;
+      }
+
+      // If a custom callback was provided, use it instead of default navigation
+      if (widget.onVerified != null) {
+        widget.onVerified!.call();
+        return;
+      }
+
+      // Proceed to the onboarding quiz screen after successful verification
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const Quiz()),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      // Show error message if the code is incorrect or expired
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
+  }
+
   // OTP Box Widget
   Widget otpBox(int index) {
     return AnimatedBuilder(
       animation: focusNodes[index],
       builder: (context, child) {
+        // Change UI appearance based on whether the box is currently active
         bool isFocused = focusNodes[index].hasFocus;
 
         return Container(
