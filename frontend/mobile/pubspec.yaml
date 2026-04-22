@@ -34,10 +34,13 @@ dependencies:
   google_fonts: ^6.1.0
   flutter_svg: ^2.0.10
   speech_to_text: ^7.3.0
+  image_picker: ^1.1.2
   http: ^1.2.2
   firebase_core: ^3.2.0
   firebase_auth: ^5.1.4
   cloud_firestore: ^5.4.0
+  shared_preferences: ^2.2.3
+  url_launcher: ^6.3.0
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -77,6 +80,8 @@ flutter:
     - assets/mastercard.svg
     - assets/amex.svg
     - assets/thumbnail.png
+    - assets/forgotpass.png
+    - assets/rocket.json
 
   # To add assets to your application, add an assets section, like this:
   # assets:
@@ -108,3 +113,25 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+  fonts:
+    - family: Urbanist
+      fonts:
+        - asset: assets/fonts/Urbanist-Thin.ttf
+          weight: 100
+        - asset: assets/fonts/Urbanist-ExtraLight.ttf
+          weight: 200
+        - asset: assets/fonts/Urbanist-Light.ttf
+          weight: 300
+        - asset: assets/fonts/Urbanist-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Urbanist-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Urbanist-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Urbanist-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Urbanist-ExtraBold.ttf
+          weight: 800
+        - asset: assets/fonts/Urbanist-Black.ttf
+          weight: 900

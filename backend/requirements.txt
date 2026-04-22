@@ -23,4 +23,6 @@ scikit-learn
 xgboost
 sentence-transformers
 chromadb
+google-api-python-client
+ollama
 

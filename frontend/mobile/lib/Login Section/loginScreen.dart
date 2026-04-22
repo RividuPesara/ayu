@@ -5,6 +5,7 @@ import 'package:mobile_app/core/auth/auth_service.dart';
 import 'package:mobile_app/Login%20Section/emailVerificationScreen.dart';
 import 'package:mobile_app/Login%20Section/otpScreen.dart';
 import 'package:mobile_app/Login%20Section/signUpScreen.dart';
+import 'package:mobile_app/Login Section/forgotPasswordScreen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -382,7 +383,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   // Navigation link for password recovery
                   Center(
                     child: GestureDetector(
-                      onTap: _handleForgotPassword,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ForgotPasswordScreen(),
+                          ),
+                        );
+                      },
                       child: Text(
                         "Forgot Password",
                         style: TextStyle(

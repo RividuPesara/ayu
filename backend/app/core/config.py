@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 # App settings loaded from environment variables
@@ -25,6 +26,12 @@ class Settings(BaseSettings):
     model_dir: str = "../models"
     chroma_db_dir: str = "../data/chroma_db"
     knowledge_base_path: str = "../data/cancer_knowledge_base.json"
+
+    youtube_api_key: str | None = None
+    ollama_cf_client_id: str | None = None
+    ollama_cf_client_secret: str | None = None
+    ollama_host: str | None = None
+    ollama_model: str = Field(default="qwen3.5:9b", validation_alias="MODEL")
 
     dev_mode: bool = False
     dev_patient_uid: str = "dev-rividu-pesara"

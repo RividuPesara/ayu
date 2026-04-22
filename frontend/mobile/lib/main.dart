@@ -1,7 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_app/core/network/backend_connector.dart';
 import 'package:mobile_app/splashScreen.dart';
 
@@ -26,8 +25,8 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Flutter Deo',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        textTheme: GoogleFonts.urbanistTextTheme(),
+        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
+        fontFamily: 'Urbanist',
       ),
       home: SplashScreen(),
     );
