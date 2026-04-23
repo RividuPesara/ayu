@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 
 class EmptyMedicationView extends StatelessWidget {
-  final VoidCallback onAddMedication;
+  final VoidCallback? onAddMedication;
 
-  const EmptyMedicationView({
-    super.key,
-    required this.onAddMedication,
-  });
+  const EmptyMedicationView({super.key, required this.onAddMedication});
 
   @override
   Widget build(BuildContext context) {
@@ -134,18 +131,11 @@ class EmptyMedicationView extends StatelessWidget {
                           width: 90,
                           height: 90,
                           decoration: BoxDecoration(
-                            border: Border.all(
-                              color: green,
-                              width: 8,
-                            ),
+                            border: Border.all(color: green, width: 8),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Center(
-                            child: Icon(
-                              Icons.add,
-                              size: 64,
-                              color: green,
-                            ),
+                            child: Icon(Icons.add, size: 64, color: green),
                           ),
                         ),
                         const SizedBox(height: 18),
@@ -196,7 +186,9 @@ class EmptyMedicationView extends StatelessWidget {
             child: ElevatedButton(
               onPressed: onAddMedication,
               style: ElevatedButton.styleFrom(
-                backgroundColor: green,
+                backgroundColor: onAddMedication != null
+                    ? green
+                    : const Color(0xFFCCCCCC),
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(22),
@@ -208,11 +200,7 @@ class EmptyMedicationView extends StatelessWidget {
                   CircleAvatar(
                     radius: 16,
                     backgroundColor: Color(0x33FFFFFF),
-                    child: Icon(
-                      Icons.add,
-                      color: Colors.white,
-                      size: 24,
-                    ),
+                    child: Icon(Icons.add, color: Colors.white, size: 24),
                   ),
                   SizedBox(width: 12),
                   Text(

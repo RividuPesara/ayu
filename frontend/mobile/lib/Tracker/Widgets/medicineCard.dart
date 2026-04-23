@@ -5,8 +5,9 @@ class MedicineCard extends StatelessWidget {
   final String type;
   final String time;
   final String tag;
-  final String imagePath;
+  final String? imagePath;
   final bool isTaken;
+  final bool isMissed;
   final VoidCallback onTagTap;
 
   const MedicineCard({
@@ -15,8 +16,9 @@ class MedicineCard extends StatelessWidget {
     required this.type,
     required this.time,
     required this.tag,
-    required this.imagePath,
+    this.imagePath,
     required this.isTaken,
+    this.isMissed = false,
     required this.onTagTap,
   });
 
@@ -48,17 +50,25 @@ class MedicineCard extends StatelessWidget {
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(14),
-              child: Image.asset(
-                imagePath,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) {
-                  return const Icon(
-                    Icons.medication_outlined,
-                    color: Color(0xFFA8BA78),
-                    size: 32,
-                  );
-                },
-              ),
+              child: imagePath != null && imagePath!.isNotEmpty
+                  ? Image.asset(
+                      imagePath!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) {
+                        return const Icon(
+                          Icons.medication_outlined,
+                          color: Color(0xFFA8BA78),
+                          size: 32,
+                        );
+                      },
+                    )
+                  : const Center(
+                      child: Icon(
+                        Icons.medication_outlined,
+                        color: Color(0xFFA8BA78),
+                        size: 32,
+                      ),
+                    ),
             ),
           ),
           const SizedBox(width: 12),
@@ -113,7 +123,7 @@ class MedicineCard extends StatelessWidget {
                     ),
                     const Spacer(),
                     GestureDetector(
-                      onTap: onTagTap,
+                      onTap: isMissed ? null : onTagTap,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 14,
@@ -122,6 +132,8 @@ class MedicineCard extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: isTaken
                               ? const Color(0xFF1FA15A)
+                              : isMissed
+                              ? const Color(0xFFD94F4F)
                               : const Color(0xFFA8BA78),
                           borderRadius: BorderRadius.circular(16),
                         ),

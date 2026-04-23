@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 
 class TakenView extends StatelessWidget {
   final List<Map<String, String>> takenMedicines;
+  final double adherenceRate;
 
   const TakenView({
     super.key,
     required this.takenMedicines,
+    this.adherenceRate = 0.0,
   });
 
   @override
@@ -47,7 +49,7 @@ class TakenView extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           ...takenMedicines.map(
-                (item) => Padding(
+            (item) => Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: Container(
                 width: double.infinity,
@@ -77,17 +79,27 @@ class TakenView extends StatelessWidget {
                           ),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(12),
-                            child: Image.asset(
-                              item["image"]!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) {
-                                return const Icon(
-                                  Icons.medication_outlined,
-                                  color: Color(0xFF7AA4B9),
-                                  size: 28,
-                                );
-                              },
-                            ),
+                            child:
+                                item["image"] != null &&
+                                    item["image"]!.trim().isNotEmpty
+                                ? Image.asset(
+                                    item["image"]!,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) {
+                                      return const Icon(
+                                        Icons.medication_outlined,
+                                        color: Color(0xFF7AA4B9),
+                                        size: 28,
+                                      );
+                                    },
+                                  )
+                                : const Center(
+                                    child: Icon(
+                                      Icons.medication_outlined,
+                                      color: Color(0xFF7AA4B9),
+                                      size: 28,
+                                    ),
+                                  ),
                           ),
                         ),
                         const Spacer(),
@@ -193,9 +205,9 @@ class TakenView extends StatelessWidget {
                     ),
                     const SizedBox(height: 14),
                     Row(
-                      children: const [
-                        Text(
-                          "MONTHLY ADHERENCE",
+                      children: [
+                        const Text(
+                          "DAILY ADHERENCE",
                           style: TextStyle(
                             fontSize: 15,
                             letterSpacing: 1,
@@ -203,10 +215,10 @@ class TakenView extends StatelessWidget {
                             fontWeight: FontWeight.w700,
                           ),
                         ),
-                        Spacer(),
+                        const Spacer(),
                         Text(
-                          "92%",
-                          style: TextStyle(
+                          "${(adherenceRate * 100).round()}%",
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
                             color: Color(0xFF0E8D3D),
@@ -217,11 +229,13 @@ class TakenView extends StatelessWidget {
                     const SizedBox(height: 8),
                     ClipRRect(
                       borderRadius: BorderRadius.circular(10),
-                      child: const LinearProgressIndicator(
-                        value: 0.92,
+                      child: LinearProgressIndicator(
+                        value: adherenceRate,
                         minHeight: 5,
-                        backgroundColor: Color(0xFFE4E0DB),
-                        valueColor: AlwaysStoppedAnimation(Color(0xFF0E8D3D)),
+                        backgroundColor: const Color(0xFFE4E0DB),
+                        valueColor: const AlwaysStoppedAnimation(
+                          Color(0xFF0E8D3D),
+                        ),
                       ),
                     ),
                   ],
