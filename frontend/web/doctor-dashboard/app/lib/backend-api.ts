@@ -2,7 +2,7 @@ import { auth } from "@/app/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 
 const BACKEND_BASE_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
+  process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1";
 
 export class UnauthenticatedError extends Error {
   constructor(message = "No authenticated user found.") {

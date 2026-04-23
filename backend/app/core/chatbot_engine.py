@@ -4,6 +4,7 @@ import os
 import random
 import re
 from collections import Counter
+from filelock import FileLock
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -137,28 +138,43 @@ def initialize_chatbot_engine(
     _split_docs = splitter.split_documents(raw_docs)
     logger.info("Knowledge base chunked into %d pieces", len(_split_docs))
 
-    # Drop existing collection to prevent duplicates
     os.makedirs(chroma_db_dir, exist_ok=True)
     collection_name = "cancer_knowledge"
+    lock_path = os.path.join(chroma_db_dir, ".chromadb_init.lock")
 
-    try:
-        old_store = Chroma(
-            collection_name=collection_name,
-            persist_directory=chroma_db_dir,
-            embedding_function=_embeddings,
-        )
-        old_store.delete_collection()
-        logger.info("Dropped existing ChromaDB collection")
-    except Exception:
-        logger.info("No previous ChromaDB collection found; building fresh index")
+    # File lock on the shared volume make sure only one replica builds the index the others wait, then load the already built collection
+    with FileLock(lock_path, timeout=300):
+        loaded = False
+        try:
+            candidate = Chroma(
+                collection_name=collection_name,
+                persist_directory=chroma_db_dir,
+                embedding_function=_embeddings,
+            )
+            if candidate._collection.count() > 0:
+                _vectorstore = candidate
+                logger.info("Loaded existing ChromaDB collection (%d chunks)", candidate._collection.count())
+                loaded = True
+        except Exception:
+            pass
 
-    _vectorstore= Chroma.from_documents(
-        documents=_split_docs,
-        embedding=_embeddings,
-        persist_directory=chroma_db_dir,
-        collection_name=collection_name,
-    )
-    logger.info("ChromaDB indexed %d chunks", len(_split_docs))
+        if not loaded:
+            try:
+                stale = Chroma(
+                    collection_name=collection_name,
+                    persist_directory=chroma_db_dir,
+                    embedding_function=_embeddings,
+                )
+                stale.delete_collection()
+            except Exception:
+                pass
+            _vectorstore= Chroma.from_documents(
+                documents=_split_docs,
+                embedding=_embeddings,
+                persist_directory=chroma_db_dir,
+                collection_name=collection_name,
+            )
+            logger.info("ChromaDB indexed %d chunks", len(_split_docs))
 
     # Gemini LLM
     _llm = ChatGoogleGenerativeAI(
