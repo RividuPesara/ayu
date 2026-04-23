@@ -82,17 +82,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // Logic to trigger a Firebase password reset email
-  Future<void> _handleForgotPassword() async {
-    final email = _emailController.text.trim();
-    try {
-      await AuthService.instance.sendPasswordResetEmail(email);
-      _showMessage('Password reset email sent.');
-    } catch (error) {
-      _setError(_formatError(error));
-    }
-  }
-
   // Helper function to save an inline error message for the UI
   void _setError(String message) {
     if (!mounted) return;
@@ -387,7 +376,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => ForgotPasswordScreen(),
+                            builder: (context) => ForgotPasswordScreen(
+                              initialEmail: _emailController.text,
+                            ),
                           ),
                         );
                       },

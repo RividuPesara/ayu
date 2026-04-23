@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:mobile_app/Login Section/forgotPasswordSuccessScreen.dart';
 import 'package:flutter/gestures.dart';
+import 'package:mobile_app/core/auth/auth_service.dart';
+import 'package:mobile_app/Login Section/forgotPasswordSuccessScreen.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
-  const ForgotPasswordScreen({super.key});
+  final String? initialEmail;
+
+  const ForgotPasswordScreen({super.key, this.initialEmail});
 
   @override
   State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
@@ -12,17 +15,54 @@ class ForgotPasswordScreen extends StatefulWidget {
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     with WidgetsBindingObserver {
   bool _keyboardVisible = false;
+  bool _isLoading = false;
+  String? _errorMessage;
+  final TextEditingController _emailController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _emailController.text = widget.initialEmail ?? '';
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _emailController.dispose();
     super.dispose();
+  }
+
+  Future<void> _sendPasswordResetEmail() async {
+    if (!mounted) return;
+
+    setState(() {
+      _errorMessage = null;
+      _isLoading = true;
+    });
+
+    try {
+      await AuthService.instance.sendPasswordResetEmail(_emailController.text);
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ForgotPasswordSuccessScreen(),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = error is StateError
+            ? error.message
+            : 'Unable to send reset link. Please try again.';
+      });
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -91,7 +131,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
                       SizedBox(height: 10),
                       Text(
                         "Enter your registered email below\n"
-                            "to receive password reset instruction",
+                        "to receive password reset instruction",
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 18,
@@ -119,6 +159,38 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
 
                 const SizedBox(height: 30),
 
+                if (_errorMessage != null) ...[
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFE4E1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFFFFB3B0)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          color: Color(0xFFD32F2F),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _errorMessage!,
+                            style: const TextStyle(
+                              color: Color(0xFFD32F2F),
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
                 // Email input
                 Container(
                   decoration: BoxDecoration(
@@ -132,6 +204,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
                     ],
                   ),
                   child: TextField(
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _sendPasswordResetEmail(),
                     decoration: InputDecoration(
                       hintText: "Enter your email...",
                       filled: true,
@@ -161,27 +237,24 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
                         borderRadius: BorderRadius.circular(30),
                       ),
                     ),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => ForgotPasswordSuccessScreen()),
-                      );
-                    },
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          "Send",
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
+                    onPressed: _isLoading ? null : _sendPasswordResetEmail,
+                    child: _isLoading
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                "Send",
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              SizedBox(width: 10),
+                              Icon(Icons.arrow_forward, color: Colors.white),
+                            ],
                           ),
-                        ),
-                        SizedBox(width: 10),
-                        Icon(Icons.arrow_forward, color: Colors.white),
-                      ],
-                    ),
                   ),
                 ),
 
