@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
+import 'package:mobile_app/Login Section/loginScreen.dart';
+
 
 class ForgotPasswordSuccessScreen extends StatelessWidget {
   const ForgotPasswordSuccessScreen({super.key});
@@ -95,7 +97,13 @@ class ForgotPasswordSuccessScreen extends StatelessWidget {
                     ),
                   ),
                   onPressed: () {
-                    Navigator.pop(context);
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const LoginScreen(),
+                      ),
+                          (route) => false,
+                    );
                   },
                   child: const Text(
                     "Sign In",
