@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
 from app.core.firebase import initialize_firebase
+from app.core.redis_client import initialize_redis
 from app.core.chatbot_engine import initialize_chatbot_engine
 from app.services.sentiment_service import initialize_sentiment_service
 from app.api.api import api_router
@@ -23,6 +24,7 @@ def create_app() -> FastAPI:
   # Initialize Firebase, sentiment models, and chatbot engine once when the server starts
   @app.on_event("startup")
   def startup_event() -> None:
+    initialize_redis()
     initialize_firebase()
     initialize_sentiment_service(settings.model_dir)
     if settings.gemini_api_key:

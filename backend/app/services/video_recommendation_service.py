@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable
 
@@ -11,7 +12,12 @@ from googleapiclient.discovery import build
 
 from app.core.config import get_settings
 from app.core.firebase import get_firestore_client
+from app.core.redis_client import get_redis
 from app.schemas.video import VideoRecommendation
+
+# Redis cache config
+_REDIS_YT_TTL = 24 * 3600       # 24 h matches Firestore cache TTL
+_REDIS_YT_LOCK_TTL = 30         # prevents thunder herd on simultaneous misses
 
 logger = logging.getLogger(__name__)
 
@@ -695,102 +701,166 @@ def _is_cache_valid(created_at: datetime | None) -> bool:
     return now - created_at <= timedelta(hours=CACHE_TTL_HOURS)
 
 
+def _redis_yt_key(uid: str) -> str:
+    return f"ayu:youtube:{uid}"
+
+
+def _redis_yt_lock_key(uid: str) -> str:
+    return f"ayu:youtube:lock:{uid}"
+
+
+def _serialize_for_redis(items: list[VideoRecommendation]) -> str:
+    payload = []
+    for item in items:
+        payload.append({
+            "video_id": item.video_id,
+            "title": item.title,
+            "channel": item.channel,
+            "thumbnail": item.thumbnail,
+            "url": item.url,
+            "query_used": item.query_used,
+            "tags": item.tags,
+            "published_at": item.published_at.isoformat() if item.published_at else None,
+            "view_count": item.view_count,
+        })
+    return json.dumps(payload)
+
+
+def _load_from_redis(uid: str) -> list[VideoRecommendation] | None:
+    redis = get_redis()
+    if redis is None:
+        return None
+    try:
+        raw = redis.get(_redis_yt_key(uid))
+        if not raw:
+            return None
+        items = _map_cached_items(json.loads(raw))
+        return items if items else None
+    except Exception:
+        return None
+
+
+def _save_to_redis(uid: str, items: list[VideoRecommendation]) -> None:
+    redis = get_redis()
+    if redis is None:
+        return
+    try:
+        redis.setex(_redis_yt_key(uid), _REDIS_YT_TTL, _serialize_for_redis(items))
+    except Exception:
+        pass
+
+
 def get_video_recommendations(uid: str, refresh: bool = False, max_per_query: int = DEFAULT_MAX_PER_QUERY,
 ) -> tuple[list[VideoRecommendation], dict[str, Any]]:
-    # Checks cache first, then AI, then YouTube so the user never sees the same video twice in a row
+    # Checks Redis then Firestore then YouTube so all replicas share one result pool
     tags, mood, trend, interaction_scores, dominant_emotion, recently_seen = get_user_video_context(uid)
     recommendation_mode = _recommendation_mode_for(dominant_emotion)
     seen_ids = set(recently_seen)
 
-    # Check if we have fresh videos in the database already
-    cached = _load_cached(uid)
-    if not refresh and cached is not None:
-        items, created_at, data = cached
-        if items and _is_cache_valid(created_at):
-            filtered = [item for item in items if item.video_id not in seen_ids]
+    def _make_meta(cached: bool, generated_at: Any, data: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "cached": cached,
+            "generated_at": generated_at,
+            "tags": _normalize_tags(data.get("tags", []) or tags),
+            "mood": str(data.get("mood") or dominant_emotion),
+            "mood_trend": str(data.get("moodTrend") or trend),
+            "dominant_emotion": str(data.get("dominantEmotion") or dominant_emotion),
+            "recommendation_mode": str(data.get("recommendationMode") or recommendation_mode),
+        }
+
+    # Redis global cache which is shared across all replicas
+    if not refresh:
+        redis_items = _load_from_redis(uid)
+        if redis_items:
+            filtered = [item for item in redis_items if item.video_id not in seen_ids]
             if filtered:
                 try:
                     update_recently_seen(uid, [item.video_id for item in filtered])
                 except Exception as exc:
                     logger.warning("Failed to update recently seen ids: %s", exc)
-                return filtered, {
-                    "cached": True,
-                    "generated_at": created_at,
-                    "tags": _normalize_tags(data.get("tags", []) or tags),
-                    "mood": str(data.get("mood") or dominant_emotion),
-                    "mood_trend": str(data.get("moodTrend") or trend),
-                    "dominant_emotion": str(data.get("dominantEmotion") or dominant_emotion),
-                    "recommendation_mode": str(data.get("recommendationMode") or recommendation_mode),
-                }
+                return filtered, _make_meta(True, datetime.now(timezone.utc), {
+                    "tags": tags, "mood": dominant_emotion, "moodTrend": trend,
+                    "dominantEmotion": dominant_emotion, "recommendationMode": recommendation_mode,
+                })
+
+    # firestore per user cache and populate Redis on hit
+    firestore_cached = _load_cached(uid)
+    if not refresh and firestore_cached is not None:
+        items, created_at, data = firestore_cached
+        if items and _is_cache_valid(created_at):
+            filtered = [item for item in items if item.video_id not in seen_ids]
+            if filtered:
+                _save_to_redis(uid, filtered)
+                try:
+                    update_recently_seen(uid, [item.video_id for item in filtered])
+                except Exception as exc:
+                    logger.warning("Failed to update recently seen ids: %s", exc)
+                return filtered, _make_meta(True, created_at, data)
+
+    # Fetch from Ollama and YouTube use a per uid Redis lock to prevent thunderherd
+    redis = get_redis()
+    lock_acquired = False
+    if redis is not None:
+        try:
+            lock_acquired = bool(redis.set(_redis_yt_lock_key(uid), "1", nx=True, ex=_REDIS_YT_LOCK_TTL))
+            if not lock_acquired:
+                # Another replica is already fetching so wait briefly and try Redis again
+                time.sleep(3)
+                redis_items = _load_from_redis(uid)
+                if redis_items:
+                    filtered = [item for item in redis_items if item.video_id not in seen_ids]
+                    if filtered:
+                        return filtered, _make_meta(True, datetime.now(timezone.utc), {
+                            "tags": tags, "mood": dominant_emotion, "moodTrend": trend,
+                            "dominantEmotion": dominant_emotion, "recommendationMode": recommendation_mode,
+                        })
+        except Exception:
+            pass
 
     merged_tags = _merge_tags(tags, interaction_scores)
 
     try:
-        queries = generate_search_queries(
-            merged_tags,
-            dominant_emotion,
-            recommendation_mode,
-            interaction_scores,
-        )
-    except HTTPException as exc:
-        if cached is not None:
-            items, created_at, data = cached
-            if items:
-                logger.info("Serving cached recommendations after generator failure.")
-                return items, {
-                    "cached": True,
-                    "generated_at": created_at,
-                    "tags": _normalize_tags(data.get("tags", []) or tags),
-                    "mood": str(data.get("mood") or dominant_emotion),
-                    "mood_trend": str(data.get("moodTrend") or trend),
-                    "dominant_emotion": str(data.get("dominantEmotion") or dominant_emotion),
-                    "recommendation_mode": str(data.get("recommendationMode") or recommendation_mode),
-                }
-        raise exc
+        try:
+            queries = generate_search_queries(merged_tags, dominant_emotion, recommendation_mode, interaction_scores)
+        except HTTPException as exc:
+            stale = firestore_cached or _load_cached(uid)
+            if stale is not None:
+                items, created_at, data = stale
+                if items:
+                    logger.info("Serving cached recommendations after generator failure.")
+                    return items, _make_meta(True, created_at, data)
+            raise exc
 
-    query_tag_map = _assign_query_tags(queries, merged_tags)
+        query_tag_map = _assign_query_tags(queries, merged_tags)
 
-    try:
-        # Fetch from YouTube
-        items = fetch_youtube_videos(
-            queries,
-            max_per_query=max_per_query,
-            query_tag_map=query_tag_map,
-        )
-    except HTTPException as exc:
-        if cached is not None:
-            items, created_at, data = cached
-            if items:
-                logger.info("Serving cached recommendations after YouTube failure.")
-                return items, {
-                    "cached": True,
-                    "generated_at": created_at,
-                    "tags": _normalize_tags(data.get("tags", []) or tags),
-                    "mood": str(data.get("mood") or dominant_emotion),
-                    "mood_trend": str(data.get("moodTrend") or trend),
-                    "dominant_emotion": str(data.get("dominantEmotion") or dominant_emotion),
-                    "recommendation_mode": str(data.get("recommendationMode") or recommendation_mode),
-                }
-        raise exc
-    # Filter and select the best ones based on interaction scores
-    candidates = [item for item in items if item.video_id not in seen_ids]
-    if not candidates:
-        candidates = items
+        try:
+            items = fetch_youtube_videos(queries, max_per_query=max_per_query, query_tag_map=query_tag_map)
+        except HTTPException as exc:
+            stale = firestore_cached or _load_cached(uid)
+            if stale is not None:
+                items, created_at, data = stale
+                if items:
+                    logger.info("Serving cached recommendations after YouTube failure.")
+                    return items, _make_meta(True, created_at, data)
+            raise exc
 
-    max_items = max_per_query * DEFAULT_QUERY_COUNT
-    selected = _select_videos_by_tag(candidates, interaction_scores, max_items)
-    if not selected:
-        selected = candidates
+        candidates = [item for item in items if item.video_id not in seen_ids]
+        if not candidates:
+            candidates = items
 
-    try:
-        # Save everything to the database and update the 'Seen' list
-        update_recently_seen(uid, [item.video_id for item in selected])
-    except Exception as exc:
-        logger.warning("Failed to update recently seen ids: %s", exc)
+        max_items = max_per_query * DEFAULT_QUERY_COUNT
+        selected = _select_videos_by_tag(candidates, interaction_scores, max_items) or candidates
 
-    db = get_firestore_client()
-    db.collection(RECOMMENDATIONS_COLLECTION).document().set(
-        {
+        try:
+            update_recently_seen(uid, [item.video_id for item in selected])
+        except Exception as exc:
+            logger.warning("Failed to update recently seen ids: %s", exc)
+
+        # Persist to Redis (global, instant for next replica) and Firestore (durable)
+        _save_to_redis(uid, selected)
+
+        db = get_firestore_client()
+        db.collection(RECOMMENDATIONS_COLLECTION).document().set({
             "userId": uid,
             "createdAt": firestore.SERVER_TIMESTAMP,
             "tags": tags,
@@ -800,18 +870,18 @@ def get_video_recommendations(uid: str, refresh: bool = False, max_per_query: in
             "recommendationMode": recommendation_mode,
             "queries": queries,
             "items": _serialize_recommendations(selected),
-        }
-    )
+        })
 
-    return selected, {
-        "cached": False,
-        "generated_at": datetime.now(timezone.utc),
-        "tags": tags,
-        "mood": dominant_emotion,
-        "mood_trend": trend,
-        "dominant_emotion": dominant_emotion,
-        "recommendation_mode": recommendation_mode,
-    }
+        return selected, _make_meta(False, datetime.now(timezone.utc), {
+            "tags": tags, "mood": dominant_emotion, "moodTrend": trend,
+            "dominantEmotion": dominant_emotion, "recommendationMode": recommendation_mode,
+        })
+    finally:
+        if lock_acquired and redis is not None:
+            try:
+                redis.delete(_redis_yt_lock_key(uid))
+            except Exception:
+                pass
 
 
 def record_video_interaction(uid: str, tags: Iterable[str]) -> dict[str, int]:

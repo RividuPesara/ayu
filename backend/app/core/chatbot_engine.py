@@ -3,6 +3,7 @@ import logging
 import os
 import random
 import re
+import time
 from collections import Counter
 from filelock import FileLock
 from langchain_chroma import Chroma
@@ -11,7 +12,11 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+from app.core.redis_client import get_redis
 from app.services.sentiment_service import (analyze_safety, has_medical_vocabulary,)
+
+_CHROMA_REDIS_LOCK_KEY = "ayu:chromadb:init_lock"
+_CHROMA_LOCK_TIMEOUT = 300 
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +94,77 @@ _llm = None
 _split_docs: list[Document] = []
 
 
+def _init_chromadb_collection(chroma_db_dir: str, collection_name: str) -> None:
+    #Loads an existing ChromaDB collection or builds it from _split_docs and should only be called while holding the Redis or file lock
+    global _vectorstore
+
+    loaded = False
+    try:
+        candidate = Chroma(
+            collection_name=collection_name,
+            persist_directory=chroma_db_dir,
+            embedding_function=_embeddings,
+        )
+        if candidate._collection.count() > 0:
+            _vectorstore = candidate
+            logger.info("Loaded existing ChromaDB collection (%d chunks)", candidate._collection.count())
+            loaded = True
+    except Exception:
+        pass
+
+    if not loaded:
+        try:
+            stale = Chroma(
+                collection_name=collection_name,
+                persist_directory=chroma_db_dir,
+                embedding_function=_embeddings,
+            )
+            stale.delete_collection()
+        except Exception:
+            pass
+        _vectorstore = Chroma.from_documents(
+            documents=_split_docs,
+            embedding=_embeddings,
+            persist_directory=chroma_db_dir,
+            collection_name=collection_name,
+        )
+        logger.info("ChromaDB indexed %d chunks", len(_split_docs))
+
+
+def _init_chromadb_with_redis_lock(redis, chroma_db_dir: str, collection_name: str) -> None:
+    # Uses a Redis lock to safely set up ChromaDB making sure only one instance runs it and avoiding stuck locks or file issues
+    deadline = time.monotonic() + _CHROMA_LOCK_TIMEOUT
+    acquired = False
+
+    while time.monotonic() < deadline:
+        try:
+            acquired = bool(
+                redis.set(_CHROMA_REDIS_LOCK_KEY, "1", nx=True, ex=_CHROMA_LOCK_TIMEOUT)
+            )
+        except Exception as exc:
+            logger.warning("Redis lock attempt failed, retrying: %s", exc)
+
+        if acquired:
+            break
+        time.sleep(1)
+
+    if not acquired:
+        logger.error(
+            "Could not acquire Redis ChromaDB init lock after %ds — "
+            "another replica may be stuck. Proceeding without lock.",
+            _CHROMA_LOCK_TIMEOUT,
+        )
+
+    try:
+        _init_chromadb_collection(chroma_db_dir, collection_name)
+    finally:
+        if acquired:
+            try:
+                redis.delete(_CHROMA_REDIS_LOCK_KEY)
+            except Exception:
+                pass
+
+
 def initialize_chatbot_engine(
     gemini_api_key: str,
     chroma_db_dir: str,
@@ -142,39 +218,13 @@ def initialize_chatbot_engine(
     collection_name = "cancer_knowledge"
     lock_path = os.path.join(chroma_db_dir, ".chromadb_init.lock")
 
-    # File lock on the shared volume make sure only one replica builds the index the others wait, then load the already built collection
-    with FileLock(lock_path, timeout=300):
-        loaded = False
-        try:
-            candidate = Chroma(
-                collection_name=collection_name,
-                persist_directory=chroma_db_dir,
-                embedding_function=_embeddings,
-            )
-            if candidate._collection.count() > 0:
-                _vectorstore = candidate
-                logger.info("Loaded existing ChromaDB collection (%d chunks)", candidate._collection.count())
-                loaded = True
-        except Exception:
-            pass
-
-        if not loaded:
-            try:
-                stale = Chroma(
-                    collection_name=collection_name,
-                    persist_directory=chroma_db_dir,
-                    embedding_function=_embeddings,
-                )
-                stale.delete_collection()
-            except Exception:
-                pass
-            _vectorstore= Chroma.from_documents(
-                documents=_split_docs,
-                embedding=_embeddings,
-                persist_directory=chroma_db_dir,
-                collection_name=collection_name,
-            )
-            logger.info("ChromaDB indexed %d chunks", len(_split_docs))
+    redis = get_redis()
+    if redis is not None:
+        _init_chromadb_with_redis_lock(redis, chroma_db_dir, collection_name)
+    else:
+        # file lock on the shared Docker volume
+        with FileLock(lock_path, timeout=_CHROMA_LOCK_TIMEOUT):
+            _init_chromadb_collection(chroma_db_dir, collection_name)
 
     # Gemini LLM
     _llm = ChatGoogleGenerativeAI(

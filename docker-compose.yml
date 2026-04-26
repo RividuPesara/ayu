@@ -1,4 +1,18 @@
 services:
+  redis:
+    image: redis:7-alpine
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
   nginx:
     build: ./nginx
     ports:
@@ -16,6 +30,7 @@ services:
       - ./backend/.env
     environment:
       - HF_HUB_OFFLINE=1
+      - REDIS_URL=redis://redis:6379/0
     volumes:
       - ./backend:/app
       - ./models:/models
@@ -23,6 +38,9 @@ services:
     networks:
       - app-network
     restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
     deploy:
       replicas: 3
     healthcheck:
