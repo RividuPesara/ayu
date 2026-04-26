@@ -26,6 +26,7 @@ from app.services.chatbot_service import (
     get_session,
     get_session_aggregates,
     get_unsummarized_sessions,
+    invalidate_conversation_history,
     list_messages,
     list_sessions,
     mark_session_summarized,
@@ -156,12 +157,13 @@ async def send_message(session_id: str,payload: SendMessageRequest,user : Curren
         "triggered_by": result["triggered_by"],
     }
 
-    # Persist both the patient message and Ayu's reply
+    # Persist both the patient message and Ayu's reply then remove the history cache
     message_id = await _run_sync(
         save_patient_message, session_id, user.uid, payload.content, analysis
     )
     await _run_sync(save_chatbot_message, session_id, user.uid, result["response"])
     await _run_sync(update_session_stats, session_id, result["sentiment"], result["safety_flag"])
+    await _run_sync(invalidate_conversation_history, session_id)
 
     return ChatResponse(
         response = result["response"],
@@ -251,9 +253,10 @@ async def stream_message(
 
         full_response = "".join(full_response_parts)
 
-        # stores the complete bot answer and updates session metrics
+        # stores the complete bot answer and updates session metrics and remove the history cache
         await _run_sync(save_chatbot_message, session_id, uid, full_response)
         await _run_sync(update_session_stats, session_id, ctx["sentiment"], ctx["safety_flag"])
+        await _run_sync(invalidate_conversation_history, session_id)
         # signals the end of the stream to the frontend
         done_data = json.dumps({"event": "done"})
         yield f"data: {done_data}\n\n"
