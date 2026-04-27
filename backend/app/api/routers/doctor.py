@@ -14,6 +14,7 @@ from app.schemas.doctor import (
     DoctorProfileUpdate,
     SessionSummaryUpdate,
 )
+from app.schemas.patient import AccountStatusResponse, AccountStatusUpdate
 from app.services.doctor_service import (
     get_doctor_appointment,
     get_doctor_profile,
@@ -24,6 +25,8 @@ from app.services.doctor_service import (
     update_appointment_status,
     update_doctor_profile,
 )
+from app.services.patient_service import get_account_status_for_uid, set_account_status
+from app.services.user_service import invalidate_status_cache
 
 router = APIRouter(prefix="/doctor", tags=["doctor"])
 
@@ -65,6 +68,20 @@ async def upload_my_avatar(
 
     avatar_url = await _run_sync(update_doctor_avatar, user.uid, file_content, avatar.content_type)
     return AvatarUploadResponse(avatar_url=avatar_url)
+
+
+@router.get("/status", response_model=AccountStatusResponse)
+async def get_my_status(user: CurrentUser = Depends(require_doctor_access),
+) -> AccountStatusResponse:
+    return await _run_sync(get_account_status_for_uid, user.uid)
+
+
+@router.patch("/status", response_model=AccountStatusResponse)
+async def update_my_status(payload: AccountStatusUpdate,user: CurrentUser = Depends(require_doctor_access),
+) -> AccountStatusResponse:
+    result = await _run_sync(set_account_status, user.uid, payload.status)
+    invalidate_status_cache(user.uid)
+    return result
 
 
 # Get all appointments for the log in doctor
