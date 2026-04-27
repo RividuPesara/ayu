@@ -3,24 +3,16 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import "../../../../styles/document.css";
-
-type DocStatus = "Pending" | "Approved" | "Rejected";
-
-type MedicalDocument = {
-  id: number;
-  patient: string;
-  document: string;
-  submitted: string;
-  status: DocStatus;
-  approvedForDonation: boolean;
-  rejectionComment?: string;
-};
-
-const initialDocuments: MedicalDocument[] = [
-  { id: 1, patient: "Maya Singh",   document: "Cardiology Report_May24.pdf",   submitted: "May 18, 2024", status: "Pending",  approvedForDonation: false },
-  { id: 2, patient: "Leo Carter",   document: "Neurology_Consult_Notes.pdf",   submitted: "May 17, 2024", status: "Approved", approvedForDonation: true  },
-  { id: 3, patient: "Sophia Loren", document: "Blood_Test_Results.pdf",        submitted: "May 16, 2024", status: "Rejected", approvedForDonation: false },
-];
+import {
+  MedicalDocument,
+  DocStatus,
+  fetchMedicalDocuments,
+  approveMedicalDocument,
+  rejectMedicalDocument,
+  toggleDonationApproval,
+} from "../../../lib/documentService";
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../../../lib/firebase';
 
 const badgeClass: Record<DocStatus, string> = {
   Pending:  "documents-badge documents-badge--pending",
@@ -55,15 +47,17 @@ const SearchIcon = () => (
 // Main Page
 
 export default function MedicalDocumentApprovals() {
-  const [documents, setDocuments] = useState<MedicalDocument[]>(initialDocuments);
-  const [openMenu, setOpenMenu] = useState<number | null>(null);
+  const [documents, setDocuments] = useState<MedicalDocument[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
-  const [rejectTarget, setRejectTarget] = useState<{ id: number; patient: string } | null>(null);
-  const [search, setSearch] = useState(""); // Added Search
+  const [rejectTarget, setRejectTarget] = useState<{ id: string; patient: string } | null>(null);
+  const [search, setSearch] = useState(""); 
 
-  const rowRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  // Search Filter (Added)
+  // Search Filter 
   const filteredDocuments = documents.filter(
     (d) =>
       d.patient.toLowerCase().includes(search.toLowerCase()) ||
@@ -72,7 +66,30 @@ export default function MedicalDocumentApprovals() {
       d.status.toLowerCase().includes(search.toLowerCase())
   );
 
-  const toggleMenu = (id: number) => {
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        setError('User not logged in');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError('');
+        const data = await fetchMedicalDocuments();
+        setDocuments(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load documents');
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const toggleMenu = (id: string) => {
     if (openMenu === id) {
       setOpenMenu(null);
       setDropdownPos(null);
@@ -92,41 +109,77 @@ export default function MedicalDocumentApprovals() {
     return () => window.removeEventListener("click", handler);
   }, [openMenu]);
 
-  const updateStatus = (id: number, status: DocStatus) => {
-    setDocuments((prev) =>
-      prev.map((doc) =>
-        doc.id === id ? { ...doc, status, approvedForDonation: status === "Approved" } : doc
-      )
-    );
-    setOpenMenu(null);
-    setDropdownPos(null);
+  const handleApprove = async (id: string) => {
+    try {
+      await approveMedicalDocument(id);
+
+      setDocuments((prev) =>
+        prev.map((doc) =>
+          doc.id === id
+            ? {
+                ...doc,
+                status: "Approved",
+                approvedForDonation: true,
+                rejectionComment: "",
+              }
+            : doc
+        )
+      );
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to approve document");
+    } finally {
+      setOpenMenu(null);
+      setDropdownPos(null);
+    }
   };
 
-  const handleRejectClick = (id: number, patient: string) => {
+  const handleRejectClick = (id: string, patient: string) => {
     setOpenMenu(null);
     setDropdownPos(null);
     setRejectTarget({ id, patient });
   };
 
-  const handleRejectConfirm = (comment: string) => {
+  const handleRejectConfirm = async (comment: string) => {
     if (!rejectTarget) return;
-    setDocuments((prev) =>
-      prev.map((doc) =>
-        doc.id === rejectTarget.id
-          ? { ...doc, status: "Rejected", approvedForDonation: false, rejectionComment: comment }
-          : doc
-      )
-    );
-    setRejectTarget(null);
+    try {
+      await rejectMedicalDocument(rejectTarget.id, comment);
+
+      setDocuments((prev) =>
+        prev.map((doc) =>
+          doc.id === rejectTarget.id
+            ? {
+                ...doc,
+                status: "Rejected",
+                approvedForDonation: false,
+                rejectionComment: comment,
+              }
+            : doc
+        )
+      );
+
+      setRejectTarget(null);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to reject document");
+    }
   };
 
-  const toggleDonation = (id: number) => {
-    setDocuments((prev) =>
-      prev.map((doc) => {
-        if (doc.id !== id || doc.status !== "Approved") return doc;
-        return { ...doc, approvedForDonation: !doc.approvedForDonation };
-      })
-    );
+  const handleToggleDonation = async (id: string) => {
+    const doc = documents.find((d) => d.id === id);
+    if (!doc || doc.status !== "Approved") return;
+
+    const newValue = !doc.approvedForDonation;
+
+    try {
+      await toggleDonationApproval(id, newValue);
+
+      setDocuments((prev) =>
+        prev.map((item) =>
+          item.id === id ? { ...item, approvedForDonation: newValue } : item
+        )
+      );
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to update donation approval");
+    }
   };
 
   return (
@@ -156,7 +209,16 @@ export default function MedicalDocumentApprovals() {
         </div>
       </div>
 
+      {loading && (
+      <div className="documents-loading">
+        <div className="documents-spinner" />
+        <p className="documents-loading-text">Loading documents...</p>
+      </div>
+    )}
+      {error && <div className="documents-empty">{error}</div>}
+
       {/* Table */}
+      {!loading && !error && (
       <div className="documents-table-wrapper">
 
         {/* Table Header */}
@@ -184,7 +246,7 @@ export default function MedicalDocumentApprovals() {
 
             <div className="documents-toggle-cell">
               <button
-                onClick={() => toggleDonation(doc.id)}
+                onClick={() => handleToggleDonation(doc.id)}
                 disabled={doc.status !== "Approved"}
                 className={`documents-toggle ${doc.approvedForDonation ? "documents-toggle--on" : "documents-toggle--off"} ${doc.status !== "Approved" ? "documents-toggle--disabled" : ""}`}
               >
@@ -216,7 +278,7 @@ export default function MedicalDocumentApprovals() {
           </div>
         )}
 
-      </div>
+      </div>)}
 
       {/* Dropdown Portal */}
       {openMenu !== null && dropdownPos &&
@@ -226,8 +288,20 @@ export default function MedicalDocumentApprovals() {
             style={{ position: "fixed", top: dropdownPos.top, left: dropdownPos.left, zIndex: 9999 }}
             onClick={(e) => e.stopPropagation()}
           >
-            <button className="documents-dropdown__item">View Document</button>
-            <button onClick={() => updateStatus(openMenu, "Approved")} className="documents-dropdown__item documents-dropdown__item--approve">Approve</button>
+            <button
+              className="documents-dropdown__item"
+              onClick={() => {
+                const doc = documents.find((d) => d.id === openMenu);
+                if (doc?.documentUrl) {
+                  window.open(doc.documentUrl, "_blank", "noopener,noreferrer");
+                }
+                setOpenMenu(null);
+                setDropdownPos(null);
+              }}
+            >
+              View Document
+            </button>
+            <button onClick={() => handleApprove(openMenu)} className="documents-dropdown__item documents-dropdown__item--approve">Approve</button>
             <button onClick={() => { const doc = documents.find(d => d.id === openMenu); if (doc) handleRejectClick(doc.id, doc.patient); }} className="documents-dropdown__item documents-dropdown__item--reject">Reject</button>
           </div>,
           document.body
