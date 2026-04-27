@@ -1,18 +1,15 @@
 'use client';
 
-console.log("Feed page rendered");
-
 import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { auth } from '../../../lib/firebase';
 import {
-  FeedPost,
-  Comment,
-  subscribeFeed,
-  subscribeComments,
-  toggleLike,
-  addComment,
+  fetchFeed,
+  fetchComments,
+  likePost,
+  addComment
 } from '../../../lib/feedService';
+import type { Comment, FeedPost } from '../../../lib/types';
 import '../../../../styles/feed.css';
 
 /* Post time */
@@ -131,8 +128,8 @@ function LikeButton({
 const PREVIEW_COUNT = 2;
 
 function CommentsPanel({ postId }: { postId: string }) {
-  const uid      = auth.currentUser?.uid ?? 'guest';
-  const userName = auth.currentUser?.displayName ?? 'You';
+  const uid = auth.currentUser?.uid ?? '';
+  const userName = auth.currentUser?.displayName || 'You';
 
   const [comments, setComments] = useState<Comment[]>([]);
   const [text, setText]         = useState('');
@@ -140,27 +137,43 @@ function CommentsPanel({ postId }: { postId: string }) {
   const [showAll, setShowAll]   = useState(false);
   const textareaRef             = useRef<HTMLTextAreaElement>(null);
 
+  const loadComments = async () => {
+    const data = await fetchComments(postId);
+    setComments(data);
+  };
+
   useEffect(() => {
-    const unsub = subscribeComments(postId, setComments, console.error);
-    return unsub;
+    loadComments();
   }, [postId]);
 
   const handleSend = async () => {
     const trimmed = text.trim();
     if (!trimmed) return;
     setSending(true);
-    await addComment(postId, uid, userName, trimmed);
-    setText('');
-    setSending(false);
-    setShowAll(true);
-    textareaRef.current?.focus();
+
+    try{
+      await addComment(postId, userName, trimmed);
+      setText('');
+      setShowAll(true);
+      await loadComments();
+
+      textareaRef.current?.focus();
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      setSending(false);
+    }
   };
 
-  const handleKey = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
-  };
+  const sorted = [...comments].sort(
+    (a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0)
+  );
 
-  const displayed = showAll ? comments : comments.slice(-PREVIEW_COUNT);
+  const latestComments = sorted.slice(0, PREVIEW_COUNT);
+
+  const displayed = showAll
+    ? sorted
+    : latestComments;
+
   const hidden    = comments.length - PREVIEW_COUNT;
 
   return (
@@ -189,6 +202,7 @@ function CommentsPanel({ postId }: { postId: string }) {
 
       <div className="comment-input-row">
         <div className="comment-input-avatar">{initials(userName)}</div>
+
         <div className="comment-input-wrap">
           <textarea
             ref={textareaRef}
@@ -197,8 +211,14 @@ function CommentsPanel({ postId }: { postId: string }) {
             placeholder="Write a comment…"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            onKeyDown={handleKey}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
           />
+
           <button
             className="comment-submit-btn"
             onClick={handleSend}
@@ -216,7 +236,7 @@ function CommentsPanel({ postId }: { postId: string }) {
 /* Post Card */
 function PostFeedCard({ post }: { post: FeedPost }) {
   const uid   = auth.currentUser?.uid ?? '';
-  const liked = post.likedBy.includes(uid);
+  const liked = post.likedBy.includes(uid) ?? false;
 
   const [showComments, setShowComments]     = useState(false);
   const [optimisticLike, setOptimisticLike] = useState<boolean | null>(null);
@@ -228,7 +248,7 @@ function PostFeedCard({ post }: { post: FeedPost }) {
   const handleLike = async () => {
     setOptimisticLike(!currentlyLiked);
     setOptimisticCount(currentCount + (currentlyLiked ? -1 : 1));
-    await toggleLike(post.id, uid || 'guest', currentlyLiked);
+    await likePost(post.id);
   };
 
   const hasImage = !!post.imageURL;
@@ -319,7 +339,7 @@ function PostFeedCard({ post }: { post: FeedPost }) {
           onClick={() => setShowComments((v) => !v)}
         >
           <CommentIcon />
-          {fmtCount(post.commentCount)}
+          {fmtCount(post.commentCount ?? 0)}
         </button>
       </div>
 
@@ -335,12 +355,72 @@ export default function FeedPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState<string | null>(null);
 
+  const uid = auth.currentUser?.uid;
+
   useEffect(() => {
-    const unsub = subscribeFeed(
-      (data) => { setPosts(data); setLoading(false); },
-      (err)  => { setError(err.message); setLoading(false); }
-    );
-    return unsub;
+    const loadPosts = async () => {
+      try {
+        const data = await fetchFeed();
+
+        setPosts(data);
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadPosts();
+  }, []);
+
+  useEffect(() => {
+    let ws: WebSocket | null = null;
+
+    const connectWS = async () => {
+      const token = await auth.currentUser?.getIdToken();
+
+      if (!token) return;
+
+      const WS_URL = process.env.NEXT_PUBLIC_WS_URL!;
+      ws = new WebSocket(`${WS_URL}/api/feed/ws?token=${token}`);
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.type === "like") {
+          setPosts((prev) =>
+            prev.map((post) =>
+              post.id === data.postId
+                ? {
+                    ...post,
+                    likeCount: data.likeCount,
+                    likedBy: data.likedBy,
+                  }
+                : post
+            )
+          );
+        }
+
+        if (data.type === "comment") {
+          setPosts((prev) =>
+            prev.map((post) =>
+              post.id === data.postId
+                ? {
+                    ...post,
+                    commentCount: data.commentCount,
+                  }
+                : post
+            )
+          );
+        }
+      };
+    };
+
+    connectWS();
+
+    return () => {
+      ws?.close();
+    };
   }, []);
 
   return (
@@ -350,7 +430,10 @@ export default function FeedPage() {
           <h1 className="feed__title">Community Feed</h1>
           <p className="feed__subtitle">See what the community is talking about.</p>
         </div>
-        <Link href="/dashboard/create-post" className="feed__create-btn">
+        <Link
+          href={`/user/${auth.currentUser?.uid}/create-post`}
+          className="feed__create-btn"
+        >
           <PlusIcon /> New Post
         </Link>
       </div>

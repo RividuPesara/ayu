@@ -1,17 +1,4 @@
-import {
-  collection,
-  query,
-  where,
-  orderBy,
-  onSnapshot,
-  doc,
-  updateDoc,
-  serverTimestamp,
-  Timestamp,
-  QuerySnapshot,
-  DocumentData,
-} from 'firebase/firestore';
-import { db } from './firebase'; 
+import { auth } from './firebase'; 
 
 /* Post Types */
 export type PostType = 'status' | 'photo' | 'story';
@@ -34,26 +21,46 @@ export type CommunityPost = {
 
 
   status: string;
-  createdAt: Timestamp | null;
+  createdAt: { seconds: number } | null;
 };
 
-function mapDoc(doc: DocumentData & { id: string }): CommunityPost {
-  const d = doc.data();
+const API_BASE =  `${process.env.NEXT_PUBLIC_API_URL}/api/moderation/posts`;
+
+async function getAuthHeaders() {
+  const user = auth.currentUser;
+
+  if (!user) {
+    throw new Error('User not logged in');
+  }
+
+  const token = await user.getIdToken();
+
   return {
-    id: doc.id,
-    type: d.type ?? 'status',
-    authorId: d.authorId ?? '',
-    authorName: d.authorName ?? 'Anonymous',
-    authorHandle: d.authorHandle ?? '',
-    authorAvatar: d.authorAvatar ?? undefined,
-    text: d.text ?? '',
-    caption: d.caption ?? '',  
-    title: d.title ?? '',
-    content: d.content ?? '',
-    imageURL: d.imageURL ?? '',
-    status: d.status ?? 'pending',
-    createdAt: d.createdAt ?? null,
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
   };
+}
+
+export async function fetchPosts(
+  status: PostStatus | null
+): Promise<CommunityPost[]> {
+  const headers = await getAuthHeaders();
+
+  const url = status
+    ? `${API_BASE}?status=${status}`
+    : API_BASE;
+
+  const res = await fetch(url, {
+    method: 'GET',
+    headers,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Failed to load posts: ${text}`);
+  }
+
+  return res.json();
 }
 
 export function subscribeToPosts(
@@ -61,40 +68,51 @@ export function subscribeToPosts(
   onData: (posts: CommunityPost[]) => void,
   onError: (err: Error) => void
 ): () => void {
-  const postsRef = collection(db, 'communityPosts');
+  let cancelled = false;
 
-  const q =
-    status !== null
-      ? query(
-          postsRef,
-          where('status', '==', status),
-          orderBy('createdAt', 'desc')
-        )
-      : query(postsRef, orderBy('createdAt', 'desc'));
+  const load = async () => {
+    try {
+      const posts = await fetchPosts(status);
+      if (!cancelled) onData(posts);
+    } catch (err) {
+      if (!cancelled) onError(err as Error);
+    }
+  };
 
-  return onSnapshot(
-    q,
-    (snapshot: QuerySnapshot<DocumentData>) => {
-      const posts = snapshot.docs.map((d) =>
-        mapDoc({ id: d.id, data: () => d.data() } as any)
-      );
-      onData(posts);
-    },
-    onError
-  );
+  load();
+  const interval = setInterval(load, 3000);
+
+  return () => {
+    cancelled = true;
+    clearInterval(interval);
+  };
 }
 
 /* Mutations */
 export async function approvePost(postId: string): Promise<void> {
-  await updateDoc(doc(db, 'communityPosts', postId), {
-    status: 'approved',
-    moderatedAt: serverTimestamp(),
+  const headers = await getAuthHeaders();
+
+  const res = await fetch(`${API_BASE}/${postId}/approve`, {
+    method: 'PATCH',
+    headers,
   });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Approve failed: ${text}`);
+  }
 }
 
 export async function rejectPost(postId: string): Promise<void> {
-  await updateDoc(doc(db, 'communityPosts', postId), {
-    status: 'rejected',
-    moderatedAt: serverTimestamp(),
+  const headers = await getAuthHeaders();
+
+  const res = await fetch(`${API_BASE}/${postId}/reject`, {
+    method: 'PATCH',
+    headers,
   });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Reject failed: ${text}`);
+  }
 }
