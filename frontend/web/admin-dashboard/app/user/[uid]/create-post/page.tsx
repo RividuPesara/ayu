@@ -1,10 +1,9 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { db, auth } from '../../../lib/firebase';
+import { auth } from '../../../lib/firebase';
 import { uploadImage } from '../../../lib/cloudinaryUpload';
-import { useRouter } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import '../../../../styles/create-post.css';
 
 /* Color Palette */
@@ -62,6 +61,8 @@ type Mode = 'status' | 'photo' | 'story';
 
 export default function CreatePostPage() {
   const router = useRouter();
+  const params = useParams();
+  const uid = params.uid as string;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -122,29 +123,55 @@ export default function CreatePostPage() {
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      let imageURL = '';
-      if (mode === 'status') imageURL = await uploadImage(await generateImage());
-      if (mode === 'photo' && file) imageURL = await uploadImage(file);
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error('User not logged in');
+      }
 
-      await addDoc(collection(db, 'communityPosts'), {
+      let imageURL = '';
+
+      if (mode === 'status') {
+        imageURL = await uploadImage(await generateImage());
+      }
+
+      if (mode === 'photo' && file) {
+        imageURL = await uploadImage(file);
+      }
+
+      const token = await user.getIdToken();
+
+      const payload = {
         type: mode,
         imageURL: mode !== 'story' ? imageURL : '',
         text: mode === 'status' ? text : '',
         caption: mode === 'photo' ? caption : '',
         title: mode === 'story' ? storyTitle : '',
         content: mode === 'story' ? storyContent : '',
-        authorId: auth.currentUser?.uid,
         authorName: 'Admin',
-        status: 'pending',
-        createdAt: serverTimestamp(),
+      };
+
+      const res = await fetch('http://localhost:8000/api/posts/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
       });
 
-      router.push('/dashboard/moderation');
-    } catch (err) {
+      const result = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(result?.detail || result?.message || 'Failed to create post');
+      }
+
+      router.push(`/user/${uid}/moderation`);
+    } catch (err: any) {
       console.error(err);
-      alert('Error creating post');
+      alert(err.message || 'Error creating post');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const tabs: { id: Mode; label: string; icon: React.ReactNode }[] = [
