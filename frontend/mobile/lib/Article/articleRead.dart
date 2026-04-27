@@ -48,7 +48,7 @@ class ArticleRead extends StatelessWidget {
                               border: Border.fromBorderSide(
                                 BorderSide(
                                   color: Colors.white,
-                                  width: 2.0,
+                                  width: 1.0,
                                 ),
                               ),
                             ),

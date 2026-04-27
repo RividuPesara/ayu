@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'histroyScreen.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:mobile_app/dashboardScreen.dart';
 
 class Chatbot extends StatefulWidget {
   final List<Map<String, dynamic>>? previousMessages;
@@ -143,7 +144,14 @@ class _ChatbotState extends State<Chatbot> {
               child: Row(
                 children: [
                   GestureDetector(
-                    onTap: () => Navigator.pop(context),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => Dashboard(),
+                        ),
+                      );
+                    },
                     child: Container(
                       width: 58,
                       height: 58,
@@ -153,7 +161,7 @@ class _ChatbotState extends State<Chatbot> {
                         border: Border.fromBorderSide(
                           BorderSide(
                               color: Color(0xff4B3425),
-                              width: 2.0
+                              width: 1.0
                           ),
                         ),
                       ),
@@ -195,7 +203,7 @@ class _ChatbotState extends State<Chatbot> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(100),
                       ),
-                      fixedSize: const Size(88, 54),
+                      fixedSize: const Size(90, 54),
                     ),
                     child: Text(
                       "Chat",

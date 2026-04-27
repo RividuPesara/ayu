@@ -29,7 +29,7 @@ class _ArticleScreenState extends State<ArticleScreen> {
 
   List<Article> articles = [
     Article(
-      title: "15 Mindfulness Tips in the Age of AI you should do today",
+      title: "15 Mindfulness Tips in the Age of AI",
       category: "Stress",
       content: "Mindfulness helps reduce stress...",
       image: "assets/thumbnail.png",
@@ -104,7 +104,7 @@ class _ArticleScreenState extends State<ArticleScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   GestureDetector(
-                    // onTap: () { dashboard(); },
+                    onTap: () => Navigator.pop(context),
                     child: Container(
                       width: 58,
                       height: 58,
@@ -114,7 +114,7 @@ class _ArticleScreenState extends State<ArticleScreen> {
                         border: Border.fromBorderSide(
                           BorderSide(
                               color: Colors.white,
-                              width: 2.0
+                              width: 1.0
                           ),
                         ),
                       ),

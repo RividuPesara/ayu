@@ -10,6 +10,8 @@ import '../Tracker/Widgets/missedView.dart';
 import '../Tracker/Widgets/selectedDateCard.dart';
 import '../Tracker/Widgets/takenView.dart';
 import 'package:lottie/lottie.dart';
+import 'package:mobile_app/dashboardScreen.dart';
+import '../Chatbot/chatbotScreen.dart';
 
 class TrackerScreen extends StatefulWidget {
   const TrackerScreen({super.key});
@@ -273,19 +275,29 @@ class _TrackerScreenState extends State<TrackerScreen> {
               const SizedBox(height: 10),
               Row(
                 children: [
-                  Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: brown.withOpacity(0.25),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => Dashboard(),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: brown.withOpacity(0.25),
+                        ),
                       ),
-                    ),
-                    child: const Icon(
-                      Icons.chevron_left,
-                      size: 32,
-                      color: brown,
+                      child: const Icon(
+                        Icons.chevron_left,
+                        size: 32,
+                        color: brown,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -493,6 +505,12 @@ class _TrackerScreenState extends State<TrackerScreen> {
 
                 GestureDetector(
                   onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => Dashboard(),
+                      ),
+                    );
                   },
                   child: const BottomNavIcon(
                     icon: Icons.home_outlined,
@@ -504,6 +522,12 @@ class _TrackerScreenState extends State<TrackerScreen> {
 
                 GestureDetector(
                   onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => Chatbot(),
+                      ),
+                    );
                   },
                   child: const BottomNavIcon(
                     icon: Icons.chat_bubble_outline,

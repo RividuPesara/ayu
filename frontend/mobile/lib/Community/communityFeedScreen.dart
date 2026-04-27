@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_app/Community/createImgPost.dart';
 import 'package:mobile_app/Community/createPost.dart';
+import 'package:mobile_app/dashboardScreen.dart';
 
 class CommunityScreen extends StatefulWidget {
   const CommunityScreen({super.key});
@@ -172,24 +173,33 @@ class _CommunityScreenState extends State<CommunityScreen>
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Row(
                       children: [
-                        Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: textDark.withOpacity(0.8),
-                              width: 1.2,
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => Dashboard(),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            width: 58,
+                            height: 58,
+                            decoration: const BoxDecoration(
+                              color: Color(0xffF7F4F2),
+                              shape: BoxShape.circle,
+                              border: Border.fromBorderSide(
+                                BorderSide(
+                                    color: Color(0xff4B3425),
+                                    width: 1.0
+                                ),
+                              ),
                             ),
-                          ),
-                          child: IconButton(
-                            padding: EdgeInsets.zero,
-                            iconSize: 32,
-                            icon: const Icon(
-                              Icons.chevron_left,
-                              color: textDark,
+                            child: const Icon(
+                              Icons.arrow_back_ios_new,
+                              color: Color(0xff4B3425),
+                              size: 25,
                             ),
-                            onPressed: () {},
                           ),
                         ),
                         const SizedBox(width: 10),

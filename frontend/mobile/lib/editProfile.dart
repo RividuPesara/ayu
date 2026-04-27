@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
+import 'dashboardScreen.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -260,7 +261,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       ),
       child: IconButton(
         icon: const Icon(Icons.chevron_left, color: Colors.white),
-        onPressed: () => Navigator.pop(context),
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => Dashboard()),
+          );
+        },
       ),
     );
   }

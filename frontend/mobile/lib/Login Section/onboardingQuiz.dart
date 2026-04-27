@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../Mood Journal/moodSelectorScreen.dart';
 
 class Quiz extends StatefulWidget {
   const Quiz({super.key});
@@ -271,34 +272,62 @@ class _QuizState extends State<Quiz> {
                   ),
                 ),
                 ElevatedButton(
-                  onPressed: nextPage,
+                  onPressed: () {
+                    if (currentPage == 6) {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const MoodSelectorScreen(),
+                        ),
+                      );
+                    } else {
+                      nextPage();
+                    }
+                  },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xff4B3425),
+                    backgroundColor: currentPage == 6
+                        ? const Color(0xff4B3425) // Complete button color
+                        : const Color(0xff4B3425), // Next button color
+
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
+
+                    padding: currentPage == 6
+                        ? const EdgeInsets.symmetric(
                       vertical: 12,
-                      horizontal: 32,
+                      horizontal: 20,
+                    ) // Complete button padding
+                        : const EdgeInsets.symmetric(
+                      vertical: 12,
+                      horizontal: 30,
+                    ), // Next button padding
+
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(
+                        currentPage == 6 ? 30 : 30,
+                      ),
                     ),
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        "Next",
-                        style: TextStyle(
+                        currentPage == 6 ? "Complete" : "Next",
+                        style: const TextStyle(
                           fontSize: 25,
                           color: Color(0xffF7F4F2),
                         ),
                       ),
-                      SizedBox(width: 15),
+                      const SizedBox(width: 15),
                       Icon(
-                        Icons.arrow_forward,
+                        currentPage == 6
+                            ? Icons.check_circle
+                            : Icons.arrow_forward,
                         color: Colors.white,
                         size: 35,
                       ),
                     ],
                   ),
-                )
+                ),
               ],
             ),
           ),

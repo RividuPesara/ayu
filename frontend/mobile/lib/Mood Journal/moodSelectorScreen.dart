@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:mobile_app/dashboardScreen.dart';
 
 class MoodSelectorScreen extends StatefulWidget {
   const MoodSelectorScreen({super.key});
@@ -172,7 +173,12 @@ class _MoodSelectorScreenState extends State<MoodSelectorScreen> {
                     width: 170,
                     height: 48,
                     child: ElevatedButton(
-                      onPressed: () {},
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => Dashboard()),
+                        );
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF4B3425),
                         foregroundColor: Colors.white,
