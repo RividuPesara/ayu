@@ -1,6 +1,7 @@
 .sidebar {
-  width: 280px;
-  min-height: 100vh;
+  width: var(--sidebar-width);
+  height: 100vh;
+  max-height: 100vh;
   background: #e6e5eb;
   display: flex;
   flex-direction: column;
@@ -9,6 +10,7 @@
   left: 0;
   top: 0;
   bottom: 0;
+  overflow: hidden;
   z-index: 100;
   font-family: 'DM Sans', sans-serif;
 }
