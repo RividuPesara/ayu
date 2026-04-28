@@ -77,6 +77,9 @@ async def get_chat_sessions(user: CurrentUser = Depends(require_patient_access),
                     _run_sync(get_conversation_history, sid),
                     _run_sync(get_session_aggregates, sid),
                 )
+                if int(aggregates["patient_message_count"]) < 3:
+                    await _run_sync(mark_session_summarized, sid)
+                    continue
                 user_summary = chatbot_engine._generate_user_summary(
                     aggregates["emotion_counts"],
                     int(aggregates["crisis_count"]),
@@ -297,7 +300,12 @@ async def end_session(session_id: str,user : CurrentUser = Depends(require_patie
         # skips processing for empty chats but marks them done to prevent retries
         await _run_sync(mark_session_summarized, session_id)
         return {"status": "no_messages"}
-    
+
+    _MIN_MESSAGES_FOR_SUMMARY = 3
+    if int(aggregates["patient_message_count"]) < _MIN_MESSAGES_FOR_SUMMARY:
+        await _run_sync(mark_session_summarized, session_id)
+        return {"status": "skipped_too_short"}
+
     # creates a brief snapshot of the user's state during this specific session
     user_summary = chatbot_engine._generate_user_summary(
         aggregates["emotion_counts"],

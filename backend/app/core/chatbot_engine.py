@@ -484,11 +484,11 @@ def _stream_with_gemini(user_prompt: str, is_crisis: bool = False):
         yield _fallback_text_for_error(error_type, is_crisis)
 
 
-def _format_history_for_prompt(history: list[dict]) -> str:
+def _format_history_for_prompt(history: list[dict], max_turns: int = 5) -> str:
     if not history:
         return "No previous conversation."
     lines = []
-    for msg in history[-10:]:
+    for msg in history[-max_turns:]:
         prefix = "User" if msg["role"] in ("user", "patient") else "Ayu"
         lines.append(f"{prefix}: {msg['content']}")
     return "\n".join(lines)
@@ -593,7 +593,7 @@ def generate_long_term_summary(existing_summary: str,conversation_history: list[
     if not _llm:
         return existing_summary
 
-    history_text = _format_history_for_prompt(conversation_history)
+    history_text = _format_history_for_prompt(conversation_history, max_turns=6)
     existing_block = existing_summary.strip() if existing_summary.strip() else "None yet."
 
     prompt = f"""You are a memory assistant for Ayu, a cancer-support chatbot in Sri Lanka.
@@ -664,7 +664,7 @@ def _handle_crisis_response(
         CRISIS_HARDCODED_PREFIX + " " + Gemini continuation
     so the user sees one single, natural-sounding message.
     """
-    history_context = _format_history_for_prompt(conversation_history)
+    history_context = _format_history_for_prompt(conversation_history, max_turns=4)
     memory_block = _build_memory_block(long_term_summary)
 
     prompt = f"""CRISIS SITUATION - Someone may be in danger.
@@ -706,7 +706,7 @@ def _handle_knowledge_based_response(
     user_summary : str,
     long_term_summary : str = "",
 ) -> str:
-    history_context= _format_history_for_prompt(conversation_history)
+    history_context= _format_history_for_prompt(conversation_history, max_turns=4)
     knowledge_context = (
         persona_packet["knowledge_context"]
         if persona_packet["knowledge_found"]
@@ -742,8 +742,9 @@ def _handle_general_support(
     user_summary: str,
     long_term_summary : str = "",
 ) -> str:
-    history_context = _format_history_for_prompt(conversation_history)
-    memory_block= _build_memory_block(long_term_summary)
+    history_context = _format_history_for_prompt(conversation_history, max_turns=5)
+    summary_words = len(long_term_summary.split()) if long_term_summary else 0
+    memory_block = _build_memory_block(long_term_summary) if summary_words >= 30 else ""
 
     # Only ask a follow up question 40% of the time to avoid it feeling repetitive
     ask_question         = random.random() < 0.4
@@ -802,7 +803,7 @@ def process_user_message(
             "skip_reason": "no_medical_vocabulary",
         }
     else:
-        retrieved = _retrieve_knowledge(user_message, top_n=2)
+        retrieved = _retrieve_knowledge(user_message, top_n=1)
         knowledge_context = {
             **retrieved,
             "retrieval_skipped": False,
@@ -843,8 +844,13 @@ def process_user_message(
 def _build_prompt_for_handler(handler_type: str,persona_packet: dict,conversation_history: list[dict],user_summary: str,
 long_term_summary: str = "",
 ) -> str:
-    history_context = _format_history_for_prompt(conversation_history)
-    memory_block = _build_memory_block(long_term_summary)
+    turns = 4 if handler_type in ("crisis", "knowledge") else 5
+    history_context = _format_history_for_prompt(conversation_history, max_turns=turns)
+    if handler_type == "general":
+        summary_words = len(long_term_summary.split()) if long_term_summary else 0
+        memory_block = _build_memory_block(long_term_summary) if summary_words >= 30 else ""
+    else:
+        memory_block = _build_memory_block(long_term_summary)
 
     if handler_type == "crisis":
         return f"""CRISIS SITUATION - Someone may be in danger.
@@ -955,7 +961,7 @@ def prepare_streaming_context(
             "skip_reason": "no_medical_vocabulary",
         }
     else:
-        retrieved = _retrieve_knowledge(user_message, top_n=2)
+        retrieved = _retrieve_knowledge(user_message, top_n=1)
         knowledge_context = {**retrieved, "retrieval_skipped": False, "skip_reason": None}
 
     persona_packet = _formulate_prompt(safety_report, knowledge_context)
