@@ -17,14 +17,13 @@ numpy
 pandas
 scipy
 langchain-google-genai
-langchain-huggingface
+langchain-community
 langchain-chroma
 langchain-core
 langchain-text-splitters
-google-genai
 scikit-learn
 xgboost
-sentence-transformers
+fastembed
 chromadb
 google-api-python-client
 ollama

@@ -9,7 +9,7 @@ from filelock import FileLock
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.embeddings import FastEmbedEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app.core.redis_client import get_redis
@@ -185,7 +185,7 @@ def initialize_chatbot_engine(
         os.environ["HF_TOKEN"] = hf_token
         os.environ["HUGGING_FACE_HUB_TOKEN"] = hf_token
 
-    _embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    _embeddings = FastEmbedEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
     # Load knowledge base and split into chunks 
     with open(knowledge_base_path, "r", encoding="utf-8") as f:
