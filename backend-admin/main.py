@@ -6,6 +6,7 @@ from routes.posts import router as posts_router
 from routes.documents import router as documents_router
 from routes.profile import router as profile_router
 from routes.patient import router as patient_router
+from routes.account_logs import router as account_logs_router
 
 app = FastAPI()
 
@@ -23,3 +24,4 @@ app.include_router(posts_router, prefix="/api/posts")
 app.include_router(documents_router, prefix="/api/documents", tags=["Documents"])
 app.include_router(profile_router, prefix="/api/profile", tags=["Profile"])
 app.include_router(patient_router, prefix="/api/patient", tags=["Patients"])
+app.include_router(account_logs_router, prefix="/api/account-logs", tags=["Account Logs"])

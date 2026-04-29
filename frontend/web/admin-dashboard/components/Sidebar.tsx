@@ -57,6 +57,14 @@ const icons = {
     <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
   </svg>
   ),
+  logs: (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="8" y="2" width="8" height="4" rx="1" />
+    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+    <line x1="9" y1="12" x2="15" y2="12" />
+    <line x1="9" y1="16" x2="15" y2="16" />
+  </svg>
+  )
 };
 
 /* Navigation Configuration */
@@ -88,6 +96,7 @@ const getNavItems = (uid: string) => [
       { label: 'Manage Articles', href: `/user/${uid}/manage-articles` },
     ],
   },
+  { label: 'Logs', href: `/user/${uid}/logs`, icon: icons.logs },
   { label: 'Edit Profile', href: `/user/${uid}/edit-profile`, icon: icons.settings },
 ];
 
