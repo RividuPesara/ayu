@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 
 typedef TokenProvider = FutureOr<String?> Function();
 
@@ -126,6 +127,19 @@ class BackendConnector {
     );
   }
 
+  Future<http.Response> patch(
+    String path, {
+    Object? body,
+    Map<String, dynamic>? queryParameters,
+    Map<String, String>? headers,
+  }) async {
+    return http.patch(
+      uri(path, queryParameters: queryParameters),
+      headers: await buildHeaders(extra: headers),
+      body: _serializeBody(body),
+    );
+  }
+
   Future<http.Response> delete(
     String path, {
     Object? body,
@@ -137,6 +151,28 @@ class BackendConnector {
       headers: await buildHeaders(extra: headers),
       body: _serializeBody(body),
     );
+  }
+
+  Future<http.Response> multipartPost(
+    String path,
+    String field,
+    List<int> bytes,
+    String filename, {
+    String? contentType,
+    Map<String, String>? headers,
+  }) async {
+    final req = http.MultipartRequest('POST', uri(path));
+    req.headers.addAll(
+      await buildHeaders(extra: headers, includeJsonContentType: false),
+    );
+    req.files.add(http.MultipartFile.fromBytes(
+      field,
+      bytes,
+      filename: filename,
+      contentType: contentType != null ? MediaType.parse(contentType) : null,
+    ));
+    final streamed = await req.send();
+    return http.Response.fromStream(streamed);
   }
 
   Future<http.Request> request(
