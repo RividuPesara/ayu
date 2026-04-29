@@ -1,11 +1,21 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from firebase_admin import firestore, auth
 from pydantic import BaseModel, EmailStr, Field
 from typing import List
 from auth import require_admin
 
+import os
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
+from dotenv import load_dotenv
+load_dotenv()
+
 router = APIRouter(tags=["Doctors"])
 db = firestore.client()
+
+SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
+SENDGRID_FROM_EMAIL = os.getenv("SENDGRID_FROM_EMAIL")
+APP_BASE_URL = os.getenv("APP_BASE_URL")
 
 class DoctorCreate(BaseModel):
     fullName: str
@@ -56,6 +66,86 @@ def get_doctors(user=Depends(require_admin)):
 
     return doctors
 
+def send_doctor_welcome_email(to_email: str, full_name: str, reset_link: str):
+    if not SENDGRID_API_KEY or not SENDGRID_FROM_EMAIL:
+        raise RuntimeError("SendGrid environment variables are not configured")
+
+    html_content = f"""
+    <html>
+    <body style="margin:0; padding:0; background:#f4f6f8; font-family:Arial, sans-serif;">
+
+        <div style="max-width:600px; margin:40px auto; background:white; border-radius:12px; overflow:hidden; box-shadow:0 4px 20px rgba(0,0,0,0.08);">
+
+        <!-- LOGO SECTION -->
+        <div style="text-align:center; padding:24px;">
+            <img src="https://res.cloudinary.com/duysmfmo4/image/upload/v1775669462/logoIm_cpiwwj.png" 
+                alt="Ayu Logo" 
+                style="height:120px; width: 120px;" />
+        </div>
+
+        <!-- HEADER -->
+        <div style=" padding:14px; color:black; text-align:center;">
+            <h2 style="margin:0;">Welcome to AYU</h2>
+        </div>
+
+        <!-- BODY -->
+        <div style="padding:24px;">
+            <p>Hello Dr. <strong>{full_name}</strong>,</p>
+
+            <p>Your doctor account has been created successfully.</p>
+
+            <p>You can sign in using your email address:</p>
+
+            <p style="font-weight: bold;">{to_email}</p>
+
+            <p>To set your password, click below:</p>
+
+            <div style="text-align:center; margin:24px 0;">
+            <a href="{reset_link}" 
+                style="background:#4f46e5; color:white; padding:12px 24px; text-decoration:none; border-radius:8px; font-weight:bold;">
+                Set Your Password
+            </a>
+            </div>
+
+            <p>If the button doesn’t work, use this link:</p>
+            <p style="word-break:break-all;">
+            <a href="{reset_link}">{reset_link}</a>
+            </p>
+
+            <p style="margin-top:24px;">Thanks for joining with us!</p>
+        </div>
+
+        <!-- FOOTER -->
+        <div style="background:#f9fafb; padding:16px; text-align:center; font-size:12px; color:#666;">
+            This is a system-generated email from AYU. Please do not reply to this email.
+        </div>
+
+        </div>
+
+    </body>
+    </html>
+    """
+
+    message = Mail(
+        from_email=SENDGRID_FROM_EMAIL,
+        to_emails=to_email,
+        subject="Your AYU doctor account is ready",
+        html_content=html_content,
+    )
+
+    try:
+        sg = SendGridAPIClient(SENDGRID_API_KEY)
+        response = sg.send(message)
+
+        if response.status_code not in [200, 202]:
+            raise Exception(f"Email failed with status {response.status_code}")
+
+        print("Email sent successfully")
+
+    except Exception as e:
+        print("Email sending failed:", str(e))
+        raise Exception(f"Email sending failed: {str(e)}")
+
 @router.post("/")
 def create_doctor(doctor: DoctorCreate, user=Depends(require_admin)):
     try:
@@ -70,6 +160,14 @@ def create_doctor(doctor: DoctorCreate, user=Depends(require_admin)):
         raise HTTPException(status_code=400, detail=f"Failed to create auth user: {str(e)}")
 
     try:
+        reset_link = auth.generate_password_reset_link(
+            doctor.email,
+            action_code_settings=auth.ActionCodeSettings(
+                url=f"{APP_BASE_URL}/login",
+                handle_code_in_app=False,
+            ),
+        )
+
         firestore_data = {
             "uid": user_record.uid,
             "fullName": doctor.fullName,
@@ -87,6 +185,12 @@ def create_doctor(doctor: DoctorCreate, user=Depends(require_admin)):
         }
 
         db.collection("users").document(user_record.uid).set(firestore_data)
+
+        send_doctor_welcome_email(
+            to_email=doctor.email,
+            full_name=doctor.fullName,
+            reset_link=reset_link,
+        )
 
         return {
             "id": user_record.uid,
@@ -126,30 +230,6 @@ def update_status(doctor_id: str, payload: StatusUpdate, user=Depends(require_ad
         raise HTTPException(status_code=400, detail="User is not a doctor")
 
     doc_ref.update({"status": payload.status})
-    return {"success": True}
-
-
-@router.delete("/{doctor_id}")
-def delete_doctor(doctor_id: str, user=Depends(require_admin)):
-    doc_ref = db.collection("users").document(doctor_id)
-    snapshot = doc_ref.get()
-
-    if not snapshot.exists:
-        raise HTTPException(status_code=404, detail="Doctor not found")
-
-    data = snapshot.to_dict()
-    if data.get("role") != "doctor":
-        raise HTTPException(status_code=400, detail="User is not a doctor")
-
-    uid = data.get("uid") or doctor_id
-
-    doc_ref.delete()
-
-    try:
-        auth.delete_user(uid)
-    except Exception:
-        pass
-
     return {"success": True}
 
 @router.patch("/{doctor_id}")
