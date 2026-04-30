@@ -3,6 +3,8 @@
 import { useState, useRef } from "react";
 import Image from "next/image";
 import "../../../../styles/create-article.css";
+import { createArticle } from "../../../lib/articleService";
+import { uploadImage } from '../../../lib/cloudinaryUpload';
 
 type ArticleForm = {
   title: string;
@@ -79,13 +81,14 @@ export default function CreateArticle() {
   const [form, setForm] = useState<ArticleForm>(emptyForm);
   const [errors, setErrors] = useState<Partial<ArticleForm>>({});
   const [submitted, setSubmitted] = useState(false);
-  const [thumbnailFileName, setThumbnailFileName] = useState<string>("");
+  const [thumbnailFileName, setThumbnailFileName] = useState("");
   const [contentImages, setContentImages] = useState<ContentImage[]>([]);
+  const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const contentImageInputRef = useRef<HTMLInputElement>(null);
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const set = (field: keyof ArticleForm, value: string) => {
+  const setField = (field: keyof ArticleForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     setErrors((prev) => ({ ...prev, [field]: undefined }));
   };
@@ -101,31 +104,42 @@ export default function CreateArticle() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validate()) return;
-    setSubmitted(true);
-    setForm(emptyForm);
-    setContentImages([]);
-    setThumbnailFileName("");
-    setTimeout(() => setSubmitted(false), 3000);
-  };
+    setLoading(true);
 
-  const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      set("thumbnail", URL.createObjectURL(file));
-      setThumbnailFileName(file.name);
-      setErrors((prev) => ({ ...prev, thumbnail: undefined }));
+    try {
+      await createArticle({
+        ...form,
+        contentImages,
+      });
+      ;
+      setSubmitted(true);
+      setForm(emptyForm);
+      setContentImages([]);
+      setThumbnailFileName("");
+      setTimeout(() => setSubmitted(false), 3000);
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleContentImageInsert = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleThumbnailChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const url = await uploadImage(file);
+      setField("thumbnail", url);
+      setThumbnailFileName(file.name);    
+  };
+
+  const handleContentImageInsert = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
+    const url = await uploadImage(file);
       const id = `img_${Date.now()}`;
       const tag = `![${id}](${file.name})`;
 
@@ -138,21 +152,19 @@ export default function CreateArticle() {
           (start > 0 && form.content[start - 1] !== "\n" ? "\n" : "") +
           tag + "\n" +
           form.content.substring(end);
-        set("content", newContent);
+        setField("content", newContent);
       } else {
-        set("content", form.content + "\n" + tag + "\n");
+        setField("content", form.content + "\n" + tag + "\n");
       }
 
-      setContentImages((prev) => [...prev, { id, dataUrl, name: file.name }]);
-    };
-    reader.readAsDataURL(file);
-    e.target.value = "";
+      setContentImages((prev) => [...prev, { id, dataUrl: url, name: file.name }]);
+      e.target.value = "";
   };
 
   const removeContentImage = (id: string) => {
     setContentImages((prev) => prev.filter((img) => img.id !== id));
     const tagRegex = new RegExp(`\\n?!\\[${id}\\]\\([^)]*\\)\\n?`, "g");
-    set("content", form.content.replace(tagRegex, "\n").trim());
+    setField("content", form.content.replace(tagRegex, "\n").trim());
   };
 
   return (
@@ -183,7 +195,7 @@ export default function CreateArticle() {
               type="text"
               placeholder="Title..."
               value={form.title}
-              onChange={(e) => set("title", e.target.value)}
+              onChange={(e) => setField("title", e.target.value)}
               className={`ac-input${errors.title ? " ac-input--error" : ""}`}
             />
             {errors.title && <p className="ac-error">{errors.title}</p>}
@@ -195,7 +207,7 @@ export default function CreateArticle() {
               <label className="ac-label">Genre</label>
               <select
                 value={form.genre}
-                onChange={(e) => set("genre", e.target.value)}
+                onChange={(e) => setField("genre", e.target.value)}
                 className={`ac-input${errors.genre ? " ac-input--error" : ""}`}
               >
                 <option value="">Select an option</option>
@@ -211,7 +223,7 @@ export default function CreateArticle() {
                 type="text"
                 placeholder="Dr. Evelyn Reed"
                 value={form.author}
-                onChange={(e) => set("author", e.target.value)}
+                onChange={(e) => setField("author", e.target.value)}
                 className={`ac-input${errors.author ? " ac-input--error" : ""}`}
               />
               {errors.author && <p className="ac-error">{errors.author}</p>}
@@ -255,8 +267,7 @@ export default function CreateArticle() {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
-              style={{ display: "none" }}
+              hidden
               onChange={handleThumbnailChange}
             />
             {errors.thumbnail && <p className="ac-error">{errors.thumbnail}</p>}
@@ -278,7 +289,7 @@ export default function CreateArticle() {
                 ref={contentImageInputRef}
                 type="file"
                 accept="image/*"
-                style={{ display: "none" }}
+                hidden
                 onChange={handleContentImageInsert}
               />
             </div>
@@ -287,7 +298,7 @@ export default function CreateArticle() {
               rows={10}
               placeholder="Write your article content here..."
               value={form.content}
-              onChange={(e) => set("content", e.target.value)}
+              onChange={(e) => setField("content", e.target.value)}
               className={`ac-textarea${errors.content ? " ac-input--error" : ""}`}
             />
             {/* Inserted content images */}
@@ -318,8 +329,12 @@ export default function CreateArticle() {
 
         {/* Footer */}
         <div className="ac-card-footer">
-          <button onClick={handleSubmit} className="ac-submit-btn">
+          <button onClick={handleSubmit} className="ac-submit-btn" disabled={loading}>
+            {loading ? "Creating..." : (
+            <>
             <PlusCircleIcon /> Create Article
+            </>
+            )}
           </button>
         </div>
       </div>
