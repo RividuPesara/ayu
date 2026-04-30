@@ -7,6 +7,8 @@ import { auth, db } from '../app/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import '../styles/layoutWrapper.css';
+import Lottie from 'lottie-react';
+import loadingAnimation from '../public/assets/loading.json';
 
 export default function LayoutWrapper({
   children,
@@ -63,8 +65,15 @@ export default function LayoutWrapper({
 
   if (isLoading) {
     return (
-      <div className="layout-wrapper-center">
-        <div>Loading...</div>
+      <div className="layout-loading-screen">
+        <div className="layout-loading">
+          <Lottie
+            animationData={loadingAnimation}
+            loop
+            autoplay
+            className="layout-loading-animation"
+          />
+        </div>
       </div>
     );
   }

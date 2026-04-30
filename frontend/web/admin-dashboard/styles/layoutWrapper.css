@@ -51,3 +51,22 @@
 .layout-wrapper-btn:hover {
   background-color: #4338ca;
 }
+
+.layout-loading-screen {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background-color: #f5f5f5;
+}
+
+.layout-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.layout-loading-animation {
+  width: 440px;
+  height: 440px;
+}

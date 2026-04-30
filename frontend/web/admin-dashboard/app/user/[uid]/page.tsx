@@ -14,30 +14,19 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  BarChart,
-  Bar,
   Legend,
 } from 'recharts';
 
-import { db } from '../../lib/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { fetchDashboardData } from '../../lib/dashboardService';
 
 function CustomTooltip({ active, payload, label }: any) {
   if (active && payload && payload.length) {
-    return (
-      <div
-        style={{
-          background: '#1a1730',
-          border: '1px solid rgba(139,92,246,0.3)',
-          borderRadius: '10px',
-          padding: '10px 14px',
-          color: '#e2e0ff',
-          fontSize: '13px',
-        }}
-      >
-        <p style={{ color: '#a78bfa', fontWeight: 600 }}>{label}</p>
+     return (
+      <div className="chart-tooltip">
+        <p className="chart-tooltip__label">{label}</p>
+
         {payload.map((p: any) => (
-          <p key={p.dataKey}>
+          <p key={p.dataKey} className="chart-tooltip__item">
             {p.name ?? p.dataKey}: <strong>{p.value}</strong>
           </p>
         ))}
@@ -50,52 +39,53 @@ function CustomTooltip({ active, payload, label }: any) {
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [dateTime, setDateTime] = useState("");
 
   const [stats, setStats] = useState<any[]>([]);
-  const [rolesData, setRolesData] = useState<any[]>([]);
+  const [newUsersData, setNewUsersData] = useState<any[]>([]);
+  const [adminName, setAdminName] = useState('Admin');
 
   /* Fetch data to display */
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const patientsSnap = await getDocs(collection(db, 'patients'));
-        const companionsSnap = await getDocs(collection(db, 'companions'));
-        const doctorsSnap = await getDocs(collection(db, 'doctors'));
-
-        const totalPatients = patientsSnap.size;
-        const totalCompanions = companionsSnap.size;
-        const totalDoctors = doctorsSnap.size;
+        const data = await fetchDashboardData();
+        setAdminName(data.adminName || 'Admin');
 
         setStats([
           {
             label: 'Total Patients',
-            value: totalPatients,
+            value: data.stats.totalPatients,
             desc: 'Registered patients',
             icon: '👤',
           },
           {
             label: 'Total Companions',
-            value: totalCompanions,
+            value: data.stats.totalCompanions,
             desc: 'Registered companions',
             icon: '👥',
           },
           {
             label: 'Total Doctors',
-            value: totalDoctors,
+            value: data.stats.totalDoctors,
             desc: 'Registered doctors',
             icon: '🩺',
           },
-        ]);
-
-        setRolesData([
           {
-            name: 'Users',
-            Patients: totalPatients,
-            Companions: totalCompanions,
-            Doctors: totalDoctors,
+            label: 'Posts to Approve',
+            value: data.stats.postsToApprove,
+            desc: 'Pending community posts',
+            icon: '📝',
+          },
+          {
+            label: 'Documents to Review',
+            value: data.stats.documentsToReview,
+            desc: 'Pending donation documents',
+            icon: '📄',
           },
         ]);
 
+        setNewUsersData(data.newUsers || []);
         setDataLoaded(true);
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
@@ -103,107 +93,144 @@ export default function DashboardPage() {
         setLoading(false);
       }
     };
-
+    
     fetchStats();
   }, []);
 
-  const newUsersData = [
-    { month: 'Jan', users: 1 },
-    { month: 'Feb', users: 2 },
-    { month: 'Mar', users: 1 },
-    { month: 'Apr', users: 2 },
-    { month: 'May', users: 3 },
-    { month: 'Jun', users: 2 },
-  ];
+  useEffect(() => {
+    const updateDateTime = () => {
+      const now = new Date();
 
-  /* Loading Screen */
-  if (loading || !dataLoaded) {
-    return (
-      <div
-        style={{
-          height: '100vh',
-          width: '100vw',
-          display: 'flex',
-          alignItems: 'left',
-          justifyContent: 'left',
-          paddingLeft: '240px', 
-        }}
-      >
-        <Lottie
-          animationData={loadingAnimation}
-          loop
-          autoplay
-          style={{
-            width: 700,
-            height: 700,
-          }}
-        />
-      </div>
-    );
-  }
+      const time = now.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+
+      const date = now.toLocaleDateString([], {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+      });
+
+      setDateTime(`${time} • ${date}`);
+    };
+
+    updateDateTime();
+    const interval = setInterval(updateDateTime, 60000); // update every minute
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const isDashboardLoading = loading || !dataLoaded;
 
   /* Dashboard */
   return (
     <div className="dashboard">
       <div className="dashboard__header">
-        <h1 className="dashboard__title">Dashboard</h1>
-        <p className="dashboard__subtitle">
-          An overview of your platform's activity.
-        </p>
+        <div>
+          <h1 className="dashboard__title">Dashboard</h1>
+          <p className="dashboard__subtitle">
+            An overview of your platform's activity.
+          </p>
+        </div>
+
+        <div className="dashboard__datetime">
+          {dateTime}
+        </div>
       </div>
 
-      <div className="dashboard__stats">
-        {stats.map((s) => (
-          <div key={s.label} className="stat-card">
-            <div className="stat-card__top">
-              <span>{s.icon}</span>
-              <span className="stat-card__label">{s.label}</span>
+      <div className="dashboard__hero">
+        <div className="dashboard__hero-content">
+          <h2>Hi{adminName && adminName !== 'Admin' ? `, ${adminName}` : ''} 👋</h2>
+          <p>Welcome back. Here&apos;s what&apos;s happening in AYU.</p>
+        </div>
+
+        <div className="dashboard__hero-circle dashboard__hero-circle--one" />
+        <div className="dashboard__hero-circle dashboard__hero-circle--two" />
+        <div className="dashboard__hero-circle dashboard__hero-circle--three" />
+      </div>
+
+      {isDashboardLoading ? (
+        <div className="dashboard__content-loader">
+          <Lottie
+            animationData={loadingAnimation}
+            loop
+            autoplay
+            style={{
+              width: 420,
+              height: 420,
+            }}
+          />
+        </div>
+      ) : (
+        <>
+          <div className="dashboard__stats">
+            {stats.slice(0, 3).map((s) => (
+              <div key={s.label} className="stat-card">
+                <div className="stat-card__top">
+                  <span>{s.icon}</span>
+                  <span className="stat-card__label">{s.label}</span>
+                </div>
+                <div className="stat-card__value">{s.value}</div>
+                <div className="stat-card__desc">{s.desc}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="dashboard__second-row">
+            <div className="chart-card dashboard__new-users-card">
+              <h2 className="chart-card__title">New Users</h2>
+
+              <div className="chart-card__body">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={newUsersData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend />
+
+                    <Line
+                      type="monotone"
+                      dataKey="Patients"
+                      stroke="#7c3aed"
+                      strokeWidth={2.5}
+                    />
+
+                    <Line
+                      type="monotone"
+                      dataKey="Companions"
+                      stroke="#a78bfa"
+                      strokeWidth={2.5}
+                    />
+
+                    <Line
+                      type="monotone"
+                      dataKey="Doctors"
+                      stroke="#4b3425"
+                      strokeWidth={2.5}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
             </div>
-            <div className="stat-card__value">{s.value}</div>
-            <div className="stat-card__desc">{s.desc}</div>
-          </div>
-        ))}
-      </div>
 
-      <div className="dashboard__charts">
-        <div className="chart-card">
-          <h2 className="chart-card__title">New Users</h2>
-          <div className="chart-card__body">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={newUsersData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis allowDecimals={false} />
-                <Tooltip content={<CustomTooltip />} />
-                <Line
-                  type="monotone"
-                  dataKey="users"
-                  stroke="#7c3aed"
-                  strokeWidth={2.5}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+            <div className="dashboard__side-cards">
+              {stats.slice(3).map((s) => (
+                <div key={s.label} className="stat-card stat-card--alert">
+                  <div className="stat-card__top">
+                    <span>{s.icon}</span>
+                    <span className="stat-card__label">{s.label}</span>
+                  </div>
 
-        <div className="chart-card">
-          <h2 className="chart-card__title">User Roles</h2>
-          <div className="chart-card__body">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={rolesData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis allowDecimals={false} />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend />
-                <Bar dataKey="Patients" fill="#7c3aed" />
-                <Bar dataKey="Companions" fill="#a78bfa" />
-                <Bar dataKey="Doctors" fill="#6366f1" />
-              </BarChart>
-            </ResponsiveContainer>
+                  <div className="stat-card__value">{s.value}</div>
+                  <div className="stat-card__desc">{s.desc}</div>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }
