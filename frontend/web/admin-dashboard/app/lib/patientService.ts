@@ -28,6 +28,7 @@ export type Patient = {
   companionEmail?: string;
   cancerType?: string;
   stage?: string;
+  avatar?: string;
 };
 
 export type PatientDetails = Patient & {

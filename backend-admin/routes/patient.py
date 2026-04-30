@@ -39,6 +39,7 @@ def get_patients(user=Depends(require_admin)):
             "companionEmail": data.get("companionEmail", ""),
             "cancerType": data.get("patientProfile", {}).get("cancerType", ""),
             "stage": data.get("patientProfile", {}).get("stage", ""),
+            "avatar": data.get("avatar", ""),
         })
 
     return patients
@@ -78,6 +79,7 @@ def get_patient(patient_id: str, user=Depends(require_admin)):
         "patientProfile": data.get("patientProfile", {}),
         "createdAt": data.get("createdAt"),
         "updatedAt": data.get("updatedAt"),
+        "avatar": data.get("avatar", ""),
     }
 
 @router.put("/{patient_id}")

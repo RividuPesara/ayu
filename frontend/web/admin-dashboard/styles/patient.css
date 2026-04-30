@@ -134,18 +134,18 @@
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%);
+  border: 0.5px solid #000000; 
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
+  overflow: hidden;
 }
 
 .patient-avatar svg {
-  width: 22px;
-  height: 22px;
-  fill: #ffffff;
-  color: #ffffff;
+  width: 35px;
+  height: 35px;
+  fill: #000000;
+  color: #000000;
 }
 
 .patient-name {
@@ -449,13 +449,14 @@
 }
 
 .patient-profile-preview__avatar {
-  width: 52px;
-  height: 52px;
+  width: 45px;
+  height: 45px;
   border-radius: 50%;
-  background: #f3f4f6;
+  border: 0.5px solid #000000; 
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
 
 .patient-profile-preview__info {

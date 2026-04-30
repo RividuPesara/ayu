@@ -197,7 +197,11 @@ export default function PatientManagement() {
               {/* Name + Avatar */}
               <div className="patient-cell">
                 <div className="patient-avatar">
-                  <UserIcon />
+                  {patient.avatar ? (
+                    <img src={patient.avatar} alt={patient.name} className="patient-avatar-img" />
+                  ) : (
+                    <UserIcon />
+                  )}
                 </div>
                 <div>
                   <p className="patient-name">{patient.name}</p>
@@ -349,7 +353,11 @@ function ViewPatientDialog({
         <div className="patient-dialog__body">
           <div className="patient-profile-preview">
             <div className="patient-profile-preview__avatar">
-              <UserIcon />
+              {patient.avatar ? (
+                <img src={patient.avatar} alt={patient.name} className="patient-profile-avatar-img" />
+              ) : (
+                <UserIcon />
+              )}
             </div>
 
             <div className="patient-profile-preview__info">
