@@ -8,7 +8,7 @@ from routes.profile import router as profile_router
 from routes.patient import router as patient_router
 from routes.account_logs import router as account_logs_router
 from routes.doctors import router as doctor_router
-
+from routes.articles import router as articles_router
 from routes.dashboard import router as dashboard_router
 
 app = FastAPI()
@@ -29,5 +29,5 @@ app.include_router(profile_router, prefix="/api/profile", tags=["Profile"])
 app.include_router(patient_router, prefix="/api/patient", tags=["Patients"])
 app.include_router(account_logs_router, prefix="/api/account-logs", tags=["Account Logs"])
 app.include_router(doctor_router, prefix="/api/doctors", tags=["Doctors"])
-
+app.include_router(articles_router, prefix="/api/articles", tags=["Articles"])
 app.include_router(dashboard_router, prefix="/api/dashboard", tags=["Dashboard"])
