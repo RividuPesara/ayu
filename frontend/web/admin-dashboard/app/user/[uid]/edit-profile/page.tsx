@@ -8,7 +8,11 @@ import { uploadImage } from "../../../lib/cloudinaryUpload";
 import Lottie from "lottie-react";
 import successAnimation from "../../../../public/assets/success.json";
 
-const DEFAULT_IMAGE = "/assets/human.jpg";
+const UserIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>
+  </svg>
+);
 
 export default function EditProfilePage() {
   const router = useRouter();
@@ -25,7 +29,7 @@ export default function EditProfilePage() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
-  const [photoURL, setPhotoURL] = useState<string | null>(null);
+  const [avatar, setAvatar] = useState<string | null>(null);
 
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -41,7 +45,7 @@ export default function EditProfilePage() {
         setFirstName(data.firstName || "");
         setLastName(data.lastName || "");
         setEmail(data.email || "");
-        setPhotoURL(data.photoURL || null);
+        setAvatar(data.avatar || null);
       } catch (error: any) {
         alert(error.message || "Failed to load profile");
       } finally {
@@ -63,7 +67,7 @@ export default function EditProfilePage() {
 
       const imageUrl = await uploadImage(file);
 
-      setPhotoURL(imageUrl);
+      setAvatar(imageUrl);
     } catch (error: any) {
       alert(error.message || "Image upload failed");
     } finally {
@@ -72,7 +76,7 @@ export default function EditProfilePage() {
   };
 
   const handleRemovePhoto = () => {
-    setPhotoURL(null);
+    setAvatar(null);
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -110,7 +114,7 @@ export default function EditProfilePage() {
         firstName,
         lastName,
         email,
-        photoURL,
+        avatar: avatar || "",
         newPassword: newPassword || undefined,
       });
 
@@ -139,14 +143,17 @@ export default function EditProfilePage() {
 
         <div className="profile-picture-section">
           <div className="profile-picture-wrapper">
-            <img
-              src={photoURL || DEFAULT_IMAGE}
-              onError={(e) => {
-                e.currentTarget.src = DEFAULT_IMAGE;
-              }}
-              alt="Profile"
-              className="profile-picture"
-            />
+            {avatar ? (
+              <img
+                src={avatar}
+                alt="Profile"
+                className="profile-picture"
+              />
+            ) : (
+              <div className="avatar-icon">
+                <UserIcon />
+              </div>
+            )}
           </div>
 
           <div className="profile-picture-actions">

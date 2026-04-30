@@ -7,14 +7,12 @@ from firebase_admin import auth, firestore
 router = APIRouter()
 db = firestore.client()
 
-DEFAULT_PROFILE_IMAGE = "/assets/human.jpg"
-
 class ProfileResponse(BaseModel):
     uid: str
     firstName: Optional[str] = None
     lastName: Optional[str] = None
     email: Optional[EmailStr] = None
-    photoURL: Optional[str] = None
+    avatar: Optional[str] = None
     role: Optional[str] = None
 
 
@@ -23,7 +21,7 @@ class UpdateProfileRequest(BaseModel):
     firstName: str
     lastName: str
     email: EmailStr
-    photoURL: Optional[str] = None
+    avatar: Optional[str] = None
     newPassword: Optional[str] = None
 
 
@@ -42,7 +40,7 @@ def get_profile(uid: str):
         "firstName": data.get("firstName"),
         "lastName": data.get("lastName"),
         "email": data.get("email"),
-        "photoURL": data.get("photoURL") or DEFAULT_PROFILE_IMAGE,
+        "avatar": data.get("avatar") or "",
         "role": data.get("role"),
     }
 
@@ -61,7 +59,7 @@ def update_profile(payload: UpdateProfileRequest):
         "firstName": payload.firstName,
         "lastName": payload.lastName,
         "email": payload.email,
-        "photoURL": payload.photoURL if payload.photoURL is not None else DEFAULT_PROFILE_IMAGE,
+        "avatar": payload.avatar if payload.avatar else "",
     })
 
     try:

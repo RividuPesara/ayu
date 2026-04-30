@@ -15,7 +15,7 @@ export async function updateProfile(data: {
   firstName: string;
   lastName: string;
   email: string;
-  photoURL?: string | null;
+  avatar?: string;
   newPassword?: string;
 }) {
   const res = await fetch(`${BASE_URL}/update`, {
@@ -23,7 +23,10 @@ export async function updateProfile(data: {
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(data),
+    body: JSON.stringify({
+      ...data,
+      avatar: data.avatar || "",
+    }),
   });
 
   if (!res.ok) {

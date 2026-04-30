@@ -33,12 +33,16 @@
 }
 
 .profile-picture-wrapper {
-  width: 110px;
-  height: 110px;
+  width: 130px;
+  height: 130px;
   border-radius: 50%;
   overflow: hidden;
   flex-shrink: 0;
-  border: 3px solid #f1f5f9;
+  border: 3px solid #eef1f5;
+  background: #eeeeee;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .profile-picture {
@@ -271,4 +275,19 @@
   display: flex;
   justify-content: center;
   margin-bottom: 25px;
+}
+
+.avatar-icon {
+  width: 100px;
+  height: 100px;
+  background: #eee;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar-icon svg {
+  width: 56px;
+  height: 56px;
+  color: #383636;
 }
