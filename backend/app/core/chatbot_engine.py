@@ -6,6 +6,7 @@ import re
 import time
 from collections import Counter
 from filelock import FileLock
+import ollama as _ollama_lib
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -92,6 +93,9 @@ _embeddings = None
 _vectorstore = None
 _llm = None
 _split_docs: list[Document] = []
+_ollama_client = None
+_ollama_model: str = ""
+_chatbot_provider: str = "gemini"
 
 
 def _init_chromadb_collection(chroma_db_dir: str, collection_name: str) -> None:
@@ -166,17 +170,22 @@ def _init_chromadb_with_redis_lock(redis, chroma_db_dir: str, collection_name: s
 
 
 def initialize_chatbot_engine(
-    gemini_api_key: str,
+    gemini_api_key: str | None,
     chroma_db_dir: str,
     knowledge_base_path: str,
     hf_token: str | None = None,
 ) -> None:
     #Load embeddings, rebuild ChromaDB index from the knowledge base JSON,and initialise the Gemini LLM once 
-    
+
     global _engine_initialized, _embeddings, _vectorstore, _llm, _split_docs
+    global _ollama_client, _ollama_model, _chatbot_provider
 
     if _engine_initialized:
         return
+
+    from app.core.config import get_settings
+    settings = get_settings()
+    _chatbot_provider = settings.chatbot_provider.lower()
 
     logger.info("Initialising chatbot engine")
 
@@ -226,24 +235,40 @@ def initialize_chatbot_engine(
         with FileLock(lock_path, timeout=_CHROMA_LOCK_TIMEOUT):
             _init_chromadb_collection(chroma_db_dir, collection_name)
 
-    # Gemini LLM
-    _llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash-lite",
-        google_api_key=gemini_api_key,
-        temperature=0.7,
-        max_output_tokens=2048,
-    )
+    if _chatbot_provider == "ollama":
+        if not settings.ollama_host:
+            raise RuntimeError("OLLAMA_HOST must be set when CHATBOT_PROVIDER=ollama")
+        headers = {}
+        if settings.ollama_cf_client_id:
+            headers["CF-Access-Client-Id"] = settings.ollama_cf_client_id
+        if settings.ollama_cf_client_secret:
+            headers["CF-Access-Client-Secret"] = settings.ollama_cf_client_secret
+        _ollama_client = _ollama_lib.Client(host=settings.ollama_host, headers=headers or None)
+        _ollama_model = settings.ollama_model
+        logger.info("Chatbot provider: Ollama (%s @ %s)", _ollama_model, settings.ollama_host)
+        # try:
+        #     logger.info("Pre-warming Ollama LLM")
+        #     _ollama_client.chat(model=_ollama_model, messages=[{"role": "user", "content": "Say OK"}])
+        #     logger.info("Ollama pre-warm complete")
+        # except Exception:
+        #     logger.warning("Ollama pre-warm failed; first request may be slow")
+    else:
+        _llm = ChatGoogleGenerativeAI(
+            model="gemini-2.5-flash-lite",
+            google_api_key=gemini_api_key,
+            temperature=0.7,
+            max_output_tokens=2048,
+        )
+        logger.info("Chatbot provider: Gemini")
+        # try:
+        #     logger.info("Pre-warming Gemini LLM")
+        #     _llm.invoke("Say OK")
+        #     logger.info("Gemini pre-warm complete")
+        # except Exception:
+        #     logger.warning("Gemini pre-warm failed first request may be slow")
 
     _engine_initialized = True
     logger.info("Chatbot engine ready")
-
-    # Prewarm to avoid slow first request
-    try:
-        logger.info("Pre-warming Gemini LLM")
-        _llm.invoke("Say OK")
-        logger.info("Gemini pre-warm complete")
-    except Exception:
-        logger.warning("Gemini pre-warm failed first request may be slow")
 
 
 # Knowledge retrieval
@@ -484,6 +509,76 @@ def _stream_with_gemini(user_prompt: str, is_crisis: bool = False):
         yield _fallback_text_for_error(error_type, is_crisis)
 
 
+def _generate_with_ollama(user_prompt: str, is_crisis: bool = False) -> str:
+    try:
+        full_prompt = f"\n{SYSTEM_PROMPT}\n\nFollow the system instructions above strictly.\n\n{user_prompt}"
+        response = _ollama_client.chat(
+            model=_ollama_model,
+            messages=[{"role": "user", "content": full_prompt}],
+        )
+        raw = ""
+        if hasattr(response, "message") and hasattr(response.message, "content"):
+            raw = response.message.content
+        elif isinstance(response, dict):
+            raw = str(response.get("message", {}).get("content", ""))
+        raw = raw.strip()
+        return raw if raw else _fallback_text_for_error("unknown", is_crisis)
+    except Exception as exc:
+        logger.warning("Ollama chat failed: %s", exc)
+        return _fallback_text_for_error("unknown", is_crisis)
+
+
+def _stream_with_ollama(user_prompt: str, is_crisis: bool = False):
+    try:
+        full_prompt = f"\n{SYSTEM_PROMPT}\n\nFollow the system instructions above strictly.\n\n{user_prompt}"
+        for chunk in _ollama_client.chat(
+            model=_ollama_model,
+            messages=[{"role": "user", "content": full_prompt}],
+            stream=True,
+        ):
+            text = ""
+            if hasattr(chunk, "message") and hasattr(chunk.message, "content"):
+                text = chunk.message.content
+            elif isinstance(chunk, dict):
+                text = str(chunk.get("message", {}).get("content", ""))
+            if text:
+                yield text
+    except Exception as exc:
+        logger.warning("Ollama stream failed: %s", exc)
+        yield _fallback_text_for_error("unknown", is_crisis)
+
+
+def _invoke_llm(user_prompt: str, is_crisis: bool = False) -> str:
+    if _chatbot_provider == "ollama":
+        return _generate_with_ollama(user_prompt, is_crisis)
+    return _generate_with_gemini(user_prompt, is_crisis)
+
+
+def _stream_llm(user_prompt: str, is_crisis: bool = False):
+    if _chatbot_provider == "ollama":
+        yield from _stream_with_ollama(user_prompt, is_crisis)
+    else:
+        yield from _stream_with_gemini(user_prompt, is_crisis)
+
+
+def _generate_text_raw(prompt: str) -> str:
+    # LLM invocation without the chatbot system prompt mainly used for memory summarisation
+    if _chatbot_provider == "ollama":
+        response = _ollama_client.chat(
+            model=_ollama_model,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        if hasattr(response, "message") and hasattr(response.message, "content"):
+            return str(response.message.content).strip()
+        if isinstance(response, dict):
+            return str(response.get("message", {}).get("content", "")).strip()
+        return ""
+    else:
+        response = _llm.invoke(prompt)
+        content = getattr(response, "content", None) or getattr(response, "text", None)
+        return str(content).strip() if content else ""
+
+
 def _format_history_for_prompt(history: list[dict], max_turns: int = 5) -> str:
     if not history:
         return "No previous conversation."
@@ -590,7 +685,7 @@ What to DROP when over the word limit (lowest priority first):
 
 def generate_long_term_summary(existing_summary: str,conversation_history: list[dict],user_summary: str,) -> str:
     # Updates the long-term summary using the latest conversation while keeping it under the word limit
-    if not _llm:
+    if not _llm and not _ollama_client:
         return existing_summary
 
     history_text = _format_history_for_prompt(conversation_history, max_turns=6)
@@ -621,32 +716,31 @@ Rules:
 """
 
     try:
-        response = _llm.invoke(prompt)
-        content= getattr(response, "content", None) or getattr(response, "text", None)
-        return str(content).strip() if content else existing_summary
+        result = _generate_text_raw(prompt)
+        return result if result else existing_summary
     except Exception as exc:
-        error_type = _classify_gemini_error(exc)
+        error_type = _classify_gemini_error(exc) if _chatbot_provider != "ollama" else "unknown"
         compact = _compact_error(exc)
 
         if error_type == "quota":
             logger.warning(
-                "Skipped long-term summary update due to Gemini quota/rate limit; keeping existing summary. %s",
+                "Skipped long-term summary update due to quota/rate limit; keeping existing summary. %s",
                 compact,
             )
         elif error_type == "credentials":
             logger.error(
-                "Skipped long-term summary update: Gemini API key invalid/expired. "
+                "Skipped long-term summary update: API key invalid/expired. "
                 "Renew key and restart backend. %s",
                 compact,
             )
         elif error_type == "invalid_request":
             logger.error(
-                "Skipped long-term summary update due to invalid Gemini request; keeping existing summary. %s",
+                "Skipped long-term summary update due to invalid request; keeping existing summary. %s",
                 compact,
             )
         else:
             logger.warning(
-                "Could not update long-term summary due to Gemini error; keeping existing one. %s",
+                "Could not update long-term summary; keeping existing one. %s",
                 compact,
             )
         return existing_summary
@@ -696,7 +790,7 @@ What they just said: {persona_packet['user_message']}
 Remember: Just write the continuation. The opening "{CRISIS_HARDCODED_PREFIX}" is already there.
 """
 
-    continuation = _generate_with_gemini(prompt, is_crisis=True).strip()
+    continuation = _invoke_llm(prompt, is_crisis=True).strip()
     return f"{CRISIS_HARDCODED_PREFIX} {continuation}"
 
 
@@ -733,7 +827,7 @@ Their question: {persona_packet['user_message']}
 Answer naturally based on the provided knowledge. DO NOT make up hospital details, costs, phone numbers, or procedures that are not in the knowledge context above.
 """
 
-    return _generate_with_gemini(prompt, is_crisis=False)
+    return _invoke_llm(prompt, is_crisis=False)
 
 
 def _handle_general_support(
@@ -769,7 +863,7 @@ Respond like a real caring person. {question_instruction}
 Keep it short unless they asked for detailed info.
 """
 
-    return _generate_with_gemini(prompt, is_crisis=False)
+    return _invoke_llm(prompt, is_crisis=False)
 
 def process_user_message(
     user_message : str,
@@ -999,4 +1093,4 @@ def stream_gemini_response(prompt: str, is_crisis: bool = False):
     # Streams Gemini response in small chunks as it generates
     if is_crisis:
         yield CRISIS_HARDCODED_PREFIX + " "
-    yield from _stream_with_gemini(prompt, is_crisis=is_crisis)
+    yield from _stream_llm(prompt, is_crisis=is_crisis)

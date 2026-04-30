@@ -27,7 +27,7 @@ def create_app() -> FastAPI:
     initialize_redis()
     initialize_firebase()
     initialize_sentiment_service(settings.model_dir)
-    if settings.gemini_api_key:
+    if settings.gemini_api_key or settings.chatbot_provider.lower() == "ollama":
       initialize_chatbot_engine(
         gemini_api_key = settings.gemini_api_key,
         chroma_db_dir = settings.chroma_db_dir,

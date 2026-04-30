@@ -401,6 +401,41 @@ def _build_prompt(
     """
 
 
+def _generate_queries_with_gemini(prompt: str) -> list[str]:
+    from langchain_google_genai import ChatGoogleGenerativeAI
+    settings = get_settings()
+    if not settings.gemini_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Gemini API key is not configured.",
+        )
+    try:
+        llm = ChatGoogleGenerativeAI(
+            model="gemini-2.5-flash-lite",
+            google_api_key=settings.gemini_api_key,
+            temperature=0.3,
+            max_output_tokens=512,
+        )
+        response = llm.invoke(prompt)
+        raw = getattr(response, "content", None) or getattr(response, "text", None) or ""
+        raw = str(raw).strip()
+    except Exception as exc:
+        logger.warning("Gemini query generation failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Recommendation generator is unavailable. Please try again later.",
+        ) from exc
+
+    try:
+        return _parse_query_payload(raw)
+    except Exception as exc:
+        logger.warning("Gemini returned invalid query payload: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Recommendation generator returned an invalid response.",
+        ) from exc
+
+
 def _create_ollama_client() -> ollama.Client:
     settings = get_settings()
     if not settings.ollama_host:
@@ -445,7 +480,7 @@ def _parse_query_payload(raw: str) -> list[str]:
     return queries
 
 
-def generate_search_queries(
+def _generate_queries_with_ollama(
     tags: list[str],
     dominant_emotion: str,
     recommendation_mode: str,
@@ -477,13 +512,28 @@ def generate_search_queries(
 
     raw = raw.strip()
     try:
-        queries = _parse_query_payload(raw)
+        return _parse_query_payload(raw)
     except Exception as exc:
         logger.warning("Ollama returned invalid query payload: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Recommendation generator returned an invalid response.",
         ) from exc
+
+
+def generate_search_queries(
+    tags: list[str],
+    dominant_emotion: str,
+    recommendation_mode: str,
+    interaction_scores: dict[str, int],
+) -> list[str]:
+    settings = get_settings()
+    prompt = _build_prompt(tags, dominant_emotion, recommendation_mode, interaction_scores)
+
+    if settings.video_provider.lower() == "gemini":
+        queries = _generate_queries_with_gemini(prompt)
+    else:
+        queries = _generate_queries_with_ollama(tags, dominant_emotion, recommendation_mode, interaction_scores)
 
     if len(queries) < DEFAULT_QUERY_COUNT:
         raise HTTPException(

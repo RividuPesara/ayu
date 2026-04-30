@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     ollama_host: str | None = None
     ollama_model: str = Field(default="qwen3.5:9b", validation_alias="MODEL")
 
+    # Provider selection gemini or ollama
+    chatbot_provider: str = "gemini"
+    video_provider: str = "ollama"
+
     redis_url: str | None = None
 
     dev_mode: bool = False
