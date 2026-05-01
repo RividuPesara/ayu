@@ -29,6 +29,7 @@
 html,
 body {
   height: 100%;
+  overflow: hidden;
   background: var(--bg);
   color: var(--text-primary);
   font-family: var(--font-body);
@@ -37,19 +38,23 @@ body {
 
 .layout {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .layout__main {
   flex: 1;
   margin-left: var(--sidebar-width);
-  min-height: 100vh;
+  height: 100vh;
   background: var(--bg);
+  overflow-y: auto;
+  overflow-x: hidden;  
 }
 
 .layout__content {
   padding: 40px 40px;
   max-width: 1280px;
+  min-height: 100%;
 }
 
 /* Scrollbar */

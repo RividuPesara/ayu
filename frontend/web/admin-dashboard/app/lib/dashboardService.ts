@@ -9,7 +9,7 @@ async function getAuthHeaders() {
     throw new Error('User not logged in');
   }
 
-  const token = await user.getIdToken(true);
+  const token = await user.getIdToken();
 
   return {
     Authorization: `Bearer ${token}`,

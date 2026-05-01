@@ -61,7 +61,7 @@
 
 /* Date text */
 .log-text {
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--text-primary, #18172b);
   font-family: var(--font-body, 'DM Sans', sans-serif);
 }

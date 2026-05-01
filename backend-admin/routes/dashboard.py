@@ -50,13 +50,11 @@ def get_dashboard_stats(user=Depends(require_admin)):
     admin_name = "Admin"
 
     if admin_doc.exists:
+        
         admin_data = admin_doc.to_dict()
-
-        full_name = admin_data.get("fullName")
         first_name = admin_data.get("firstName", "")
-        last_name = admin_data.get("lastName", "")
 
-        admin_name = full_name or f"{first_name} {last_name}".strip() or "Admin"
+        admin_name = first_name or "Admin"
 
     patients = list(
         db.collection("users")
