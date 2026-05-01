@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
 from firebase_admin import firestore
+from google.cloud.firestore_v1.base_query import FieldFilter
 
 from app.core.config import get_settings
 from app.core.firebase import get_firestore_client
@@ -119,7 +120,7 @@ def list_journal_entries(uid: str, limit: int = 50, descending: bool = True) -> 
 
     snapshots = (
         db.collection(JOURNALS_COLLECTION)
-        .where("userId", "==", uid)
+        .where(filter=FieldFilter("userId", "==", uid))
         .order_by("entryDate", direction=direction)
         .limit(limit)
         .stream()
@@ -141,7 +142,7 @@ def list_journal_entries_page(
 
     query = (
         db.collection(JOURNALS_COLLECTION)
-        .where("userId", "==", uid)
+        .where(filter=FieldFilter("userId", "==", uid))
         .order_by("entryDate", direction=direction)
     )
 
@@ -306,9 +307,9 @@ def _collect_today_sources(uid: str) -> dict[str, Any]:
     # Check for crisis flags in today's journal entries
     journal_snapshots = (
         db.collection(JOURNALS_COLLECTION)
-        .where("userId", "==", uid)
-        .where("entryDate", ">=", start_utc)
-        .where("entryDate", "<", end_utc)
+        .where(filter=FieldFilter("userId", "==", uid))
+        .where(filter=FieldFilter("entryDate", ">=", start_utc))
+        .where(filter=FieldFilter("entryDate", "<", end_utc))
         .order_by("entryDate", direction=firestore.Query.DESCENDING)
         .stream()
     )
@@ -324,9 +325,9 @@ def _collect_today_sources(uid: str) -> dict[str, Any]:
     # Check for active crisis triggers in chat sessions
     session_snapshots = (
         db.collection(SESSIONS_COLLECTION)
-        .where("userId", "==", uid)
-        .where("lastMessageAt", ">=", start_utc)
-        .where("lastMessageAt", "<", end_utc)
+        .where(filter=FieldFilter("userId", "==", uid))
+        .where(filter=FieldFilter("lastMessageAt", ">=", start_utc))
+        .where(filter=FieldFilter("lastMessageAt", "<", end_utc))
         .order_by("lastMessageAt", direction=firestore.Query.DESCENDING)
         .stream()
     )
