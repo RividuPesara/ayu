@@ -1,11 +1,19 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import "../../../../styles/manage-articles.css";
+import {
+  collection,
+  onSnapshot,
+  doc,
+  updateDoc,
+} from "firebase/firestore";
+import { db } from "../../../lib/firebase";
+import { uploadImage } from '../../../lib/cloudinaryUpload';
 
 type Article = {
-  id: number;
+  id: string;
   title: string;
   genre: string;
   author: string;
@@ -20,19 +28,6 @@ type ContentImage = {
   dataUrl: string;
   name: string;
 };
-
-const initialArticles: Article[] = [
-  {
-    id: 1,
-    title: "15 Mindfulness Tips in the Age of AI",
-    genre: "Mindfulness",
-    author: "Dr. Evelyn Reed",
-    thumbnail: "/assets/loginimage.png",
-    content: "In a world increasingly shaped by Artificial Intelligence, practicing mindfulness has become more crucial than ever. Here are 15 tips to help you stay grounded...",
-    published: true,
-    contentImages: [],
-  },
-];
 
 // Icons
 
@@ -151,18 +146,31 @@ function renderContentWithImages(content: string, contentImages: ContentImage[])
 // Main Page
 
 export default function ManageArticles() {
-  const [articles, setArticles] = useState<Article[]>(initialArticles);
+  const [articles, setArticles] = useState<Article[]>([]);
   const [editTarget, setEditTarget] = useState<Article | null>(null);
   const [previewTarget, setPreviewTarget] = useState<Article | null>(null);
 
-  const togglePublished = (id: number) => {
-    setArticles((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, published: !a.published } : a))
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "articles"), (snapshot) => {
+      const data: Article[] = snapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...(docSnap.data() as Omit<Article, "id">),
+      }));
+      setArticles(data);
+    });
+
+    return () => unsub();
+  }, []); 
+
+  const togglePublished = async (id: string, current: boolean) => {
+    await updateDoc(doc(db, "articles", id), {
+      published: !current,}
     );
   };
 
-  const handleEditSave = (updated: Article) => {
-    setArticles((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+  const handleEditSave = async (updated: Article) => {
+    const { id, ...data } = updated;
+    await updateDoc(doc(db, "articles", id), data);
     setEditTarget(null);
   };
 
@@ -201,7 +209,7 @@ export default function ManageArticles() {
               <div className="am-card__footer">
                 <div className="am-card__toggle-row">
                   <button
-                    onClick={() => togglePublished(article.id)}
+                    onClick={() => togglePublished(article.id, article.published)}
                     className={`am-toggle ${article.published ? "am-toggle--on" : "am-toggle--off"}`}
                   >
                     <span className={`am-toggle__thumb ${article.published ? "am-toggle__thumb--on" : "am-toggle__thumb--off"}`} />
@@ -301,64 +309,59 @@ function EditDialog({
   onSave: (updated: Article) => void;
 }) {
   const [form, setForm] = useState<Article>({ ...article });
-  const [contentImages, setContentImages] = useState<ContentImage[]>(article.contentImages ?? []);
+  const [contentImages, setContentImages] = useState<ContentImage[]>(article.contentImages || []);
   const [errors, setErrors] = useState<Partial<Record<keyof Article, string>>>({});
-  const [thumbnailFileName, setThumbnailFileName] = useState<string>("");
+  const [thumbnailFileName, setThumbnailFileName] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const contentImageInputRef = useRef<HTMLInputElement>(null);
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const set = (field: keyof Article, value: string) => {
+  const setField = (field: keyof Article, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     setErrors((prev) => ({ ...prev, [field]: undefined }));
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      set("thumbnail", URL.createObjectURL(file));
+    if (!file) return;
+      const url = await uploadImage(file);
+      setField("thumbnail", url);
       setThumbnailFileName(file.name);
-      setErrors((prev) => ({ ...prev, thumbnail: undefined }));
-    }
+    
   };
 
-  const handleContentImageInsert = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleContentImageInsert = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
+    const url = await uploadImage(file);
+    
       const id = `img_${Date.now()}`;
       const tag = `![${id}](${file.name})`;
 
-      const textarea = contentTextareaRef.current;
-      if (textarea) {
-        const start = textarea.selectionStart ?? form.content.length;
-        const end = textarea.selectionEnd ?? form.content.length;
-        const newContent =
-          form.content.substring(0, start) +
-          (start > 0 && form.content[start - 1] !== "\n" ? "\n" : "") +
-          tag + "\n" +
-          form.content.substring(end);
-        set("content", newContent);
-      } else {
-        set("content", form.content + "\n" + tag + "\n");
-      }
+      setForm((prev) => ({
+      ...prev,
+      content: prev.content + "\n" + tag + "\n",
+    }));
 
-      setContentImages((prev) => [...prev, { id, dataUrl, name: file.name }]);
+    setContentImages((prev) => [
+      ...prev,
+      { id, dataUrl: url, name: file.name },
+    ]);
     };
-    reader.readAsDataURL(file);
-    e.target.value = "";
-  };
 
   const removeContentImage = (id: string) => {
     setContentImages((prev) => prev.filter((img) => img.id !== id));
-    const tagRegex = new RegExp(`\\n?!\\[${id}\\]\\([^)]*\\)\\n?`, "g");
-    set("content", form.content.replace(tagRegex, "\n").trim());
+    setForm((prev) => ({
+      ...prev,
+      content: prev.content.replace(
+        new RegExp(`!\\[${id}\\]\\([^)]*\\)`, "g"),
+        ""
+      ),
+    }));
   };
 
-  const validate = (): boolean => {
+  const validate = () => {
     const newErrors: Partial<Record<keyof Article, string>> = {};
     if (!form.title.trim())     newErrors.title     = "Title is required.";
     if (!form.genre.trim())     newErrors.genre     = "Genre is required.";
@@ -394,7 +397,7 @@ function EditDialog({
             <input
               type="text"
               value={form.title}
-              onChange={(e) => set("title", e.target.value)}
+              onChange={(e) => setField("title", e.target.value)}
               className={`am-dialog__input${errors.title ? " am-dialog__input--error" : ""}`}
             />
             {errors.title && <p className="am-dialog__error">{errors.title}</p>}
@@ -407,7 +410,7 @@ function EditDialog({
               <input
                 type="text"
                 value={form.genre}
-                onChange={(e) => set("genre", e.target.value)}
+                onChange={(e) => setField("genre", e.target.value)}
                 className={`am-dialog__input${errors.genre ? " am-dialog__input--error" : ""}`}
               />
               {errors.genre && <p className="am-dialog__error">{errors.genre}</p>}
@@ -417,7 +420,7 @@ function EditDialog({
               <input
                 type="text"
                 value={form.author}
-                onChange={(e) => set("author", e.target.value)}
+                onChange={(e) => setField("author", e.target.value)}
                 className={`am-dialog__input${errors.author ? " am-dialog__input--error" : ""}`}
               />
               {errors.author && <p className="am-dialog__error">{errors.author}</p>}
@@ -476,7 +479,7 @@ function EditDialog({
               ref={contentTextareaRef}
               rows={7}
               value={form.content}
-              onChange={(e) => set("content", e.target.value)}
+              onChange={(e) => setField("content", e.target.value)}
               className={`am-dialog__textarea${errors.content ? " am-dialog__input--error" : ""}`}
             />
             {/* Content image previews */}
