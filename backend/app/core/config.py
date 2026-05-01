@@ -1,6 +1,11 @@
+import logging
+import os
 from functools import lru_cache
+from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings
+
+logger = logging.getLogger(__name__)
 
 # App settings loaded from environment variables
 class Settings(BaseSettings):
@@ -58,3 +63,66 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings():
     return Settings()
+
+
+def validate_startup_config() -> None:
+    # Check required env vars and raise early
+    settings = get_settings()
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    # irebase always required
+    if not settings.firebase_project_id:
+        errors.append("FIREBASE_PROJECT_ID is not set")
+    if not settings.firebase_credentials_path:
+        errors.append("FIREBASE_CREDENTIALS_PATH is not set")
+    elif not Path(settings.firebase_credentials_path).exists():
+        errors.append(
+            f"FIREBASE_CREDENTIALS_PATH points to a file that does not exist: "
+            f"'{settings.firebase_credentials_path}'"
+        )
+
+    # Sentiment models always required
+    for model_file in ("lr_model.pkl", "bnb_model.pkl", "xgb_model.pkl", "vectorizer.pkl", "label_encoder.pkl"):
+        full_path = os.path.join(settings.model_dir, model_file)
+        if not os.path.exists(full_path):
+            errors.append(f"Sentiment model file missing: '{full_path}' (check MODEL_DIR)")
+
+    # Chatbot provider
+    provider = settings.chatbot_provider.lower()
+    if provider == "gemini":
+        if not settings.gemini_api_key:
+            errors.append("GEMINI_API_KEY is not set required when CHATBOT_PROVIDER=gemini)")
+    elif provider == "ollama":
+        if not settings.ollama_host:
+            errors.append("OLLAMA_HOST is not set required when CHATBOT_PROVIDER=ollama")
+    else:
+        errors.append(f"CHATBOT_PROVIDER='{settings.chatbot_provider}' is invalid — must be 'gemini' or 'ollama'")
+
+    # video provider
+    video_prov = settings.video_provider.lower()
+    if video_prov == "ollama" and not settings.ollama_host:
+        if not any("OLLAMA_HOST" in e for e in errors):
+            errors.append("OLLAMA_HOST is not set required when VIDEO_PROVIDER=ollama")
+    elif video_prov == "gemini" and not settings.gemini_api_key:
+        if not any("GEMINI_API_KEY" in e for e in errors):
+            errors.append("GEMINI_API_KEY is not set required when VIDEO_PROVIDER=gemini")
+
+    # warn if missing
+    if not settings.youtube_api_key:
+        warnings.append("YOUTUBE_API_KEY is not set video recommendations will be disabled")
+    if not settings.redis_url:
+        warnings.append("REDIS_URL is not set running in degraded mode (no caching, no distributed locks)")
+    if not all([settings.zoom_account_id, settings.zoom_client_id, settings.zoom_client_secret]):
+        warnings.append("Zoom credentials incomplete appointment video calls will not work")
+    if not settings.cloudinary_url:
+        warnings.append("CLOUDINARY_URL is not set profile photo uploads will not work")
+
+    for w in warnings:
+        logger.warning("[config] %s", w)
+
+    if errors:
+        bullet_list = "\n  - ".join(errors)
+        raise RuntimeError(
+            f"Startup aborted {len(errors)} configuration error found\n  - {bullet_list}"
+        )
