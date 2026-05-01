@@ -149,14 +149,17 @@ export default function ManageArticles() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [editTarget, setEditTarget] = useState<Article | null>(null);
   const [previewTarget, setPreviewTarget] = useState<Article | null>(null);
+  const [pageLoading, setPageLoading] = useState(true);
 
   useEffect(() => {
+    setPageLoading(true);
     const unsub = onSnapshot(collection(db, "articles"), (snapshot) => {
       const data: Article[] = snapshot.docs.map((docSnap) => ({
         id: docSnap.id,
         ...(docSnap.data() as Omit<Article, "id">),
       }));
       setArticles(data);
+      setPageLoading(false);
     });
 
     return () => unsub();
@@ -173,6 +176,15 @@ export default function ManageArticles() {
     await updateDoc(doc(db, "articles", id), data);
     setEditTarget(null);
   };
+
+  if (pageLoading) {
+  return (
+    <div className="ac-page-loader">
+      <div className="ac-page-loader__spinner" />
+      <p className="ac-page-loader__text">Loading manage articles...</p>
+    </div>
+  );
+}
 
   return (
     <div>

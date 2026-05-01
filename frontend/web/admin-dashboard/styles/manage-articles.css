@@ -610,3 +610,36 @@
   object-fit: contain;
   max-height: 320px;
 }
+
+/* ── Page Loader (Spinner) ── */
+.ac-page-loader {
+  min-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+
+.ac-page-loader__spinner {
+  width: 36px;
+  height: 36px;
+  border: 4px solid rgba(124, 58, 237, 0.15);
+  border-top-color: #7c3aed;
+  border-radius: 50%;
+  animation: acSpin 0.8s linear infinite;
+}
+
+.ac-page-loader__text {
+  font-size: 14px;
+  color: #6b6a8a;
+}
+
+@keyframes acSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
