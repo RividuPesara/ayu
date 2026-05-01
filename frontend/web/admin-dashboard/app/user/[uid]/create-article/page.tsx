@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect  } from "react";
 import Image from "next/image";
 import "../../../../styles/create-article.css";
 import { createArticle } from "../../../lib/articleService";
@@ -88,6 +88,22 @@ export default function CreateArticle() {
   const contentImageInputRef = useRef<HTMLInputElement>(null);
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const [pageLoading, setPageLoading] = useState(true);
+  useEffect(() => {
+      loadCreateArticle();
+    }, []);
+  
+    const loadCreateArticle = async () => {
+    try {
+      setPageLoading(true);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setPageLoading(false);
+    }
+};
+
   const setField = (field: keyof ArticleForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     setErrors((prev) => ({ ...prev, [field]: undefined }));
@@ -166,6 +182,15 @@ export default function CreateArticle() {
     const tagRegex = new RegExp(`\\n?!\\[${id}\\]\\([^)]*\\)\\n?`, "g");
     setField("content", form.content.replace(tagRegex, "\n").trim());
   };
+
+  if (pageLoading) {
+  return (
+    <div className="ac-page-loader">
+      <div className="ac-page-loader__spinner" />
+      <p className="ac-page-loader__text">Loading create article...</p>
+    </div>
+  );
+}
 
   return (
     <div>
