@@ -55,7 +55,7 @@
 }
 
 .type-admin {
-  background-color: #e1775a;
+  background-color: #c7664b;
   color: #ffffff;
 }
 
@@ -90,6 +90,7 @@
   border-radius: 30px;
   border: 1.5px solid #e0d7f5;
   background: #fff;
+  color: #18172b;
   cursor: pointer;
   font-size: 14px;
   transition: all 0.2s ease;
@@ -110,6 +111,8 @@
   border-radius: 14px;
   border: 1px solid #eee;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+  color: #18172b;
+  font-size: 14px;
 
   overflow: hidden;
   z-index: 1000;

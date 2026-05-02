@@ -12,6 +12,7 @@ from routes.articles import router as articles_router
 from routes.dashboard import router as dashboard_router
 from routes.manage import router as manage_router
 from routes.sidebar import router as sidebar_router
+from routes.login import router as login_router
 
 app = FastAPI()
 
@@ -35,3 +36,4 @@ app.include_router(articles_router, prefix="/api/articles", tags=["Articles"])
 app.include_router(dashboard_router, prefix="/api/dashboard", tags=["Dashboard"])
 app.include_router(manage_router, prefix="/api/manage")
 app.include_router(sidebar_router, prefix="/api/sidebar", tags=["Sidebar"])
+app.include_router(login_router, prefix="/api/login", tags=["Login"])

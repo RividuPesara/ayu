@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { doc, getDoc } from "firebase/firestore";
 import "../../styles/LoginPage.css";
-import { auth, db } from "../lib/firebase";
+import { auth } from "../lib/firebase";
 import {
-  signInWithEmailAndPassword,
-  sendPasswordResetEmail,
-} from "firebase/auth";
+  loginWithEmail,
+  sendResetEmail,
+  verifyAdmin,
+} from "../lib/loginService";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -32,7 +32,7 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await loginWithEmail(email, password);
       setOtpMode(true);
     } catch (error: any) {
       alert(error.message);
@@ -47,7 +47,7 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      await sendPasswordResetEmail(auth, forgotEmail);
+      await sendResetEmail(forgotEmail);
       setForgotSent(true);
     } catch (error: any) {
       alert(error.message);
@@ -65,32 +65,21 @@ export default function LoginPage() {
       if (otp === "123456") {
         const currentUser = auth.currentUser;
 
-        if (currentUser) {
-          const userDoc = await getDoc(doc(db, "admins", currentUser.uid));
-
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-
-            // Check if role is doctor
-            if (userData.role === "admin") {
-              router.push(`/user/${currentUser.uid}`);
-            } else {
-              alert("Access denied: you are not an admin.");
-              setOtpMode(false);
-            }
-          } else {
-            alert("User not found in admins collection.");
-            setOtpMode(false);
-          }
-        } else {
+        if (!currentUser) {
           alert("User not found. Please log in again.");
           setOtpMode(false);
+          setIsLoading(false);
+          return;
         }
+
+        await verifyAdmin(currentUser.uid);
+        router.push(`/user/${currentUser.uid}`);
       } else {
         alert("Invalid OTP");
       }
     } catch (error: any) {
       alert(error.message);
+      setOtpMode(false);
     }
 
     setIsLoading(false);
