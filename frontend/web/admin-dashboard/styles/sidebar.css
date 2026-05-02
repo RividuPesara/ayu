@@ -226,3 +226,11 @@
   color: #4a4870;
   padding: 12px 14px 4px;
 }
+
+.sidebar__avatar-img {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}

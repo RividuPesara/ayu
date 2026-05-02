@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useParams, useRouter } from 'next/navigation';
 import '../styles/sidebar.css';
 import Image from 'next/image';
-
+import { getSidebarUser } from '../app/lib/sidebarService';
 
 /* Icons */
 const icons = {
@@ -111,6 +111,32 @@ export default function Sidebar() {
   const navItems = getNavItems(uid);
   const [openGroups, setOpenGroups] = useState<string[]>([]);
 
+  const [admin, setAdmin] = useState({
+    name: 'Admin',
+    email: '',
+    avatar: '',
+  });
+
+  useEffect(() => {
+    async function fetchSidebarUser() {
+      if (!uid) return;
+
+      try {
+        const data = await getSidebarUser(uid);
+
+        setAdmin({
+          name: data.name,
+          email: data.email,
+          avatar: data.avatar,
+        });
+      } catch (error) {
+        console.error('Sidebar user fetch error:', error);
+      }
+    }
+
+    fetchSidebarUser();
+  }, [uid]);
+
   const toggleGroup = (label: string) => {
     setOpenGroups((prev) =>
       prev.includes(label) ? prev.filter((l) => l !== label) : [...prev, label]
@@ -187,11 +213,28 @@ export default function Sidebar() {
 
       {/* Footer */}
       <div className="sidebar__footer">
-        <div className="sidebar__avatar">AU</div>
+        {admin.avatar ? (
+          <Image
+            src={admin.avatar}
+            alt={admin.name}
+            width={42}
+            height={42}
+            className="sidebar__avatar-img"
+          />
+        ) : (
+          <div className="sidebar__avatar">
+            {admin.name
+              .split(' ')
+              .map((word) => word[0])
+              .join('')
+              .slice(0, 2)
+              .toUpperCase()}
+          </div>
+        )}
 
         <div className="sidebar__user-info">
-          <p className="sidebar__user-name">Admin User</p>
-          <p className="sidebar__user-email">admin@ayu.com</p>
+          <p className="sidebar__user-name">{admin.name}</p>
+          <p className="sidebar__user-email">{admin.email}</p>
         </div>
 
         <button
