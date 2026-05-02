@@ -9,8 +9,12 @@ from firebase_admin import firestore
 
 from app.core.config import get_settings
 from app.core.firebase import get_firestore_client
+from app.core.redis_client import get_redis
 from app.schemas.journal import JournalEntryResponse, MoodHistoryItem
 from app.services.sentiment_service import analyze_safety
+
+_PROCESSING_KEY_PREFIX = "ayu:journal:processing:"
+_PROCESSING_TTL = 90  # covers worstcase analysis time
 
 logger = logging.getLogger(__name__)
 
@@ -439,7 +443,7 @@ def compute_and_store_mood_stats(uid: str) -> dict[str, Any]:
     return mood_stats
 
 
-def _build_mood_stats_api_payload(mood_stats: dict[str, Any], recent_history: list[dict[str, Any]]) -> dict[str, Any]:
+def _build_mood_stats_api_payload(mood_stats: dict[str, Any], recent_history: list[dict[str, Any]],analysis_pending: bool = False,) -> dict[str, Any]:
     return {
         "current_status": str(mood_stats.get("currentStatus", "Mainly Neutral")),
         "composite_status": str(mood_stats.get("compositeStatus", "Mainly Neutral")),
@@ -452,6 +456,7 @@ def _build_mood_stats_api_payload(mood_stats: dict[str, Any], recent_history: li
         "last_active_date_key": str(mood_stats.get("lastActiveDateKey", "")),
         "has_crisis": bool(mood_stats.get("hasCrisis", False)),
         "recent_history": recent_history,
+        "analysis_pending": analysis_pending,
     }
 
 
@@ -549,6 +554,16 @@ def create_journal_entry(uid: str, title: str, content: str, user_mood: str) -> 
 
 def process_journal_entry_background(uid: str, entry_id: str) -> None:
     # Run sentiment analysis and synthesis updates after instant save response
+    redis = get_redis()
+    processing_key = f"{_PROCESSING_KEY_PREFIX}{uid}"
+
+    # Signal to other replicas that analysis is running for this user
+    if redis is not None:
+        try:
+            redis.setex(processing_key, _PROCESSING_TTL, "1")
+        except Exception:
+            pass
+
     try:
         db = get_firestore_client()
         ref = db.collection(JOURNALS_COLLECTION).document(entry_id)
@@ -603,11 +618,25 @@ def process_journal_entry_background(uid: str, entry_id: str) -> None:
             )
         except Exception:
             logger.exception("Could not store failed background status for entry %s", entry_id)
+    finally:
+        if redis is not None:
+            try:
+                redis.delete(processing_key)
+            except Exception:
+                pass
 
 
 def get_mood_stats(uid: str) -> dict[str, Any]:
     # Return fresh synthesis values with recent mood history cards
+    analysis_pending = False
+    redis = get_redis()
+    if redis is not None:
+        try:
+            analysis_pending = bool(redis.exists(f"{_PROCESSING_KEY_PREFIX}{uid}"))
+        except Exception:
+            pass
+
     mood_stats = compute_and_store_mood_stats(uid)
     recent_history = [item.model_dump() for item in list_recent_mood_history(uid)]
 
-    return _build_mood_stats_api_payload(mood_stats, recent_history)
+    return _build_mood_stats_api_payload(mood_stats, recent_history, analysis_pending)
