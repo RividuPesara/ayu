@@ -176,15 +176,66 @@ def send_companion_invite(from_uid: str,from_name: str | None,from_email: str | 
     return {"status": "invited", "invite_id": invite_ref.id}
 
 
-def get_companion_status(uid: str) -> dict:
+def _activate_companion_if_pending(uid: str, db) -> None:
+    # Called on companion's first login then change status to active on both sides
+    companion_doc = db.collection(USERS_COLLECTION).document(uid).get()
+    companion_data = companion_doc.to_dict() or {}
+
+    if companion_data.get("accountStatus") != "pending":
+        return
+
+    patient_uid = companion_data.get("patientUid")
+    if not patient_uid:
+        return
+
+    # Mark companion account as active
+    db.collection(USERS_COLLECTION).document(uid).update({
+        "accountStatus": "active",
+    })
+
+    # Mark companion status inside patient's patientProfile as active
+    db.collection(USERS_COLLECTION).document(patient_uid).update({
+        "patientProfile.companion.status": "active",
+    })
+
+    logger.info("Companion %s activated for patient %s", uid, patient_uid)
+
+
+def get_companion_status(uid: str, role: str = "patient") -> dict:
     db = get_firestore_client()
 
     user_doc = db.collection(USERS_COLLECTION).document(uid).get()
     if not user_doc.exists:
         return {"has_companion": False, "companion": None}
 
-    # Companion data is inside patientProfile
-    companion = ((user_doc.to_dict() or {}).get("patientProfile") or {}).get("companion")
+    user_data = user_doc.to_dict() or {}
+
+    if role == "companion":
+        # On first login activate the companion relationship
+        _activate_companion_if_pending(uid, db)
+
+        patient_uid = user_data.get("patientUid")
+        if not patient_uid:
+            return {"has_companion": False, "companion": None}
+
+        patient_doc = db.collection(USERS_COLLECTION).document(patient_uid).get()
+        if not patient_doc.exists:
+            return {"has_companion": False, "companion": None}
+
+        patient_data = patient_doc.to_dict() or {}
+        return {
+            "has_companion": True,
+            "companion": {
+                "uid": patient_uid,
+                "email": patient_data.get("email", ""),
+                "name": patient_data.get("fullName"),
+                "avatar": patient_data.get("avatar"),
+                "status": "active",
+            },
+        }
+
+    # Patient reads companion info from their own patientProfile
+    companion = (user_data.get("patientProfile") or {}).get("companion")
     if not companion:
         return {"has_companion": False, "companion": None}
 

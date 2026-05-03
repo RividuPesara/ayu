@@ -3,7 +3,7 @@ import functools
 
 from fastapi import APIRouter, Depends, status
 
-from app.dependencies.auth import CurrentUser, require_patient_access
+from app.dependencies.auth import CurrentUser, require_patient_access, require_patient_or_companion_access
 from app.schemas.companion import (
     CompanionInviteRequest,
     CompanionInviteResponse,
@@ -35,7 +35,7 @@ async def invite_companion(payload: CompanionInviteRequest,
 
 @router.get("/status", response_model=CompanionStatusResponse, status_code=status.HTTP_200_OK)
 async def companion_status(
-    user: CurrentUser = Depends(require_patient_access),) -> CompanionStatusResponse:
-    # companion info from patientProfile, or has_companion but false if none linked
-    result = await _run_sync(get_companion_status, user.uid)
+    user: CurrentUser = Depends(require_patient_or_companion_access),) -> CompanionStatusResponse:
+    # Both patient and companion can check status
+    result = await _run_sync(get_companion_status, user.uid, user.role)
     return CompanionStatusResponse.model_validate(result)

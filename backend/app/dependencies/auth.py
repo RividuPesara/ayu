@@ -132,3 +132,13 @@ async def require_patient_access(
       detail="Patient role required.",
     )
   return user
+
+# Allows companions to access patient endpoints
+async def require_patient_or_companion_access(user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> CurrentUser:
+  if user.role not in ("patient", "companion"):
+    raise HTTPException(
+      status_code=status.HTTP_403_FORBIDDEN,
+      detail="Patient or companion role required.",
+    )
+  return user
