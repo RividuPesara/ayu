@@ -222,7 +222,7 @@ select.ac-input::-ms-expand { display: none; }
 }
 
 .ac-dropzone__img {
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .ac-dropzone__overlay {

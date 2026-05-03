@@ -199,7 +199,7 @@ export default function ManageArticles() {
 
             <div className="am-card__thumbnail">
               {article.thumbnail ? (
-                <Image src={article.thumbnail} alt={article.title} fill className="am-card__img" />
+                <Image src={article.thumbnail} alt={article.title} fill className="am-card__img" sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw" />
               ) : (
                 <div className="am-card__no-thumbnail">
                   <NoImageIcon />
@@ -449,7 +449,7 @@ function EditDialog({
             >
               {form.thumbnail ? (
                 <div className="am-dialog__dropzone-preview">
-                  <Image src={form.thumbnail} alt="Thumbnail preview" fill className="am-dialog__dropzone-img" />
+                  <Image src={form.thumbnail} alt="Thumbnail preview" fill sizes="(max-width: 768px) 100vw, 33vw" className="am-dialog__dropzone-img" />
                   <div className="am-dialog__dropzone-overlay">
                     <UploadIcon />
                     <span>Change image</span>
