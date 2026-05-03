@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     ollama_host: str | None = None
     ollama_model: str = Field(default="qwen3.5:9b", validation_alias="MODEL")
 
+    sendgrid_api_key: str | None = None
+    sendgrid_from_email: str | None = None
+
     redis_url: str | None = None
 
     dev_mode: bool = False
