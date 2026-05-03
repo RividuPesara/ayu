@@ -88,6 +88,7 @@ flutter:
     - assets/thumb.json
     - assets/moodentries.png
     - assets/success.json
+    - assets/companioncats.png
 
     - assets/faces/sad.png
     - assets/faces/anxiety.png
