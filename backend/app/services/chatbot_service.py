@@ -1,3 +1,4 @@
+import json
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -6,6 +7,7 @@ from fastapi import HTTPException, status
 from firebase_admin import firestore
 
 from app.core.firebase import get_firestore_client
+from app.core.redis_client import get_redis
 from app.schemas.chatbot import MessageResponse, SessionResponse
 
 logger = logging.getLogger(__name__)
@@ -16,6 +18,39 @@ USERS_COLLECTION = "users"
 CONVERSATION_HISTORY_LIMIT = 6
 DEFAULT_MESSAGES_PAGE_SIZE = 50
 MAX_MESSAGES_PAGE_SIZE = 200
+HISTORY_CACHE_TTL    = 3600   # 1 hour
+AGGREGATES_CACHE_TTL = 3600   # 1 hour
+SUMMARY_CACHE_TTL    = 86400  # 24 hours
+
+
+def _history_cache_key(session_id: str) -> str:
+    return f"ayu:chat:history:{session_id}"
+
+def _aggregates_cache_key(session_id: str) -> str:
+    return f"ayu:session:aggregates:{session_id}"
+
+def _summary_cache_key(uid: str) -> str:
+    return f"ayu:user:summary:{uid}"
+
+
+def _redis_set_json(key: str, value: Any, ttl: int, label: str) -> None:
+    r = get_redis()
+    if r is None:
+        return
+    try:
+        r.set(key, json.dumps(value), ex=ttl)
+    except Exception as exc:
+        logger.warning("Redis write failed [%s]: %s", label, exc)
+
+
+def _redis_delete(key: str, label: str) -> None:
+    r = get_redis()
+    if r is None:
+        return
+    try:
+        r.delete(key)
+    except Exception as exc:
+        logger.warning("Redis delete failed [%s]: %s", label, exc)
 
 
 def _safe_int(value: Any, default: int = 0) -> int:
@@ -108,7 +143,6 @@ def _recompute_session_aggregates(session_id: str) -> dict[str, Any]:
             crisis_count += 1
 
     dominant_emotion = _dominant_emotion_from_counts(emotion_counts)
-    # Sync the recomputed values back to the session documen
     db.collection(SESSIONS_COLLECTION).document(session_id).update({
         "emotionCounts": emotion_counts,
         "patientMessageCount": patient_message_count,
@@ -117,12 +151,14 @@ def _recompute_session_aggregates(session_id: str) -> dict[str, Any]:
         "messageCount": patient_message_count,
     })
 
-    return {
+    result = {
         "emotion_counts": emotion_counts,
         "patient_message_count": patient_message_count,
         "crisis_count": crisis_count,
         "dominant_emotion": dominant_emotion,
     }
+    _redis_set_json(_aggregates_cache_key(session_id), result, AGGREGATES_CACHE_TTL, session_id)
+    return result
 
 def _parse_timestamp(value: Any) -> datetime | None:
     if value is None:
@@ -225,7 +261,16 @@ def list_sessions(uid: str) -> list[SessionResponse]:
 
 
 def get_session_aggregates(session_id: str) -> dict[str, Any]:
-    # Fetch existing session stats if data is incomplete
+    # Check Redis first if not fall back to Firestore and populate cache on a miss
+    r = get_redis()
+    if r is not None:
+        try:
+            cached = r.get(_aggregates_cache_key(session_id))
+            if cached:
+                return json.loads(cached)
+        except Exception as exc:
+            logger.warning("Redis aggregates cache read failed for %s: %s", session_id, exc)
+
     db = get_firestore_client()
     snapshot = db.collection(SESSIONS_COLLECTION).document(session_id).get()
     if not snapshot.exists:
@@ -242,10 +287,14 @@ def get_session_aggregates(session_id: str) -> dict[str, Any]:
         and data.get("patientMessageCount") is not None
         and data.get("crisisCount") is not None
     )
+    result = (
+        _build_session_aggregates(data) if has_aggregates
+        else _recompute_session_aggregates(session_id)
+    )
+    # recompute already writes to Redis only cache here for the fast path
     if has_aggregates:
-        return _build_session_aggregates(data)
-
-    return _recompute_session_aggregates(session_id)
+        _redis_set_json(_aggregates_cache_key(session_id), result, AGGREGATES_CACHE_TTL, session_id)
+    return result
 
 
 def get_session(session_id: str, uid: str) -> dict[str, Any]:
@@ -268,7 +317,16 @@ def get_session(session_id: str, uid: str) -> dict[str, Any]:
     return data
 
 def get_conversation_history(session_id: str) -> list[dict[str, str]]:
-    #Return the last 6 messages in chronological order to build the conversation context passed to Gemini
+    #Return the last 6 messages in chronological order Checks Redis first
+    # if not falls back to Firestore and populates the cache on a miss
+    r = get_redis()
+    if r is not None:
+        try:
+            cached = r.get(_history_cache_key(session_id))
+            if cached:
+                return json.loads(cached)
+        except Exception as exc:
+            logger.warning("Redis history cache read failed for %s: %s", session_id, exc)
 
     db = get_firestore_client()
     snapshots = list(
@@ -279,14 +337,30 @@ def get_conversation_history(session_id: str) -> list[dict[str, str]]:
         .stream()
     )
 
-    # Query returns newest to first, reverse so the prompt sees oldest to newest
     snapshots.reverse()
     messages = [snap.to_dict() or {} for snap in snapshots]
-
-    return [
+    history = [
         {"role": str(msg.get("role", "")), "content": str(msg.get("content", ""))}
         for msg in messages
     ]
+
+    if r is not None:
+        try:
+            r.set(_history_cache_key(session_id), json.dumps(history), ex=HISTORY_CACHE_TTL)
+        except Exception as exc:
+            logger.warning("Redis history cache write failed for %s: %s", session_id, exc)
+
+    return history
+
+
+def invalidate_conversation_history(session_id: str) -> None:
+    r = get_redis()
+    if r is None:
+        return
+    try:
+        r.delete(_history_cache_key(session_id))
+    except Exception as exc:
+        logger.warning("Redis history cache delete failed for %s: %s", session_id, exc)
 
 
 def get_user_emotion_history(session_id: str) -> list[str]:
@@ -344,8 +418,10 @@ def save_chatbot_message(session_id: str, uid: str, content: str) -> str:
 
 def update_session_stats(session_id: str, emotion_label: str, safety_flag: str) -> None:
     # Increment aggregate counters after each saved patient message
+    # Captures the new values so we can update the Redis cache after the transaction
     db = get_firestore_client()
     ref = db.collection(SESSIONS_COLLECTION).document(session_id)
+    new_aggregates: dict[str, Any] = {}
 
     @firestore.transactional
     def _apply_updates(transaction: firestore.Transaction) -> None:
@@ -380,7 +456,18 @@ def update_session_stats(session_id: str, emotion_label: str, safety_flag: str) 
             "lastMessageAt": firestore.SERVER_TIMESTAMP,
         })
 
+        new_aggregates.update({
+            "emotion_counts": emotion_counts,
+            "patient_message_count": patient_message_count,
+            "crisis_count": crisis_count,
+            "dominant_emotion": dominant_emotion,
+        })
+
     _apply_updates(db.transaction())
+    if new_aggregates:
+        _redis_set_json(
+            _aggregates_cache_key(session_id), new_aggregates, AGGREGATES_CACHE_TTL, session_id
+        )
 
 
 def get_user_profile(uid: str) -> dict[str, Any]:
@@ -395,18 +482,41 @@ def get_user_profile(uid: str) -> dict[str, Any]:
 
 
 def get_long_term_summary(uid: str) -> str:
-    # Read the patient's longTermSummary from their user document
+    # Check Redis first if not fall back to Firestore and populate cache on a miss
+    r = get_redis()
+    if r is not None:
+        try:
+            cached = r.get(_summary_cache_key(uid))
+            if cached is not None:
+                return cached  # stored as a plain string not JSON
+        except Exception as exc:
+            logger.warning("Redis summary cache read failed for %s: %s", uid, exc)
+
     profile = get_user_profile(uid)
-    return str(profile.get("patientProfile", {}).get("longTermSummary", ""))
+    summary = str(profile.get("patientProfile", {}).get("longTermSummary", ""))
+
+    if r is not None:
+        try:
+            r.set(_summary_cache_key(uid), summary, ex=SUMMARY_CACHE_TTL)
+        except Exception as exc:
+            logger.warning("Redis summary cache write failed for %s: %s", uid, exc)
+
+    return summary
 
 
 def update_long_term_summary(uid: str, summary: str) -> None:
     # Persist the updated longTermSummary inside patientProfile on the user document
-
+    # and keep the Redis cache in sync so the next read is a cache hit
     db = get_firestore_client()
     db.collection(USERS_COLLECTION).document(uid).update({
         "patientProfile.longTermSummary": summary,
     })
+    r = get_redis()
+    if r is not None:
+        try:
+            r.set(_summary_cache_key(uid), summary, ex=SUMMARY_CACHE_TTL)
+        except Exception as exc:
+            logger.warning("Redis summary cache update failed for %s: %s", uid, exc)
 
 
 def write_context_snapshot(session_id: str, snapshot_text: str) -> None:
