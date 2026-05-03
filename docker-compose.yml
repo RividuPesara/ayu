@@ -1,37 +1,66 @@
+x-backend: &backend-defaults
+  build: ./backend
+  env_file:
+    - ./backend/.env
+  environment:
+    - HF_HUB_OFFLINE=1
+    - REDIS_URL=redis://redis:6379/0
+  volumes:
+    - ./backend:/app
+    - ./models:/models
+    - ./data:/data
+  networks:
+    - app-network
+  restart: unless-stopped
+  depends_on:
+    redis:
+      condition: service_healthy
+  healthcheck:
+    test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
+    interval: 15s
+    timeout: 5s
+    retries: 10
+    start_period: 600s
+
 services:
+  redis:
+    image: redis:7-alpine
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  backend1:
+    <<: *backend-defaults
+
+  backend2:
+    <<: *backend-defaults
+
+  backend3:
+    <<: *backend-defaults
+
   nginx:
     build: ./nginx
     ports:
       - "80:80"
     depends_on:
-      backend:
-        condition: service_healthy
+      - backend1
+      - backend2
+      - backend3
     networks:
       - app-network
     restart: unless-stopped
-
-  backend:
-    build: ./backend
-    env_file:
-      - ./backend/.env
-    environment:
-      - HF_HUB_OFFLINE=1
-    volumes:
-      - ./backend:/app
-      - ./models:/models
-      - ./data:/data
-    networks:
-      - app-network
-    restart: unless-stopped
-    deploy:
-      replicas: 3
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 300s
 
 networks:
   app-network:
     driver: bridge
+
+volumes:
+  redis_data:
