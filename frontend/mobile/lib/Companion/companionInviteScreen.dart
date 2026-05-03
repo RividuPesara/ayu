@@ -129,7 +129,7 @@ class CompanionInviteScreen extends StatelessWidget {
                           hintText: 'name@example.com',
                           hintStyle: const TextStyle(
                             fontSize: 16,
-                            color: Color(0xFFC8C1BC),
+                            color: Color(0xFF5F5650),
                           ),
                           filled: true,
                           fillColor: const Color(0xFFF5F3EE),
@@ -148,7 +148,7 @@ class CompanionInviteScreen extends StatelessWidget {
 
                       SizedBox(
                         width: double.infinity,
-                        height: 48,
+                        height: 53,
                         child: ElevatedButton(
                           onPressed: () {
                             Navigator.push(
@@ -169,7 +169,7 @@ class CompanionInviteScreen extends StatelessWidget {
                           child: const Text(
                             'Send Invite',
                             style: TextStyle(
-                              fontSize: 18,
+                              fontSize: 20,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
