@@ -196,14 +196,19 @@
   position: relative;
   border-radius: 14px;
   overflow: hidden;
-  aspect-ratio: 4 / 3;
+  width: 100%;
+  max-width: 600px;   
+  aspect-ratio: 4 / 3;     
+  margin: 0 auto;
 }
 
 .photo-preview img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  display: block;
+  object-fit: contain;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .photo-preview__change {
