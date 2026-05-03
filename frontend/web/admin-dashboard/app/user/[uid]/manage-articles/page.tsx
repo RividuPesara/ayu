@@ -177,21 +177,21 @@ export default function ManageArticles() {
     setEditTarget(null);
   };
 
-  if (pageLoading) {
-  return (
-    <div className="ac-page-loader">
-      <div className="ac-page-loader__spinner" />
-      <p className="ac-page-loader__text">Loading manage articles...</p>
-    </div>
-  );
-}
-
   return (
     <div>
       <div className="am-page-header">
         <h1 className="am-page-title">Manage Articles</h1>
         <p className="am-page-subtitle">Edit, publish, or unpublish articles.</p>
       </div>
+
+      {pageLoading ? (
+        <div className="ac-page-loader">
+          <div className="ac-page-loader__spinner" />
+          <p className="ac-page-loader__text">
+            Loading manage articles...
+          </p>
+        </div>
+      ) : (
 
       <div className="am-grid">
         {articles.map((article) => (
@@ -240,6 +240,7 @@ export default function ManageArticles() {
           </div>
         ))}
       </div>
+      )}
 
       {/* Preview Dialog */}
       {previewTarget && (

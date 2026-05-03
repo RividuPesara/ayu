@@ -183,15 +183,6 @@ export default function CreateArticle() {
     setField("content", form.content.replace(tagRegex, "\n").trim());
   };
 
-  if (pageLoading) {
-  return (
-    <div className="ac-page-loader">
-      <div className="ac-page-loader__spinner" />
-      <p className="ac-page-loader__text">Loading create article...</p>
-    </div>
-  );
-}
-
   return (
     <div>
       {/* Page Header */}
@@ -200,6 +191,15 @@ export default function CreateArticle() {
         <p className="ac-page-subtitle">Fill in the details below to create a new article.</p>
       </div>
 
+      {pageLoading ? (
+        <div className="ac-page-loader">
+          <div className="ac-page-loader__spinner" />
+          <p className="ac-page-loader__text">
+            Loading create article...
+          </p>
+        </div>
+      ) : (
+        <>
       {/* Card */}
       <div className="ac-card">
         <div className="ac-card-header">
@@ -363,6 +363,8 @@ export default function CreateArticle() {
           </button>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }
