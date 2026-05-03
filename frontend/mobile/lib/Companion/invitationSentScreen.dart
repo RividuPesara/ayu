@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile_app/Companion/sharingPrivacyScreen.dart';
 
 class InvitationSentScreen extends StatelessWidget {
   const InvitationSentScreen({super.key});
@@ -258,7 +259,14 @@ class InvitationSentScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(28),
                     ),
                   ),
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => CompanionPrivacyScreen(),
+                      ),
+                    );
+                  },
                   child: const Text(
                     'Continue →',
                     style: TextStyle(
