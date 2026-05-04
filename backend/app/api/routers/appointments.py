@@ -3,7 +3,7 @@ import functools
 
 from fastapi import APIRouter, Depends, status
 
-from app.dependencies.auth import CurrentUser, require_patient_access
+from app.dependencies.auth import CurrentUser, require_patient_access, require_patient_or_companion_access
 from app.schemas.appointments import (
     AppointmentSlotsRequest,
     AppointmentSlotsResponse,
@@ -16,6 +16,7 @@ from app.services.appointment_service import (
     list_available_slots,
     list_patient_appointments,
 )
+from app.services.companion_service import resolve_and_check_privacy
 
 # Grouping all appointment related routes under /appointments
 router = APIRouter(prefix="/appointments", tags=["appointments"])
@@ -24,6 +25,7 @@ router = APIRouter(prefix="/appointments", tags=["appointments"])
 async def _run_sync(func, *args, **kwargs):
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, functools.partial(func, *args, **kwargs))
+
 
 # Shows what times a specific doctor is free
 @router.get("/slots", response_model=AppointmentSlotsResponse)
@@ -46,8 +48,12 @@ async def book_new_appointment(payload: BookAppointmentRequest,user: CurrentUser
     )
 
 # Retrieves a list of all appointments for the logged in patient
+# Companion too if allowed
 @router.get("/my", response_model=list[PatientAppointment])
 async def get_my_appointments(
-    user: CurrentUser = Depends(require_patient_access),
+    user: CurrentUser = Depends(require_patient_or_companion_access),
 ) -> list[PatientAppointment]:
-    return await _run_sync(list_patient_appointments, user.uid)
+    patient_uid = user.uid
+    if user.role == "companion":
+        patient_uid = await _run_sync(resolve_and_check_privacy, user.uid, "doctor_appointments")
+    return await _run_sync(list_patient_appointments, patient_uid)

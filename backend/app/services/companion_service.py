@@ -201,6 +201,96 @@ def _activate_companion_if_pending(uid: str, db) -> None:
     logger.info("Companion %s activated for patient %s", uid, patient_uid)
 
 
+def resolve_and_check_privacy(companion_uid: str, flag: str) -> str:
+    # checks the privacy flag and returns patient_uid if allowed
+    db = get_firestore_client()
+
+    companion_doc = db.collection(USERS_COLLECTION).document(companion_uid).get()
+    companion_data = companion_doc.to_dict() or {}
+    patient_uid = companion_data.get("patientUid")
+
+    if not patient_uid:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No linked patient found.",
+        )
+
+    patient_doc = db.collection(USERS_COLLECTION).document(patient_uid).get()
+    privacy = ((patient_doc.to_dict() or {}).get("patientProfile") or {}).get("companionPrivacy") or {}
+
+    flag_map = {
+        "mood_journal": privacy.get("moodJournal", True),
+        "tracking": privacy.get("tracking", True),
+        "doctor_appointments": privacy.get("doctorAppointments", True),
+        "todo_list": privacy.get("todoList", False),
+    }
+
+    if not flag_map.get(flag, False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Patient has restricted access to this feature.",
+        )
+
+    return patient_uid
+
+
+def save_companion_privacy(uid: str, mood_journal: bool, todo_list: bool, tracking: bool, doctor_appointments: bool) -> dict:
+    db = get_firestore_client()
+
+    # Store privacy preferences inside patientProfile
+    db.collection(USERS_COLLECTION).document(uid).update({
+        "patientProfile.companionPrivacy": {
+            "moodJournal": mood_journal,
+            "todoList": todo_list,
+            "tracking": tracking,
+            "doctorAppointments": doctor_appointments,
+        }
+    })
+
+    return {
+        "mood_journal": mood_journal,
+        "todo_list": todo_list,
+        "tracking": tracking,
+        "doctor_appointments": doctor_appointments,
+    }
+
+
+def get_companion_privacy(uid: str, role: str = "patient") -> dict:
+    db = get_firestore_client()
+
+    # Companion reads the patient's privacy settings using their patientUid
+    if role == "companion":
+        companion_doc = db.collection(USERS_COLLECTION).document(uid).get()
+        patient_uid = (companion_doc.to_dict() or {}).get("patientUid")
+        if not patient_uid:
+            return _default_privacy()
+        uid = patient_uid
+
+    user_doc = db.collection(USERS_COLLECTION).document(uid).get()
+    if not user_doc.exists:
+        return _default_privacy()
+
+    privacy = ((user_doc.to_dict() or {}).get("patientProfile") or {}).get("companionPrivacy")
+    if not privacy:
+        return _default_privacy()
+
+    return {
+        "mood_journal": privacy.get("moodJournal", True),
+        "todo_list": privacy.get("todoList", False),
+        "tracking": privacy.get("tracking", True),
+        "doctor_appointments": privacy.get("doctorAppointments", True),
+    }
+
+
+def _default_privacy() -> dict:
+    return {
+        "mood_journal": True,
+        "todo_list": False,
+        "tracking": True,
+        "doctor_appointments": True,
+    }
+
+
 def get_companion_status(uid: str, role: str = "patient") -> dict:
     db = get_firestore_client()
 

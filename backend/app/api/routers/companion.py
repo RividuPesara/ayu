@@ -7,9 +7,16 @@ from app.dependencies.auth import CurrentUser, require_patient_access, require_p
 from app.schemas.companion import (
     CompanionInviteRequest,
     CompanionInviteResponse,
+    CompanionPrivacyRequest,
+    CompanionPrivacyResponse,
     CompanionStatusResponse,
 )
-from app.services.companion_service import get_companion_status, send_companion_invite
+from app.services.companion_service import (
+    get_companion_privacy,
+    get_companion_status,
+    save_companion_privacy,
+    send_companion_invite,
+)
 
 router = APIRouter(prefix="/companion", tags=["companion"])
 
@@ -39,3 +46,27 @@ async def companion_status(
     # Both patient and companion can check status
     result = await _run_sync(get_companion_status, user.uid, user.role)
     return CompanionStatusResponse.model_validate(result)
+
+
+@router.post("/privacy", response_model=CompanionPrivacyResponse, status_code=status.HTTP_200_OK)
+async def update_privacy(payload: CompanionPrivacyRequest,
+user: CurrentUser = Depends(require_patient_access),
+) -> CompanionPrivacyResponse:
+    # Only the patient controls what their companion can see
+    result = await _run_sync(
+        save_companion_privacy,
+        user.uid,
+        payload.mood_journal,
+        payload.todo_list,
+        payload.tracking,
+        payload.doctor_appointments,
+    )
+    return CompanionPrivacyResponse.model_validate(result)
+
+
+@router.get("/privacy", response_model=CompanionPrivacyResponse, status_code=status.HTTP_200_OK)
+async def get_privacy(user: CurrentUser = Depends(require_patient_access),
+) -> CompanionPrivacyResponse:
+    # Only patient can read and manage their privacy settings
+    result = await _run_sync(get_companion_privacy, user.uid, user.role)
+    return CompanionPrivacyResponse.model_validate(result)
