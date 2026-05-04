@@ -99,6 +99,51 @@ class _CompanionInviteScreenState extends State<CompanionInviteScreen> {
     }
   }
 
+  Future<void> _unlinkCompanion() async {
+    setState(() => _actionLoading = true);
+    try {
+      await _service.unlinkCompanion();
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Companion removed.')));
+      await _loadStatus();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) setState(() => _actionLoading = false);
+    }
+  }
+
+  void _showUnlinkDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove Companion?'),
+        content: const Text(
+          'This will unlink your companion. They will no longer have access to your data.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _unlinkCompanion();
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_viewState == null) {
@@ -549,6 +594,27 @@ class _CompanionInviteScreenState extends State<CompanionInviteScreen> {
                   context,
                   MaterialPageRoute(
                     builder: (context) => const CompanionPrivacyScreen(),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              SizedBox(
+                width: double.infinity,
+                height: 53,
+                child: OutlinedButton(
+                  onPressed: _showUnlinkDialog,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(28),
+                    ),
+                  ),
+                  child: const Text(
+                    'Remove Companion',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),

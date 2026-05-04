@@ -144,6 +144,17 @@ def send_companion_invite(from_uid: str,from_name: str | None,from_email: str | 
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(days=INVITE_EXPIRY_DAYS)
 
+    # Clean up old pending invites from this patient to this email for reinvite
+    old_invites = (
+        db.collection(COMPANION_INVITES_COLLECTION)
+        .where("fromUid", "==", from_uid)
+        .where("toEmail", "==", to_email)
+        .where("status", "==", "pending")
+        .stream()
+    )
+    for old_invite in old_invites:
+        old_invite.reference.delete()
+
     # Record the invite for expiry tracking
     invite_ref = db.collection(COMPANION_INVITES_COLLECTION).document()
     invite_ref.set({
@@ -339,3 +350,58 @@ def get_companion_status(uid: str, role: str = "patient") -> dict:
             "status": companion.get("status", "pending"),
         },
     }
+
+def unlink_companion(uid: str) -> dict:
+    db = get_firestore_client()
+
+    user_doc = db.collection(USERS_COLLECTION).document(uid).get()
+    if not user_doc.exists:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found.",
+        )
+
+    user_data = user_doc.to_dict() or {}
+    companion = (user_data.get("patientProfile") or {}).get("companion")
+    if not companion:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No companion linked.",
+        )
+
+    companion_uid = companion.get("uid")
+
+    # Delete from patient's profile
+    db.collection(USERS_COLLECTION).document(uid).update({
+        "patientProfile.companion": firestore.DELETE_FIELD,
+    })
+
+    # Delete from companion's profile if they have a linked record
+    if companion_uid:
+        db.collection(USERS_COLLECTION).document(companion_uid).update({
+            "patientUid": firestore.DELETE_FIELD,
+            "accountStatus": firestore.DELETE_FIELD,
+        })
+
+    logger.info("Companion %s unlinked from patient %s", companion_uid, uid)
+    return {"status": "unlinked"}
+
+
+def cleanup_expired_invites() -> dict:
+    db = get_firestore_client()
+    now = datetime.now(timezone.utc)
+
+    expired_docs = (
+        db.collection(COMPANION_INVITES_COLLECTION)
+        .where("expiresAt", "<", now)
+        .where("status", "==", "pending")
+        .stream()
+    )
+
+    count = 0
+    for doc in expired_docs:
+        doc.reference.delete()
+        count += 1
+
+    logger.info("Cleaned up %d expired companion invites", count)
+    return {"cleaned_up": count}

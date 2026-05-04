@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:mobile_app/core/network/backend_connector.dart';
@@ -77,12 +78,29 @@ class CompanionPrivacy {
 class CompanionService {
   final _api = BackendConnector.instance;
 
+  CompanionStatus? _cachedStatus;
+  Timer? _statusCacheTimer;
+
+  CompanionPrivacy? _cachedPrivacy;
+  Timer? _privacyCacheTimer;
+
+  void _clearStatusCache() {
+    _statusCacheTimer?.cancel();
+    _cachedStatus = null;
+  }
+
+  void _clearPrivacyCache() {
+    _privacyCacheTimer?.cancel();
+    _cachedPrivacy = null;
+  }
+
   Future<String> sendInvite(String email) async {
     final response = await _api.post(
       '/companion/invite',
       body: {'email': email},
     );
     if (response.statusCode == 200 || response.statusCode == 201) {
+      _clearStatusCache();
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       return (data['invite_id'] ?? '') as String;
     }
@@ -91,21 +109,37 @@ class CompanionService {
   }
 
   Future<CompanionStatus> getStatus() async {
+    if (_cachedStatus != null) {
+      return _cachedStatus!;
+    }
+
     final response = await _api.get('/companion/status');
     if (response.statusCode == 200) {
-      return CompanionStatus.fromJson(
+      _cachedStatus = CompanionStatus.fromJson(
         jsonDecode(response.body) as Map<String, dynamic>,
       );
+      _statusCacheTimer = Timer(const Duration(seconds: 10), () {
+        _cachedStatus = null;
+      });
+      return _cachedStatus!;
     }
     throw Exception('Failed to fetch companion status');
   }
 
   Future<CompanionPrivacy> getPrivacy() async {
+    if (_cachedPrivacy != null) {
+      return _cachedPrivacy!;
+    }
+
     final response = await _api.get('/companion/privacy');
     if (response.statusCode == 200) {
-      return CompanionPrivacy.fromJson(
+      _cachedPrivacy = CompanionPrivacy.fromJson(
         jsonDecode(response.body) as Map<String, dynamic>,
       );
+      _privacyCacheTimer = Timer(const Duration(minutes: 1), () {
+        _cachedPrivacy = null;
+      });
+      return _cachedPrivacy!;
     }
     throw Exception('Failed to fetch privacy settings');
   }
@@ -121,5 +155,18 @@ class CompanionService {
         (body['detail'] ?? 'Failed to save privacy settings') as String,
       );
     }
+    _clearPrivacyCache();
+  }
+
+  Future<void> unlinkCompanion() async {
+    final response = await _api.delete('/companion');
+    if (response.statusCode != 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      throw Exception(
+        (body['detail'] ?? 'Failed to unlink companion') as String,
+      );
+    }
+    _clearStatusCache();
+    _clearPrivacyCache();
   }
 }

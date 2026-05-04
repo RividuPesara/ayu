@@ -16,6 +16,7 @@ from app.services.companion_service import (
     get_companion_status,
     save_companion_privacy,
     send_companion_invite,
+    unlink_companion,
 )
 
 router = APIRouter(prefix="/companion", tags=["companion"])
@@ -70,3 +71,11 @@ async def get_privacy(user: CurrentUser = Depends(require_patient_access),
     # Only patient can read and manage their privacy settings
     result = await _run_sync(get_companion_privacy, user.uid, user.role)
     return CompanionPrivacyResponse.model_validate(result)
+
+@router.delete("", status_code=status.HTTP_200_OK)
+async def delete_companion(
+    user: CurrentUser = Depends(require_patient_access),
+) -> dict:
+    # Patient unlinks their companion
+    result = await _run_sync(unlink_companion, user.uid)
+    return result
