@@ -12,6 +12,7 @@ class ProfileResponse(BaseModel):
     firstName: Optional[str] = None
     lastName: Optional[str] = None
     email: Optional[EmailStr] = None
+    phone: Optional[str] = None
     avatar: Optional[str] = None
     role: Optional[str] = None
 
@@ -21,6 +22,7 @@ class UpdateProfileRequest(BaseModel):
     firstName: str
     lastName: str
     email: EmailStr
+    phone: Optional[str] = None
     avatar: Optional[str] = None
     newPassword: Optional[str] = None
 
@@ -40,6 +42,7 @@ def get_profile(uid: str):
         "firstName": data.get("firstName"),
         "lastName": data.get("lastName"),
         "email": data.get("email"),
+        "phone": data.get("phone"),
         "avatar": data.get("avatar") or "",
         "role": data.get("role"),
     }
@@ -55,12 +58,17 @@ def update_profile(payload: UpdateProfileRequest):
     if not doc.exists:
         raise HTTPException(status_code=404, detail="Profile not found")
 
-    doc_ref.update({
+    update_data = {
         "firstName": payload.firstName,
         "lastName": payload.lastName,
         "email": payload.email,
         "avatar": payload.avatar if payload.avatar else "",
-    })
+    }
+
+    if payload.phone:
+        update_data["phone"] = payload.phone.strip()
+
+    doc_ref.update(update_data)
 
     try:
         update_data = {

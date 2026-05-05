@@ -7,8 +7,11 @@ import { auth } from "../lib/firebase";
 import {
   loginWithEmail,
   sendResetEmail,
+  sendOtp,
+  verifyOtp,
   verifyAdmin,
 } from "../lib/loginService";
+import { sendEmailVerification, signOut } from "firebase/auth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -25,6 +28,8 @@ export default function LoginPage() {
 
   const [otpMode, setOtpMode] = useState(false);
   const [otp, setOtp] = useState("");
+  const [otpDestination, setOtpDestination] = useState("");
+  const [verificationId, setVerificationId] = useState("");
 
   // LOGIN
   const handleLogin = async (e: React.FormEvent) => {
@@ -32,7 +37,27 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      await loginWithEmail(email, password);
+      const userCredential = await loginWithEmail(email, password);
+
+      // Check if email is verified
+      if (!userCredential.user.emailVerified) {
+        try {
+          await sendEmailVerification(userCredential.user);
+        } catch (emailError: any) {
+          console.error("Email verification error:", emailError);
+        }
+
+        await signOut(auth);
+        alert("Please verify your email first. We sent a verification link to your email.");
+        return;
+      }
+
+      // Request OTP from backend
+      const otpResponse = await sendOtp(email, password);
+
+      setVerificationId(otpResponse.verification_id);
+      setOtpDestination(otpResponse.phone_masked);
+      setOtp("");
       setOtpMode(true);
     } catch (error: any) {
       alert(error.message);
@@ -56,27 +81,42 @@ export default function LoginPage() {
     setIsLoading(false);
   };
 
-  // OTP Verification  
+  // OTP Verification
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      if (otp === "123456") {
-        const currentUser = auth.currentUser;
+      const currentUser = auth.currentUser;
 
-        if (!currentUser) {
-          alert("User not found. Please log in again.");
-          setOtpMode(false);
-          setIsLoading(false);
-          return;
-        }
-
-        await verifyAdmin(currentUser.uid);
-        router.push(`/user/${currentUser.uid}`);
-      } else {
-        alert("Invalid OTP");
+      if (!currentUser) {
+        alert("User not found. Please log in again.");
+        setOtpMode(false);
+        setIsLoading(false);
+        return;
       }
+
+      if (!verificationId) {
+        alert("Verification session expired. Please log in again.");
+        setOtpMode(false);
+        setIsLoading(false);
+        return;
+      }
+
+      const trimmedOtp = otp.trim();
+      if (!/^\d{6}$/.test(trimmedOtp)) {
+        alert("Please enter a valid 6-digit OTP code.");
+        return;
+      }
+
+      await verifyOtp(currentUser.uid, verificationId, trimmedOtp);
+
+      setOtpMode(false);
+      setOtp("");
+      setVerificationId("");
+      setOtpDestination("");
+
+      router.push(`/user/${currentUser.uid}`);
     } catch (error: any) {
       alert(error.message);
       setOtpMode(false);
@@ -97,6 +137,8 @@ export default function LoginPage() {
                 onClick={() => {
                   setOtpMode(false);
                   setOtp("");
+                  setVerificationId("");
+                  setOtpDestination("");
                 }}
               >
                 ← Back to Login
@@ -110,7 +152,7 @@ export default function LoginPage() {
 
                 <div className="card-title">Enter OTP</div>
                 <div className="card-sub">
-                  We sent a 6-digit code to your email
+                  We sent a 6-digit code to {otpDestination || "your phone"}
                 </div>
               </div>
 

@@ -29,6 +29,7 @@ export default function EditProfilePage() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [avatar, setAvatar] = useState<string | null>(null);
 
   const [newPassword, setNewPassword] = useState("");
@@ -45,6 +46,7 @@ export default function EditProfilePage() {
         setFirstName(data.firstName || "");
         setLastName(data.lastName || "");
         setEmail(data.email || "");
+        setPhone(data.phone || "");
         setAvatar(data.avatar || null);
       } catch (error: any) {
         alert(error.message || "Failed to load profile");
@@ -114,6 +116,7 @@ export default function EditProfilePage() {
         firstName,
         lastName,
         email,
+        phone: phone || undefined,
         avatar: avatar || "",
         newPassword: newPassword || undefined,
       });
@@ -222,6 +225,18 @@ export default function EditProfilePage() {
             placeholder="admin@ayu.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            disabled={isLoading || isSaving}
+          />
+        </div>
+
+        <div className="form-group full-width">
+          <label htmlFor="phone">Phone Number</label>
+          <input
+            id="phone"
+            type="tel"
+            placeholder="0771234567"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
             disabled={isLoading || isSaving}
           />
         </div>

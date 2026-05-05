@@ -15,6 +15,7 @@ export async function updateProfile(data: {
   firstName: string;
   lastName: string;
   email: string;
+  phone?: string;
   avatar?: string;
   newPassword?: string;
 }) {
