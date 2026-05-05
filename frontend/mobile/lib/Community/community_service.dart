@@ -1,5 +1,7 @@
 import 'dart:convert';
 import '../../core/network/backend_connector.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
 
 class CommunityApiService {
   static final BackendConnector _backend = BackendConnector.instance;
@@ -92,5 +94,37 @@ class CommunityApiService {
     if (res.statusCode != 200) {
       throw Exception(res.body);
     }
+  }
+
+  // Upload image posts
+  static Future<String> uploadImage(String filePath) async {
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('${_backend.baseUrl}/community/upload-image'),
+    );
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      throw Exception('User not logged in');
+    }
+
+    final token = await user.getIdToken(true);
+    request.headers['Authorization'] = 'Bearer $token';
+
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        'file',
+        filePath,
+      ),
+    );
+
+    final response = await request.send();
+    final body = await response.stream.bytesToString();
+
+    if (response.statusCode != 200) {
+      throw Exception(body);
+    }
+
+    return jsonDecode(body)['imageURL'] as String;
   }
 }
