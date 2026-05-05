@@ -8,6 +8,7 @@ import Calendar from "./components/calendar";
 import Stats from "./components/stats";
 import Timeline from "./components/timeline";
 import AppointmentDetails from "./components/appointmentdetails";
+import PastAppointments from "./components/pastappointments";
 import { auth } from "@/app/lib/firebase";
 import { backendRequest, UnauthenticatedError } from "@/app/lib/backend-api";
 
@@ -77,7 +78,7 @@ export default function DashboardPage() {
   const [doctorAvatar, setDoctorAvatar] = useState("/assets/avatar.png");
   const [allAppointments, setAllAppointments] = useState<Appointment[]>([]);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
-
+  const [showPastAppointments, setShowPastAppointments] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(today);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const selectedDateKey = toDateKey(selectedDate);
@@ -167,6 +168,10 @@ export default function DashboardPage() {
 
       showToast("Failed to update appointment status.", "error");
     }
+  };
+
+  const handlePastAppointments = (appointment: Appointment) => {
+    setShowPastAppointments(true);
   };
 
   useEffect(() => {
@@ -331,9 +336,15 @@ export default function DashboardPage() {
           isLoading={isAppointmentsLoading}
           onStatusChange={handleStatusChange}
           onJoinSession={(appt) => setSelectedAppointment(appt)}
+          onPastAppointments={handlePastAppointments}
         />
 
       </div>
+
+      {/* Past Appointment Details */}
+      {showPastAppointments && (
+        <PastAppointments onClose={() => setShowPastAppointments(false)} />
+      )}
 
       {/* Appointment Details */}
       {selectedAppointment && (
