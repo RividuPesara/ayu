@@ -24,6 +24,7 @@ interface TimelineProps {
   isLoading: boolean;
   onJoinSession: (appointment: Appointment) => void;
   onStatusChange: (id: string, status: "done" | "upcoming" | "overdue") => void;
+  onPastAppointments: (appointment: Appointment) => void;
 }
  
 function getInitials(name: string): string {
@@ -122,6 +123,7 @@ function AppointmentCard({
   appointment,
   onJoinSession,
   onStatusChange,
+  onPastAppointments,
 }: {
   appointment: Appointment;
   onJoinSession: (a: Appointment) => void;
@@ -129,6 +131,7 @@ function AppointmentCard({
     id: string,
     status: "done" | "upcoming" | "overdue"
   ) => void;
+  onPastAppointments: (a: Appointment) => void;
 }) {
   const { name, time, type, status } = appointment;
   const isOverdue = status === "overdue";
@@ -234,6 +237,17 @@ function AppointmentCard({
 
           <button
             disabled={isDone}
+            onClick={(e) => {e.stopPropagation(); if (!isDone) { onPastAppointments(appointment); } }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-[13px] font-semibold bg-gray-200 text-gray-600 hover:bg-gray-300 transition-opacity cursor-pointer">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" >
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+            Past Appointments
+          </button>
+
+          <button
+            disabled={isDone}
             onClick={(e) => { e.stopPropagation(); if (!isDone) { onJoinSession(appointment); } }}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-[13px] font-semibold transition-opacity ${btnColor} cursor-pointer`}>
             <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
@@ -247,7 +261,7 @@ function AppointmentCard({
   );
 }
  
-export default function Timeline({ appointments, isLoading, onJoinSession, onStatusChange }: TimelineProps) {
+export default function Timeline({ appointments, isLoading, onJoinSession, onStatusChange, onPastAppointments }: TimelineProps) {
 
   const sortByTime = (a: Appointment, b: Appointment) => {
     const aMinutes = parseTimeToMinutes(a.time);
@@ -334,6 +348,7 @@ export default function Timeline({ appointments, isLoading, onJoinSession, onSta
                     appointment={appt}
                     onJoinSession={onJoinSession}
                     onStatusChange={onStatusChange}
+                    onPastAppointments={onPastAppointments}
                   />
                 ))}
               </div>
