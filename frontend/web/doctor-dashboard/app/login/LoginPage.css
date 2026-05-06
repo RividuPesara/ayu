@@ -441,3 +441,15 @@
     font-size: 15px;
   }
 }
+
+/* Validation */
+.input-error {
+  border: 1.5px solid #e53e3e !important;
+  outline: none;
+}
+
+.field-error {
+  margin: 4px 0 0 0;
+  font-size: 0.78rem;
+  color: #e53e3e;
+}
