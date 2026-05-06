@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_app/Community/createImgPost.dart';
 import 'package:mobile_app/Community/createPost.dart';
+import 'package:mobile_app/Community/community_service.dart';
 
 class CommunityScreen extends StatefulWidget {
   const CommunityScreen({super.key});
@@ -18,91 +19,13 @@ class _CommunityScreenState extends State<CommunityScreen>
   late final Animation<double> _fadeAnimation;
   late final Animation<double> _scaleAnimation;
 
-  final List<Map<String, dynamic>> posts = [
-    {
-      "name": "Mariane",
-      "date": "1/21/20",
-      "type": "image",
-      "caption": "Top Icons Packs and Resources for Web",
-      "image":
-      "https://images.unsplash.com/photo-1460317442991-0ec209397118?auto=format&fit=crop&w=1200&q=80",
-      "commentsCount": 7,
-      "likesCount": 3,
-      "isMine": true,
-      "commentsList": [
-        {
-          "name": "kiero_d",
-          "time": "2d",
-          "text":
-          "Interesting. Nicely done. Just one reply or tag on this shout out in the 24hrs since your tweet here.",
-          "avatar":
-          "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=300&auto=format&fit=crop",
-        },
-        {
-          "name": "amanda",
-          "handle": "@amanda_ui",
-          "time": "1d",
-          "text": "This looks really clean and polished.",
-          "avatar":
-          "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=300&auto=format&fit=crop",
-        },
-      ],
-    },
-    {
-      "name": "Mariane",
-      "date": "1/20/20",
-      "type": "story",
-      "caption":
-      "Fragments Android Wireframe Kit UX Wire was just featured in today’s newsletter.",
-      "commentsCount": 5,
-      "likesCount": 1,
-      "isMine": true,
-      "commentsList": [
-        {
-          "name": "jenny",
-          "handle": "@jenny_design",
-          "time": "3h",
-          "text": "Love this update. Super helpful.",
-          "avatar":
-          "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=300&auto=format&fit=crop",
-        },
-      ],
-    },
-    {
-      "name": "Ariana",
-      "date": "1/19/20",
-      "type": "image",
-      "caption": "A calm and minimal interior moment.",
-      "image":
-      "https://images.unsplash.com/photo-1460317442991-0ec209397118?auto=format&fit=crop&w=1200&q=80",
-      "commentsCount": 4,
-      "likesCount": 2,
-      "isMine": false,
-      "commentsList": [
-        {
-          "name": "leo",
-          "handle": "@leo_home",
-          "time": "5h",
-          "text": "So peaceful. I love the color tones here.",
-          "avatar":
-          "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=300&auto=format&fit=crop",
-        },
-        {
-          "name": "sara",
-          "handle": "@sara_space",
-          "time": "1h",
-          "text": "Beautiful composition.",
-          "avatar":
-          "https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=300&auto=format&fit=crop",
-        },
-      ],
-    },
-  ];
+  List<Map<String, dynamic>> posts = [];  // Posts data
+  bool isLoading = true;    // Loading state
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
+    _controller = AnimationController(  // Initialize animation controller
       vsync: this,
       duration: const Duration(milliseconds: 220),
     );
@@ -118,6 +41,26 @@ class _CommunityScreenState extends State<CommunityScreen>
     ).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOut),
     );
+    fetchPosts();   // Fetch posts when screen loads
+  }
+
+  Future<void> fetchPosts() async {
+    try {
+      setState(() => isLoading = true);
+
+      // Load either all posts or only user's posts
+      final data = showYourPosts
+          ? await CommunityApiService.getMyPosts()
+          : await CommunityApiService.getPosts();
+
+      setState(() {
+        posts = data;
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() => isLoading = false);
+      debugPrint("Fetch posts error: $e");
+    }
   }
 
   @override
@@ -127,22 +70,13 @@ class _CommunityScreenState extends State<CommunityScreen>
   }
 
   void toggleFab() {
-    setState(() {
-      isFabOpen = !isFabOpen;
-    });
-
-    if (isFabOpen) {
-      _controller.forward();
-    } else {
-      _controller.reverse();
-    }
+      setState(() => isFabOpen = !isFabOpen);
+      isFabOpen ? _controller.forward() : _controller.reverse();
   }
 
   void closeFab() {
     if (isFabOpen) {
-      setState(() {
-        isFabOpen = false;
-      });
+      setState(() => isFabOpen = false);
       _controller.reverse();
     }
   }
@@ -154,10 +88,6 @@ class _CommunityScreenState extends State<CommunityScreen>
     const textMuted = Color(0xFF687684);
     const purple = Color(0xFF64548E);
 
-    final filteredPosts = showYourPosts
-        ? posts.where((post) => post["isMine"] == true).toList()
-        : posts;
-
     return Scaffold(
       backgroundColor: bgColor,
       body: GestureDetector(
@@ -165,6 +95,7 @@ class _CommunityScreenState extends State<CommunityScreen>
         child: Stack(
           children: [
             SafeArea(
+              // Main content
               child: Column(
                 children: [
                   const SizedBox(height: 14),
@@ -189,7 +120,7 @@ class _CommunityScreenState extends State<CommunityScreen>
                               Icons.chevron_left,
                               color: textDark,
                             ),
-                            onPressed: () {},
+                            onPressed: () => Navigator.pop(context),
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -214,9 +145,8 @@ class _CommunityScreenState extends State<CommunityScreen>
                           Expanded(
                             child: GestureDetector(
                               onTap: () {
-                                setState(() {
-                                  showYourPosts = false;
-                                });
+                                  setState(() => showYourPosts = false);
+                                  fetchPosts();
                               },
                               child: Center(
                                 child: Text(
@@ -235,9 +165,8 @@ class _CommunityScreenState extends State<CommunityScreen>
                           Expanded(
                             child: GestureDetector(
                               onTap: () {
-                                setState(() {
-                                  showYourPosts = true;
-                                });
+                                setState(() => showYourPosts = true);
+                                fetchPosts();
                               },
                               child: Center(
                                 child: Text(
@@ -278,19 +207,39 @@ class _CommunityScreenState extends State<CommunityScreen>
                   ),
                   const SizedBox(height: 10),
                   Expanded(
-                    child: ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      itemCount: filteredPosts.length,
-                      itemBuilder: (context, index) {
-                        final post = filteredPosts[index];
-                        return PostCard(post: post);
-                      },
+                    child: isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : posts.isEmpty
+                        ? const Center(
+                      child: Text(
+                        "No posts found",
+                        style: TextStyle(
+                          color: textDark,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    )
+                        : RefreshIndicator(
+                      onRefresh: fetchPosts,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                        ),
+                        itemCount: posts.length,
+                        itemBuilder: (context, index) {
+                          return PostCard(
+                            post: posts[index],
+                            onRefresh: fetchPosts,
+                            showStatusBadge: showYourPosts,
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-
             if (isFabOpen)
               Positioned.fill(
                 child: Container(
@@ -316,24 +265,26 @@ class _CommunityScreenState extends State<CommunityScreen>
                             _buildFabOption(
                               label: "Photos",
                               icon: Icons.image_outlined,
-                              onTap: () {
+                              onTap: () async {
                                 closeFab();
-                                Navigator.push(
+                                await Navigator.push(
                                   context,
                                   MaterialPageRoute(builder: (_) => const CreateImgPostScreen()),
                                 );
+                                fetchPosts();
                               },
                             ),
                             const SizedBox(height: 16),
                             _buildFabOption(
                               label: "Post",
                               icon: Icons.edit_outlined,
-                              onTap: () {
+                              onTap: () async {
                                 closeFab();
-                                Navigator.push(
+                                await Navigator.push(
                                   context,
                                   MaterialPageRoute(builder: (_) => const CreatePostScreen()),
                                 );
+                                fetchPosts();
                               },
                             ),
                             const SizedBox(height: 16),
@@ -421,8 +372,15 @@ class _CommunityScreenState extends State<CommunityScreen>
 
 class PostCard extends StatefulWidget {
   final Map<String, dynamic> post;
+  final VoidCallback onRefresh;
+  final bool showStatusBadge;
 
-  const PostCard({super.key, required this.post});
+  const PostCard({
+    super.key,
+    required this.post,
+    required this.onRefresh,
+    required this.showStatusBadge,
+  });
 
   @override
   State<PostCard> createState() => _PostCardState();
@@ -448,9 +406,9 @@ class _PostCardState extends State<PostCard>
   @override
   void initState() {
     super.initState();
-    isLiked = false;
-    likesCount = widget.post["likesCount"] as int;
-    comments = List<Map<String, dynamic>>.from(widget.post["commentsList"] ?? []);
+    isLiked = widget.post["isLiked"] == true;
+    likesCount = widget.post["likeCount"] ?? 0;
+    comments = [];
     _commentController = TextEditingController();
 
     _likeController = AnimationController(
@@ -476,253 +434,443 @@ class _PostCardState extends State<PostCard>
     super.dispose();
   }
 
-  void _toggleLike() {
-    setState(() {
-      if (isLiked) {
-        isLiked = false;
-        likesCount--;
-      } else {
-        isLiked = true;
-        likesCount++;
+  String _formatCreatedAt(dynamic createdAt) {
+    if (createdAt == null) return "";
+
+    try {
+      if (createdAt is Map && createdAt["seconds"] != null) {
+        final seconds = createdAt["seconds"];
+        final date = DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
+        return "${date.day}/${date.month}/${date.year}";
       }
+    } catch (_) {
+      return "";
+    }
+
+    return "";
+  }
+
+  Widget _buildPostContent({
+    required String type,
+    required String text,
+    required String caption,
+    required String title,
+    required String content,
+    required String imageURL,
+  }) {
+    final hasImage = imageURL.trim().isNotEmpty;
+
+    if (type == "status") {
+      if (hasImage) {
+        return _buildPostImage(imageURL, isStatusImage: true);
+      }
+
+      if (text.trim().isNotEmpty) {
+        return _buildPostParagraph(text);
+      }
+
+      return const SizedBox.shrink();
+    }
+
+    if (type == "photo" || type == "image") {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (hasImage) _buildPostImage(imageURL),
+          if (caption.trim().isNotEmpty && text.trim().isEmpty) ...[
+            const SizedBox(height: 8),
+            _buildPostParagraph(caption),
+          ],
+          if (!hasImage && text.trim().isNotEmpty) _buildPostParagraph(text),
+        ],
+      );
+    }
+
+    if (type == "story") {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (title.trim().isNotEmpty)
+            Text(
+              title,
+              style: const TextStyle(
+                color: Color(0xFF141619),
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+              ),
+            ),
+          if (title.trim().isNotEmpty && content.trim().isNotEmpty)
+            const SizedBox(height: 5),
+          if (content.trim().isNotEmpty) _buildPostParagraph(content),
+        ],
+      );
+    }
+
+    final fallback = caption.isNotEmpty
+        ? caption
+        : text.isNotEmpty
+        ? text
+        : content;
+
+    return fallback.trim().isNotEmpty
+        ? _buildPostParagraph(fallback)
+        : const SizedBox.shrink();
+  }
+
+  Widget _buildPostParagraph(String value) {
+    return Text(
+      value,
+      style: const TextStyle(
+        color: Color(0xFF141619),
+        fontWeight: FontWeight.w400,
+        fontSize: 13,
+        height: 1.35,
+      ),
+    );
+  }
+
+  Widget _buildPostImage(String imageUrl, {bool isStatusImage = false}) {
+    final imageHeight = isStatusImage ? 280.0 : 260.0;
+
+    return GestureDetector(
+      onDoubleTap: _doubleTapLike,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            height: imageHeight,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Color(0xFFF7F4F2),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Image.network(
+              imageUrl,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) {
+                return const Center(
+                  child: Icon(
+                    Icons.broken_image_outlined,
+                    color: Color(0xFF64548E),
+                  ),
+                );
+              },
+            ),
+          ),
+
+          AnimatedOpacity(
+            opacity: showBigHeart ? 1 : 0,
+            duration: const Duration(milliseconds: 220),
+            child: TweenAnimationBuilder<double>(
+              tween: Tween<double>(
+                begin: showBigHeart ? 0.7 : 1,
+                end: showBigHeart ? 1.2 : 1,
+              ),
+              duration: const Duration(milliseconds: 300),
+              builder: (context, value, child) {
+                return Transform.scale(scale: value, child: child);
+              },
+              child: const Icon(
+                Icons.favorite,
+                color: Colors.white,
+                size: 82,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _toggleLike() async {
+    final oldLiked = isLiked;
+    final oldCount = likesCount;
+
+    setState(() {
+      isLiked = !isLiked;
+      likesCount += isLiked ? 1 : -1;
     });
 
     _likeController.forward(from: 0);
-  }
 
-  void _doubleTapLike() {
-    if (!isLiked) {
+    try {
+      final result = await CommunityApiService.toggleLike(widget.post["id"]);
+
       setState(() {
-        isLiked = true;
-        likesCount++;
-        showBigHeart = true;
+        isLiked = result["liked"] == true;
+        likesCount = result["likeCount"] ?? likesCount;
       });
-      _likeController.forward(from: 0);
-
-      Future.delayed(const Duration(milliseconds: 700), () {
-        if (mounted) {
-          setState(() {
-            showBigHeart = false;
-          });
-        }
-      });
-    } else {
+    } catch (e) {
       setState(() {
-        showBigHeart = true;
+        isLiked = oldLiked;
+        likesCount = oldCount;
       });
 
-      Future.delayed(const Duration(milliseconds: 700), () {
-        if (mounted) {
-          setState(() {
-            showBigHeart = false;
-          });
-        }
-      });
+      debugPrint("Like error: $e");
     }
   }
 
-  void _addComment() {
+  Future<void> _doubleTapLike() async {
+    setState(() => showBigHeart = true);
+
+    if (!isLiked) {
+      await _toggleLike();
+    }
+
+    Future.delayed(const Duration(milliseconds: 700), () {
+      if (mounted) {
+        setState(() => showBigHeart = false);
+      }
+    });
+  }
+
+  Future<void> _loadComments() async {
+    try {
+      final data = await CommunityApiService.getComments(widget.post["id"]);
+
+      setState(() {
+        comments = data;
+      });
+    } catch (e) {
+      debugPrint("Comment load error: $e");
+    }
+  }
+
+  Future<void> _addComment() async {
     final text = _commentController.text.trim();
     if (text.isEmpty) return;
 
-    setState(() {
-      comments.add({
-        "name": "You",
-        "time": "now",
-        "text": text,
-        "avatar":
-        "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=300&auto=format&fit=crop",
-      });
-      widget.post["commentsCount"] = (widget.post["commentsCount"] as int) + 1;
-      _commentController.clear();
-    });
+    try {
+      await CommunityApiService.addComment(
+        postId: widget.post["id"],
+        text: text,
+      );
 
-    FocusScope.of(context).unfocus();
+      _commentController.clear();
+      FocusScope.of(context).unfocus();
+
+      await _loadComments();
+
+      setState(() {
+        widget.post["commentCount"] =
+            (widget.post["commentCount"] ?? 0) + 1;
+      });
+
+    } catch (e) {
+      debugPrint("Add comment error: $e");
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isImagePost = widget.post["type"] == "image";
+    final type = widget.post["type"]?.toString() ?? "";
+    final avatar = widget.post["authorAvatar"]?.toString() ?? "";
+    final imageURL = widget.post["imageURL"]?.toString() ?? "";
+    final authorName = widget.post["authorName"]?.toString() ?? "User";
+    final authorHandle = widget.post["authorHandle"]?.toString() ?? "";
+    final dateText = _formatCreatedAt(widget.post["createdAt"]);
+
+    final text = widget.post["text"]?.toString() ?? "";
+    final caption = widget.post["caption"]?.toString() ?? "";
+    final title = widget.post["title"]?.toString() ?? "";
+    final content = widget.post["content"]?.toString() ?? "";
+    final status = widget.post["status"]?.toString().toLowerCase() ?? "";
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 18),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const CircleAvatar(
+          CircleAvatar(
             radius: 20,
-            backgroundImage: NetworkImage(
-              "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=300&auto=format&fit=crop",
-            ),
+            backgroundImage:
+              avatar.isNotEmpty ? NetworkImage(avatar) : null,
+              child: avatar.isEmpty ? const Icon(Icons.person, size: 20) : null,
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Stack(
               children: [
-                Row(
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      widget.post["name"] as String,
-                      style: const TextStyle(
-                        color: Color(0xFF141619),
-                        fontWeight: FontWeight.w700,
-                        fontSize: 19.5,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      "· ${widget.post["date"]}",
-                      style: const TextStyle(
-                        color: Color(0xFF141619),
-                        fontSize: 17,
-
-                      ),
-                    ),
-                    const Spacer(),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  widget.post["caption"] as String,
-                  style: const TextStyle(
-                    color: Color(0xFF141619),
-                    fontWeight: FontWeight.w500,
-                    fontSize: 19,
-                    height: 1.4,
-                  ),
-                ),
-                if (isImagePost) ...[
-                  const SizedBox(height: 10),
-                  GestureDetector(
-                    onDoubleTap: _doubleTapLike,
-                    child: Stack(
-                      alignment: Alignment.center,
+                    Row(
                       children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(14),
-                          child: Image.network(
-                            widget.post["image"] as String,
-                            height: 180,
-                            width: double.infinity,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                        AnimatedOpacity(
-                          opacity: showBigHeart ? 1 : 0,
-                          duration: const Duration(milliseconds: 220),
-                          child: TweenAnimationBuilder<double>(
-                            tween: Tween<double>(
-                              begin: showBigHeart ? 0.7 : 1,
-                              end: showBigHeart ? 1.2 : 1,
-                            ),
-                            duration: const Duration(milliseconds: 300),
-                            builder: (context, value, child) {
-                              return Transform.scale(
-                                scale: value,
-                                child: child,
-                              );
-                            },
-                            child: const Icon(
-                              Icons.favorite,
-                              color: Colors.white,
-                              size: 82,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    InkWell(
-                      borderRadius: BorderRadius.circular(20),
-                      onTap: () {
-                        setState(() {
-                          showComments = !showComments;
-                        });
-                      },
-                      child: Row(
-                        children: [
-                          Icon(
-                            showComments
-                                ? Icons.chat_bubble
-                                : Icons.chat_bubble_outline,
-                            size: 19.5,
-                            color: Color(0xFF687684),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            "${widget.post["commentsCount"]}",
+                        Flexible(
+                          child: Text(
+                            authorName,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              color: Color(0xFF687684),
-                              fontSize: 18,
+                              color: Color(0xFF141619),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 17,
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    InkWell(
-                      borderRadius: BorderRadius.circular(20),
-                      onTap: _toggleLike,
-                      child: Row(
-                        children: [
-                          AnimatedBuilder(
-                            animation: _likeScaleAnimation,
-                            builder: (context, child) {
-                              final scale = _likeController.isAnimating
-                                  ? _likeScaleAnimation.value
-                                  : 1.0;
-                              return Transform.scale(
-                                scale: scale,
-                                child: Icon(
-                                  isLiked
-                                      ? Icons.favorite
-                                      : Icons.favorite_border,
-                                  size: 19.5,
-                                  color: isLiked ? pink : Color(0xFF687684),
-                                ),
-                              );
-                            },
-                          ),
+                        ),
+                        if (authorHandle.isNotEmpty) ...[
                           const SizedBox(width: 4),
-                          Text(
-                            "$likesCount",
-                            style: TextStyle(
-                              color: isLiked ? pink : Color(0xFF687684),
-                              fontSize: 18,
+                          Flexible(
+                            child: Text(
+                              "@$authorHandle",
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Color(0xFF687684),
+                                fontSize: 12,
+                              ),
                             ),
                           ),
                         ],
+                        const SizedBox(width: 4),
+                        Text(
+                          dateText.isNotEmpty ? "· $dateText" : "",
+                          style: const TextStyle(
+                            color: Color(0xFF687684),
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+
+                    _buildPostContent(
+                      type: type,
+                      text: text,
+                      caption: caption,
+                      title: title,
+                      content: content,
+                      imageURL: imageURL,
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    Row(
+                      children: [
+                        InkWell(
+                          borderRadius: BorderRadius.circular(20),
+                          onTap: () async {
+                            setState(() => showComments = !showComments);
+
+                            if (showComments) {
+                              await _loadComments();
+                            }
+                          },
+                          child: Row(
+                            children: [
+                              Icon(
+                                showComments
+                                    ? Icons.chat_bubble
+                                    : Icons.chat_bubble_outline,
+                                size: 19.5,
+                                color: const Color(0xFF687684),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                "${widget.post["commentCount"] ?? 0}",
+                                style: const TextStyle(
+                                  color: Color(0xFF687684),
+                                  fontSize: 18,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        InkWell(
+                          borderRadius: BorderRadius.circular(20),
+                          onTap: _toggleLike,
+                          child: Row(
+                            children: [
+                              AnimatedBuilder(
+                                animation: _likeScaleAnimation,
+                                builder: (context, child) {
+                                  final scale = _likeController.isAnimating
+                                      ? _likeScaleAnimation.value
+                                      : 1.0;
+
+                                  return Transform.scale(
+                                    scale: scale,
+                                    child: Icon(
+                                      isLiked
+                                          ? Icons.favorite
+                                          : Icons.favorite_border,
+                                      size: 19.5,
+                                      color: isLiked
+                                          ? pink
+                                          : const Color(0xFF687684),
+                                    ),
+                                  );
+                                },
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                "$likesCount",
+                                style: TextStyle(
+                                  color: isLiked
+                                      ? pink
+                                      : const Color(0xFF687684),
+                                  fontSize: 18,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    AnimatedCrossFade(
+                      firstChild: const SizedBox.shrink(),
+                      secondChild: Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: Column(
+                          children: [
+                            ...comments.map(
+                                  (comment) => Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: _buildCommentTile(comment),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            _buildCommentInput(),
+                          ],
+                        ),
                       ),
+                      crossFadeState: showComments
+                          ? CrossFadeState.showSecond
+                          : CrossFadeState.showFirst,
+                      duration: const Duration(milliseconds: 240),
                     ),
                   ],
                 ),
-                AnimatedCrossFade(
-                  firstChild: const SizedBox.shrink(),
-                  secondChild: Padding(
-                    padding: const EdgeInsets.only(top: 12),
-                    child: Column(
-                      children: [
-                        ...comments.map(
-                              (comment) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _buildCommentTile(comment),
-                          ),
+
+                // ✅ STATUS LABEL (TOP RIGHT)
+                if (widget.showStatusBadge &&
+                    (status == "approved" || status == "rejected" ||  status == "pending"))
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: status == "approved"
+                            ? Colors.green
+                            : status == "rejected"
+                            ? Colors.red
+                            : Color(0xFFCC8B2C),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        status.toUpperCase(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
                         ),
-                        const SizedBox(height: 4),
-                        _buildCommentInput(),
-                      ],
+                      ),
                     ),
                   ),
-                  crossFadeState: showComments
-                      ? CrossFadeState.showSecond
-                      : CrossFadeState.showFirst,
-                  duration: const Duration(milliseconds: 240),
-                ),
               ],
             ),
           ),
@@ -732,12 +880,18 @@ class _PostCardState extends State<PostCard>
   }
 
   Widget _buildCommentTile(Map<String, dynamic> comment) {
+    final avatar = comment["authorAvatar"]?.toString() ?? "";
+    final authorName = comment["authorName"]?.toString() ?? "User";
+    final createdAt = _formatCreatedAt(comment["createdAt"]);
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         CircleAvatar(
           radius: 17,
-          backgroundImage: NetworkImage(comment["avatar"] as String),
+          backgroundImage:
+            avatar.isNotEmpty ? NetworkImage(avatar) : null,
+            child: avatar.isEmpty ? const Icon(Icons.person, size: 17) : null,
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -746,17 +900,20 @@ class _PostCardState extends State<PostCard>
             children: [
               Row(
                 children: [
-                  Text(
-                    comment["name"] as String,
-                    style: const TextStyle(
-                      color: textDark,
-                      fontSize: 15.5,
-                      fontWeight: FontWeight.w600,
+                  Flexible(
+                    child: Text(
+                      authorName,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: textDark,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    "· ${comment["time"]}",
+                    createdAt.isNotEmpty ? "· $createdAt" : "",
                     style: const TextStyle(
                       color: Color(0xFF9AA3AD),
                       fontSize: 14,
@@ -767,7 +924,7 @@ class _PostCardState extends State<PostCard>
               ),
               const SizedBox(height: 4),
               Text(
-                comment["text"] as String,
+                comment["text"]?.toString() ?? "",
                 style: const TextStyle(
                   color: Color(0xFF2E2E2E),
                   fontSize: 15.5,
@@ -788,9 +945,7 @@ class _PostCardState extends State<PostCard>
       children: [
         const CircleAvatar(
           radius: 16,
-          backgroundImage: NetworkImage(
-            "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=300&auto=format&fit=crop",
-          ),
+          child: Icon(Icons.person, size: 16),
         ),
         const SizedBox(width: 10),
         Expanded(
