@@ -8,6 +8,7 @@ from app.core.firebase import get_firestore_client
 USERS_COLLECTION = "users"
 
 _role_cache: TTLCache[str, str] = TTLCache(maxsize=256, ttl=300) #cache 256 users and keep them for 5 mins if max reach , remove the least used entry
+_status_cache: TTLCache[str, str] = TTLCache(maxsize=256, ttl=60)  # shorter TTL — status changes should propagate quickly
 
 
 # Get user ID from Firebase token
@@ -54,3 +55,32 @@ def detect_user_role(uid: str) -> str:
 
   _role_cache[uid] = "user"
   return "user"
+
+
+def get_account_status(uid: str) -> str:
+  # Return the account status for uid 'active', 'archived', or 'suspended' and result is cached for 60 s
+
+  cached = _status_cache.get(uid)
+  if cached is not None:
+    return cached
+
+  db = get_firestore_client()
+  snapshot = db.collection(USERS_COLLECTION).document(uid).get()
+
+  if not snapshot.exists:
+    _status_cache[uid] = "active"
+    return "active"
+
+  data = snapshot.to_dict() or {}
+  raw = data.get("status")
+  if isinstance(raw, str) and raw.lower() in {"active", "archived", "suspended"}:
+    result = raw.lower()
+  else:
+    result = "active"
+
+  _status_cache[uid] = result
+  return result
+
+
+def invalidate_status_cache(uid: str) -> None:
+  _status_cache.pop(uid, None)

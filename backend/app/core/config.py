@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     ollama_host: str | None = None
     ollama_model: str = Field(default="qwen3.5:9b", validation_alias="MODEL")
 
+    redis_url: str | None = None
+
     dev_mode: bool = False
     dev_patient_uid: str = "dev-rividu-pesara"
     dev_patient_email: str = "rivindupeshara11@gmail.com"
