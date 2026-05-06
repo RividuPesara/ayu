@@ -1,8 +1,65 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_app/Connect%20Doctor/detailDoctorScreen.dart';
+import 'package:mobile_app/Connect Doctor/mySessions.dart';
+import 'package:mobile_app/Connect%20Doctor/doctor_service.dart';
 
-class DoctorAppointmentScreen extends StatelessWidget {
+class DoctorAppointmentScreen extends StatefulWidget {
   const DoctorAppointmentScreen({super.key});
+
+  State<DoctorAppointmentScreen> createState() =>
+      _DoctorAppointmentScreenState();
+}
+
+class _DoctorAppointmentScreenState extends State<DoctorAppointmentScreen> {
+  String selectedCategory = "All";
+  final DoctorService _doctorService = DoctorService();
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = "";
+  bool _isLoading = true;
+  String? _errorMessage;
+  List<DoctorSummary> _doctors = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDoctors();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadDoctors() async {
+    try {
+      final results = await _doctorService.fetchDoctors();
+      if (!mounted) return;
+      setState(() {
+        _doctors = results;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = error.toString();
+      });
+    }
+  }
+
+  List<DoctorSummary> get filteredDoctors {
+    final query = _searchQuery.trim().toLowerCase();
+    return _doctors.where((doctor) {
+      final matchesCategory =
+          selectedCategory == "All" || doctor.specialty == selectedCategory;
+      if (!matchesCategory) return false;
+      if (query.isEmpty) return true;
+      final name = doctor.fullName.toLowerCase();
+      final specialty = doctor.specialty.toLowerCase();
+      return name.contains(query) || specialty.contains(query);
+    }).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -16,7 +73,7 @@ class DoctorAppointmentScreen extends StatelessWidget {
         children: [
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(16, 55, 16, 24),
+            padding: const EdgeInsets.fromLTRB(16, 40, 16, 24),
             decoration: const BoxDecoration(
               color: purple,
               borderRadius: BorderRadius.only(
@@ -62,10 +119,16 @@ class DoctorAppointmentScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(28),
                   ),
                   child: Row(
-                    children: const [
+                    children: [
                       Expanded(
                         child: TextField(
-                          decoration: InputDecoration(
+                          controller: _searchController,
+                          onChanged: (value) {
+                            setState(() {
+                              _searchQuery = value;
+                            });
+                          },
+                          decoration: const InputDecoration(
                             hintText: "Search a Doctor...",
                             border: InputBorder.none,
                             hintStyle: TextStyle(
@@ -75,10 +138,7 @@ class DoctorAppointmentScreen extends StatelessWidget {
                           ),
                         ),
                       ),
-                      Icon(
-                        Icons.search,
-                        color: Color(0xFF5A432D),
-                      ),
+                      const Icon(Icons.search, color: Color(0xFF5A432D)),
                     ],
                   ),
                 ),
@@ -87,7 +147,7 @@ class DoctorAppointmentScreen extends StatelessWidget {
           ),
 
           Expanded(
-            child: SingleChildScrollView(
+            child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -104,32 +164,99 @@ class DoctorAppointmentScreen extends StatelessWidget {
 
                   Row(
                     children: [
-                      _buildCategoryItem(
-                        color: const Color(0xFF9C8CFF),
-                        icon: Icons.hourglass_empty,
-                        label: "Oncologist",
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            selectedCategory = "Oncologist";
+                          });
+                        },
+                        child: _buildCategoryItem(
+                          color: const Color(0xFF9C8CFF),
+                          icon: Icons.hourglass_empty,
+                          label: "Oncologist",
+                        ),
                       ),
                       const SizedBox(width: 18),
-                      _buildCategoryItem(
-                        color: const Color(0xFFFF914D),
-                        icon: Icons.medical_services_outlined,
-                        label: "Oncologist",
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            selectedCategory = "Psychologist";
+                          });
+                        },
+                        child: _buildCategoryItem(
+                          color: const Color(0xFFFF914D),
+                          icon: Icons.medical_services_outlined,
+                          label: "Psychologist",
+                        ),
                       ),
                       const SizedBox(width: 18),
-                      _buildCategoryItem(
-                        color: const Color(0xFFF7C95C),
-                        icon: Icons.lightbulb_outline,
-                        label: "Oncologist",
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            selectedCategory = "Counsellor";
+                          });
+                        },
+                        child: _buildCategoryItem(
+                          color: const Color(0xFFF7C95C),
+                          icon: Icons.lightbulb_outline,
+                          label: "Counsellor",
+                        ),
+                      ),
+
+                      const SizedBox(width: 45),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const MyAppointmentScreen(),
+                            ),
+                          );
+                        },
+                        child: _buildCategoryItem(
+                          color: const Color(0xFF74C144),
+                          icon: Icons.event_note,
+                          label: "My Sessions",
+                        ),
                       ),
                     ],
                   ),
 
-                  const SizedBox(height: 26),
-
-                  _buildDoctorCard(
-                    context,
-                    name: "Mr. Carlos Mendez",
-                    specialty: "Cardiologist",
+                  Expanded(
+                    child: _isLoading
+                        ? const Center(
+                            child: CircularProgressIndicator(
+                              color: Color(0xFF64548E),
+                            ),
+                          )
+                        : ListView(
+                            children: [
+                              if (filteredDoctors.isEmpty)
+                                Center(
+                                  child: Text(
+                                    _errorMessage ?? "No doctors found",
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      color: Color(0xFF4B3425),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                )
+                              else
+                                ...filteredDoctors.map(
+                                  (doctor) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: _buildDoctorCard(
+                                      context,
+                                      name: doctor.fullName,
+                                      specialty: doctor.specialty,
+                                      uid: doctor.uid,
+                                      avatarUrl: doctor.avatarUrl,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                   ),
                 ],
               ),
@@ -150,10 +277,7 @@ class DoctorAppointmentScreen extends StatelessWidget {
         Container(
           width: 62,
           height: 62,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           child: Icon(icon, color: Colors.white, size: 28),
         ),
         const SizedBox(height: 8),
@@ -162,7 +286,7 @@ class DoctorAppointmentScreen extends StatelessWidget {
           style: const TextStyle(
             fontSize: 16,
             color: Color(0xFF4B3425),
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ],
@@ -170,16 +294,23 @@ class DoctorAppointmentScreen extends StatelessWidget {
   }
 
   static Widget _buildDoctorCard(
-      BuildContext context, {
-        required String name,
-        required String specialty,
-      }) {
+    BuildContext context, {
+    required String name,
+    required String specialty,
+    required String uid,
+    required String avatarUrl,
+  }) {
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => const DetailDoctorPage(),
+            builder: (_) => DetailDoctorPage(
+              doctorName: name,
+              doctorSpecialty: specialty,
+              doctorUid: uid,
+              doctorAvatarUrl: avatarUrl,
+            ),
           ),
         );
       },
@@ -210,8 +341,13 @@ class DoctorAppointmentScreen extends StatelessWidget {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(14),
                 child: Image.network(
-                  "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=300&q=80",
+                  avatarUrl.isNotEmpty
+                      ? avatarUrl
+                      : "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=300&q=80",
                   fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return const Icon(Icons.person, color: Colors.brown);
+                  },
                 ),
               ),
             ),
@@ -222,7 +358,7 @@ class DoctorAppointmentScreen extends StatelessWidget {
                 Text(
                   name,
                   style: const TextStyle(
-                    fontSize: 19,
+                    fontSize: 20,
                     fontWeight: FontWeight.w800,
                     color: Color(0xFF4B3425),
                   ),
@@ -231,7 +367,7 @@ class DoctorAppointmentScreen extends StatelessWidget {
                 Text(
                   specialty,
                   style: const TextStyle(
-                    fontSize: 17,
+                    fontSize: 19,
                     color: Color(0xFF4B3425),
                     fontWeight: FontWeight.w500,
                   ),

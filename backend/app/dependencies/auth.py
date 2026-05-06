@@ -2,13 +2,13 @@ import asyncio
 import functools
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from app.core.config import get_settings
 from app.core.firebase import verify_firebase_token
-from app.services.user_service import detect_user_role, extract_uid_from_token
+from app.services.user_service import detect_user_role, extract_uid_from_token, get_account_status
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -64,17 +64,36 @@ def _resolve_user_blocking(token: str) -> CurrentUser:
   )
 
 
-# Extract and build the current user from the authorization token.
-async def get_current_user(credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],) -> CurrentUser:
+# Extract and build the current user from the authorization token
+def _build_dev_user(settings, request: Request) -> CurrentUser:
+  raw_role = request.headers.get("x-dev-role", "patient")
+  role = raw_role.strip().lower() if raw_role else "patient"
+
+  if role == "doctor":
+    return CurrentUser(
+      uid = request.headers.get("x-dev-uid") or settings.dev_doctor_uid or settings.dev_patient_uid,
+      email = request.headers.get("x-dev-email") or settings.dev_doctor_email or settings.dev_patient_email,
+      role = "doctor",
+      full_name = request.headers.get("x-dev-name") or settings.dev_doctor_name or settings.dev_patient_name,
+    )
+
+  return CurrentUser(
+    uid = request.headers.get("x-dev-uid") or settings.dev_patient_uid,
+    email = request.headers.get("x-dev-email") or settings.dev_patient_email,
+    role = "patient",
+    full_name = request.headers.get("x-dev-name") or settings.dev_patient_name,
+  )
+
+
+# Extract and build the current user from the authorization token
+async def get_current_user(
+  request: Request,
+  credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+) -> CurrentUser:
   settings = get_settings()
 
   if settings.dev_mode:
-    return CurrentUser(
-      uid = settings.dev_patient_uid,
-      email = settings.dev_patient_email,
-      role = "patient",
-      full_name = settings.dev_patient_name,
-    )
+    return _build_dev_user(settings, request)
 
   if credentials is None:
     raise HTTPException(
@@ -86,6 +105,20 @@ async def get_current_user(credentials: Annotated[HTTPAuthorizationCredentials |
   return await loop.run_in_executor(
     None, functools.partial(_resolve_user_blocking, credentials.credentials),
   )
+
+def _check_account_status(uid: str) -> None:
+  acct_status = get_account_status(uid)
+  if acct_status == "archived":
+    raise HTTPException(
+      status_code=status.HTTP_403_FORBIDDEN,
+      detail="This account has been deleted.",
+    )
+  if acct_status == "suspended":
+    raise HTTPException(
+      status_code=status.HTTP_403_FORBIDDEN,
+      detail="This account has been suspended.",
+    )
+
 
 # Allow only users with doctor role
 async def require_doctor_user(
@@ -101,6 +134,8 @@ async def require_doctor_user(
 async def require_doctor_access(
   user: Annotated[CurrentUser, Depends(require_doctor_user)],
 ) -> CurrentUser:
+  loop = asyncio.get_running_loop()
+  await loop.run_in_executor(None, functools.partial(_check_account_status, user.uid))
   return user
 
 # Allow only users with patient role
@@ -112,4 +147,6 @@ async def require_patient_access(
       status_code=status.HTTP_403_FORBIDDEN,
       detail="Patient role required.",
     )
+  loop = asyncio.get_running_loop()
+  await loop.run_in_executor(None, functools.partial(_check_account_status, user.uid))
   return user

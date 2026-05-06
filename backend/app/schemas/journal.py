@@ -54,6 +54,8 @@ class MoodStatsResponse(BaseModel):
     pulse_recorded_today: bool = False
     has_crisis: bool = False
     recent_history: list[MoodHistoryItem] = Field(default_factory=list)
+    # True while a journal entry's background sentiment analysis is still running
+    analysis_pending: bool = False
 
 
 class DailyPulseUpsertResponse(BaseModel):
