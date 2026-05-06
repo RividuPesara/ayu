@@ -1,7 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.routers import auth, doctor, chatbot, videos, journal, appointments, doctors, tracker, community
-from app.api.routers import auth, doctor, chatbot, videos, journal, appointments, doctors, tracker, patient
+from app.api.routers import auth, doctor, chatbot, videos, journal, appointments, doctors, tracker, community, patient
 
 api_router = APIRouter()
 api_router.include_router(auth.router)
