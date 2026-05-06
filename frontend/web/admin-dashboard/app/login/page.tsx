@@ -111,7 +111,6 @@ export default function LoginPage() {
 
       await verifyOtp(currentUser.uid, verificationId, trimmedOtp);
 
-      setOtpMode(false);
       setOtp("");
       setVerificationId("");
       setOtpDestination("");

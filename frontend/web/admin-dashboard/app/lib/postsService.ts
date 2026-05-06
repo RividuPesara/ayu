@@ -1,4 +1,5 @@
 import { auth } from './firebase'; 
+import { uploadImage } from './cloudinaryUpload';
 
 /* Post Types */
 export type PostType = 'status' | 'photo' | 'story';
@@ -24,7 +25,18 @@ export type CommunityPost = {
   createdAt: { seconds: number } | null;
 };
 
-const API_BASE =  `${process.env.NEXT_PUBLIC_API_URL}/api/moderation/posts`;
+export type CreateCommunityPostPayload = {
+  type: PostType;
+  imageURL: string;
+  text: string;
+  caption: string;
+  title: string;
+  content: string;
+  authorName: string;
+};
+
+const MODERATION_API_BASE = `${process.env.NEXT_PUBLIC_API_URL}/api/moderation/posts`;
+const POSTS_API_BASE = `${process.env.NEXT_PUBLIC_API_URL}/api/posts`;
 
 async function getAuthHeaders() {
   const user = auth.currentUser;
@@ -47,8 +59,8 @@ export async function fetchPosts(
   const headers = await getAuthHeaders();
 
   const url = status
-    ? `${API_BASE}?status=${status}`
-    : API_BASE;
+    ? `${MODERATION_API_BASE}?status=${status}`
+    : MODERATION_API_BASE;
 
   const res = await fetch(url, {
     method: 'GET',
@@ -92,7 +104,7 @@ export function subscribeToPosts(
 export async function approvePost(postId: string): Promise<void> {
   const headers = await getAuthHeaders();
 
-  const res = await fetch(`${API_BASE}/${postId}/approve`, {
+  const res = await fetch(`${MODERATION_API_BASE}/${postId}/approve`, {
     method: 'PATCH',
     headers,
   });
@@ -106,7 +118,7 @@ export async function approvePost(postId: string): Promise<void> {
 export async function rejectPost(postId: string): Promise<void> {
   const headers = await getAuthHeaders();
 
-  const res = await fetch(`${API_BASE}/${postId}/reject`, {
+  const res = await fetch(`${MODERATION_API_BASE}/${postId}/reject`, {
     method: 'PATCH',
     headers,
   });
@@ -114,5 +126,27 @@ export async function rejectPost(postId: string): Promise<void> {
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`Reject failed: ${text}`);
+  }
+}
+
+export async function uploadCommunityImage(file: File): Promise<string> {
+  return uploadImage(file);
+}
+
+export async function createCommunityPost(
+  payload: CreateCommunityPostPayload
+): Promise<void> {
+  const headers = await getAuthHeaders();
+
+  const res = await fetch(`${POSTS_API_BASE}/create`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  });
+
+  const result = await res.json().catch(() => null);
+
+  if (!res.ok) {
+    throw new Error(result?.detail || result?.message || 'Failed to create post');
   }
 }

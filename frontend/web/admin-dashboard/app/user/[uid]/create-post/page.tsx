@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { auth } from '../../../lib/firebase';
-import { uploadImage } from '../../../lib/cloudinaryUpload';
+import {
+  createCommunityPost,
+  uploadCommunityImage,
+} from '../../../lib/postsService';
 import { useParams, useRouter } from 'next/navigation';
 import '../../../../styles/create-post.css';
 
@@ -122,23 +124,17 @@ export default function CreatePostPage() {
 
   const handleSubmit = async () => {
     setLoading(true);
-    try {
-      const user = auth.currentUser;
-      if (!user) {
-        throw new Error('User not logged in');
-      }
 
+    try {
       let imageURL = '';
 
       if (mode === 'status') {
-        imageURL = await uploadImage(await generateImage());
+        imageURL = await uploadCommunityImage(await generateImage());
       }
 
       if (mode === 'photo' && file) {
-        imageURL = await uploadImage(file);
+        imageURL = await uploadCommunityImage(file);
       }
-
-      const token = await user.getIdToken();
 
       const payload = {
         type: mode,
@@ -150,20 +146,7 @@ export default function CreatePostPage() {
         authorName: 'Admin',
       };
 
-      const res = await fetch('http://localhost:8000/api/posts/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const result = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(result?.detail || result?.message || 'Failed to create post');
-      }
+      await createCommunityPost(payload);
 
       router.push(`/user/${uid}/moderation`);
     } catch (err: any) {
@@ -173,7 +156,7 @@ export default function CreatePostPage() {
       setLoading(false);
     }
   };
-
+    
   const tabs: { id: Mode; label: string; icon: React.ReactNode }[] = [
     { id: 'status', label: 'Post', icon: <StatusIcon /> },
     { id: 'photo',  label: 'Photo',  icon: <PhotoIcon />  },
