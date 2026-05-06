@@ -79,6 +79,7 @@ export default function DashboardPage() {
   const [allAppointments, setAllAppointments] = useState<Appointment[]>([]);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const [showPastAppointments, setShowPastAppointments] = useState(false);
+  const [pastAppointmentSource, setPastAppointmentSource] = useState<Appointment | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(today);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const selectedDateKey = toDateKey(selectedDate);
@@ -171,6 +172,7 @@ export default function DashboardPage() {
   };
 
   const handlePastAppointments = (appointment: Appointment) => {
+    setPastAppointmentSource(appointment);
     setShowPastAppointments(true);
   };
 
@@ -342,8 +344,17 @@ export default function DashboardPage() {
       </div>
 
       {/* Past Appointment Details */}
-      {showPastAppointments && (
-        <PastAppointments onClose={() => setShowPastAppointments(false)} />
+      {showPastAppointments && pastAppointmentSource && (
+        <PastAppointments
+          patientName={pastAppointmentSource.name}
+          appointments={allAppointments.filter(
+            (a) => a.name === pastAppointmentSource.name && (a.status === "done" || a.status === "overdue")
+          )}
+          onClose={() => {
+            setShowPastAppointments(false);
+            setPastAppointmentSource(null);
+          }}
+        />
       )}
 
       {/* Appointment Details */}
