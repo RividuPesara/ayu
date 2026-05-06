@@ -57,6 +57,7 @@ def get_comments(post_id: str):
             "id": d.id,
             "authorId": data.get("authorId", ""),
             "authorName": data.get("authorName", "Anonymous"),
+            "authorAvatar": data.get("authorAvatar", ""),
             "text": data.get("text", ""),
             "createdAt": serialize_timestamp(data.get("createdAt"))
         })
@@ -98,16 +99,34 @@ async def like_post(post_id: str, user=Depends(verify_token)):
 
 # Add comment
 @router.post("/{post_id}/comment")
-async def add_comment(post_id: str, authorName: str, text: str, user=Depends(verify_token)):
+async def add_comment(post_id: str, text: str, user=Depends(verify_token)):
 
     userId = user['uid']
 
     ref = db.collection("communityPosts").document(post_id)
 
     comment_ref = ref.collection("comments").document()
+
+    user_doc = db.collection("users").document(userId).get()
+    user_data = user_doc.to_dict() or {}
+
+    authorName = (
+        user_data.get("fullName")
+        or f"{user_data.get('firstName', '')} {user_data.get('lastName', '')}".strip()
+        or user.get("name")
+        or "Anonymous"
+    )
+
+    authorAvatar = (
+        user_data.get("avatar")
+        or user_data.get("photoURL")
+        or ""
+    )
+
     comment_ref.set({
         "authorId": userId,
         "authorName": authorName,
+        "authorAvatar": authorAvatar,
         "text": text,
         "createdAt": datetime.utcnow()
     })

@@ -5,7 +5,8 @@ export interface Comment {
   authorId: string;
   authorName: string;
   text: string;
-  createdAt: { seconds: number } | null; 
+  createdAt: { seconds: number } | null;
+  authorAvatar?: string; 
 }
 
 export interface FeedPost {

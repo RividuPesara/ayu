@@ -44,12 +44,11 @@ export async function likePost(postId: string) {
 
 export async function addComment(
   postId: string,
-  authorName: string,
   text: string
 ) {
   const headers = await getAuthHeaders();
   const res = await fetch(
-    `${BASE_URL}/${postId}/comment?authorName=${encodeURIComponent(authorName)}&text=${encodeURIComponent(text)}`,
+    `${BASE_URL}/${postId}/comment?text=${encodeURIComponent(text)}`,
     {
       method: "POST",
       headers,

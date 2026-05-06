@@ -152,11 +152,12 @@ function CommentsPanel({ postId, onCommentAdded, }: { postId: string;  onComment
     setSending(true);
 
     try{
-      await addComment(postId, userName, trimmed);
+      await addComment(postId, trimmed);
       onCommentAdded();
       setText('');
       setShowAll(true);
       await loadComments();
+      setSending(false);
 
       textareaRef.current?.focus();
     } catch (error) {
@@ -188,7 +189,15 @@ function CommentsPanel({ postId, onCommentAdded, }: { postId: string;  onComment
           )}
           {displayed.map((c) => (
             <div key={c.id} className="comment-item">
-              <div className="comment-item__avatar">{initials(c.authorName)}</div>
+              {c.authorAvatar ? (
+                  <img
+                    src={c.authorAvatar}
+                    alt={c.authorName}
+                    className="comment-item__avatar"
+                    style={{ objectFit: "cover" }}
+                  />
+                ) :(
+              <div className="comment-item__avatar">{initials(c.authorName)}</div>)}
               <div className="comment-item__bubble">
                 <div className="comment-item__header">
                   <span className="comment-item__name">{c.authorName}</span>
