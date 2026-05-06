@@ -35,7 +35,7 @@ export type UpdateDoctorPayload = {
   qualifications: string[];
 };
 
-const BASE_URL = `${process.env.NEXT_PUBLIC_API_URL}/api/doctors`;
+const BASE_URL = `http://localhost:8000/api/doctors`;
 
 async function getAuthHeaders() {
   const user = auth.currentUser;

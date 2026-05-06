@@ -1,7 +1,7 @@
 import { auth } from './firebase';
 import { getIdToken } from 'firebase/auth';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL + "/api/feed";
+const BASE_URL = "http://localhost:8000/api/feed";
 
 async function getAuthHeaders() {
   const user = auth.currentUser;

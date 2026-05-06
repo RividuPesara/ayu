@@ -35,8 +35,8 @@ export type CreateCommunityPostPayload = {
   authorName: string;
 };
 
-const MODERATION_API_BASE = `${process.env.NEXT_PUBLIC_API_URL}/api/moderation/posts`;
-const POSTS_API_BASE = `${process.env.NEXT_PUBLIC_API_URL}/api/posts`;
+const MODERATION_API_BASE = `http://localhost:8000/api/moderation/posts`;
+const POSTS_API_BASE = `http://localhost:8000/api/posts`;
 
 async function getAuthHeaders() {
   const user = auth.currentUser;

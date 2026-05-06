@@ -4,7 +4,7 @@ import {
   sendPasswordResetEmail,
 } from "firebase/auth";
 
-const BASE_URL = `${process.env.NEXT_PUBLIC_API_URL}/api/login`;
+const BASE_URL = `http://localhost:8000/api/login`;
 
 export async function loginWithEmail(email: string, password: string) {
   return signInWithEmailAndPassword(auth, email, password);

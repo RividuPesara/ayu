@@ -36,7 +36,7 @@ function getAuthHeader() {
   };
 }
 
-/* CREATE ARTICLE */
+/* Create Article */
 export async function createArticle(payload: CreateArticlePayload) {
   const res = await fetch(`${API_BASE}/`, {
     method: "POST",
@@ -52,7 +52,7 @@ export async function createArticle(payload: CreateArticlePayload) {
   return await res.json();
 }
 
-/* GET ALL ARTICLES */
+/* Get All Articles */
 export async function getArticles(): Promise<Article[]> {
   const res = await fetch(`${API_BASE}/`, {
     method: "GET",
@@ -66,7 +66,7 @@ export async function getArticles(): Promise<Article[]> {
   return await res.json();
 }
 
-/* UPDATE ARTICLE */
+/* Update Article*/
 export async function updateArticle(id: string, payload: Partial<CreateArticlePayload>) {
   const res = await fetch(`${API_BASE}/${id}`, {
     method: "PATCH",
@@ -82,7 +82,7 @@ export async function updateArticle(id: string, payload: Partial<CreateArticlePa
   return await res.json();
 }
 
-/* DELETE ARTICLE */
+/* Delete Article */
 export async function deleteArticle(id: string) {
   const res = await fetch(`${API_BASE}/${id}`, {
     method: "DELETE",
@@ -97,7 +97,7 @@ export async function deleteArticle(id: string) {
   return await res.json();
 }
 
-/* TOGGLE PUBLISH STATUS */
+/* Toggle Publish Status */
 export async function toggleArticleStatus(id: string, published: boolean) {
   const res = await fetch(`${API_BASE}/${id}/status`, {
     method: "PATCH",

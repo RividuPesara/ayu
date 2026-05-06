@@ -127,9 +127,9 @@ function LikeButton({
 /* Comments Panel */
 const PREVIEW_COUNT = 2;
 
-function CommentsPanel({ postId }: { postId: string }) {
+function CommentsPanel({ postId, onCommentAdded, }: { postId: string;  onCommentAdded: () => void; }) {
   const uid = auth.currentUser?.uid ?? '';
-  const userName = auth.currentUser?.displayName || 'You';
+  const userName = auth.currentUser?.displayName || 'Admin';
 
   const [comments, setComments] = useState<Comment[]>([]);
   const [text, setText]         = useState('');
@@ -153,6 +153,7 @@ function CommentsPanel({ postId }: { postId: string }) {
 
     try{
       await addComment(postId, userName, trimmed);
+      onCommentAdded();
       setText('');
       setShowAll(true);
       await loadComments();
@@ -241,6 +242,7 @@ function PostFeedCard({ post }: { post: FeedPost }) {
   const [showComments, setShowComments]     = useState(false);
   const [optimisticLike, setOptimisticLike] = useState<boolean | null>(null);
   const [optimisticCount, setOptimisticCount] = useState<number | null>(null);
+  const [commentCount, setCommentCount] = useState(post.commentCount ?? 0);
 
   const currentlyLiked = optimisticLike  ?? liked;
   const currentCount   = optimisticCount ?? post.likeCount;
@@ -339,12 +341,12 @@ function PostFeedCard({ post }: { post: FeedPost }) {
           onClick={() => setShowComments((v) => !v)}
         >
           <CommentIcon />
-          {fmtCount(post.commentCount ?? 0)}
+          {fmtCount(commentCount)}
         </button>
       </div>
 
       {/* Comments */}
-      {showComments && <CommentsPanel postId={post.id} />}
+      {showComments && (<CommentsPanel postId={post.id} onCommentAdded={() => setCommentCount((prev) => prev + 1)}/>)}
     </div>
   );
 }

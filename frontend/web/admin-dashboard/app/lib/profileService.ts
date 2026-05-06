@@ -1,4 +1,4 @@
-const BASE_URL = `${process.env.NEXT_PUBLIC_API_URL}/api/profile`;
+const BASE_URL = `http://localhost:8000/api/profile`;
 
 export async function getProfile(uid: string) {
   const res = await fetch(`${BASE_URL}/${uid}`);

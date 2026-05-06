@@ -13,7 +13,7 @@ export type MedicalDocument = {
   rejectionComment?: string;
 };
 
-const API_BASE = `${process.env.NEXT_PUBLIC_API_URL}/api/documents`;
+const API_BASE = `http://localhost:8000/api/documents`;
 
 async function getAuthToken(): Promise<string> {
   const user = auth.currentUser;

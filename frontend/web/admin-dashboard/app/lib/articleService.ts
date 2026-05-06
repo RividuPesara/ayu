@@ -47,7 +47,7 @@ async function getAuthHeaders(): Promise<HeadersInit> {
 
 // API Calls
 
-// 🔹 Get all articles
+// Get all articles
 export async function fetchArticles(): Promise<Article[]> {
   const headers = await getAuthHeaders();
 
@@ -63,7 +63,7 @@ export async function fetchArticles(): Promise<Article[]> {
   return res.json();
 }
 
-// 🔹 Create article
+// Create article
 export async function createArticle(
   data: CreateArticlePayload
 ): Promise<Article> {
@@ -83,7 +83,7 @@ export async function createArticle(
   return res.json();
 }
 
-// 🔹 Get single article
+// Get single article
 export async function getArticle(id: string): Promise<Article> {
   const headers = await getAuthHeaders();
 
@@ -99,7 +99,7 @@ export async function getArticle(id: string): Promise<Article> {
   return res.json();
 }
 
-// 🔹 Update article
+// Update article
 export async function updateArticle(
   id: string,
   data: UpdateArticlePayload
@@ -120,7 +120,7 @@ export async function updateArticle(
   return res.json();
 }
 
-// 🔹 Delete article
+// Delete article
 export async function deleteArticle(id: string): Promise<void> {
   const headers = await getAuthHeaders();
 

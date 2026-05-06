@@ -1,6 +1,6 @@
 import { auth } from "./firebase";
 
-const BASE_URL = `${process.env.NEXT_PUBLIC_API_URL}/api/sidebar`;
+const BASE_URL = `http://localhost:8000/api/sidebar`;
 
 async function getAuthHeaders() {
   const user = auth.currentUser;
