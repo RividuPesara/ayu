@@ -1,11 +1,9 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'Tracker/tracker_service.dart';
 import 'Todo List/task_service.dart';
-import 'core/network/backend_connector.dart';
 
 class DashboardCache {
   DashboardCache._();
@@ -181,19 +179,7 @@ class DashboardCache {
       avatarUrl = (avatar != null && avatar.isNotEmpty) ? avatar : null;
       quote = _pickQuote(data?['religion'] as String?);
     } else {
-      // Dev mode
       quote = _pickQuote(null);
-      try {
-        final response = await BackendConnector.instance.get(
-          '/patient/profile',
-        );
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body) as Map<String, dynamic>;
-          fullName = data['full_name'] as String? ?? '';
-          final avatar = data['avatar_url'] as String?;
-          avatarUrl = (avatar != null && avatar.isNotEmpty) ? avatar : null;
-        }
-      } catch (_) {}
     }
   }
 

@@ -71,6 +71,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/avatar.png
     - assets/splash.json
     - assets/logo.png
     - assets/cat.png
