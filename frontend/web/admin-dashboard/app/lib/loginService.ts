@@ -14,6 +14,7 @@ export async function sendResetEmail(email: string) {
   return sendPasswordResetEmail(auth, email);
 }
 
+// not used anymore as otp is now handled by phone ma on client side now
 export async function sendOtp(email: string, password: string) {
   const res = await fetch(`${BASE_URL}/send-otp`, {
     method: "POST",

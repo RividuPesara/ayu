@@ -1,20 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import "../../styles/LoginPage.css";
-import { auth } from "../lib/firebase";
+import { auth, db } from "../lib/firebase";
 import {
-  loginWithEmail,
-  sendResetEmail,
-  sendOtp,
-  verifyOtp,
-  verifyAdmin,
-} from "../lib/loginService";
-import { sendEmailVerification, signOut } from "firebase/auth";
+  MultiFactorError,
+  MultiFactorInfo,
+  MultiFactorResolver,
+  PhoneAuthProvider,
+  PhoneMultiFactorGenerator,
+  RecaptchaVerifier,
+  getMultiFactorResolver,
+  sendEmailVerification,
+  signOut,
+} from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { loginWithEmail, sendResetEmail, verifyAdmin } from "../lib/loginService";
+import { sendPhoneEnrollmentOtp, verifyAndEnrollPhoneFactor } from "../lib/phone-mfa";
+
+type OtpFlowType = "sign-in-mfa" | "login-phone-verification";
 
 export default function LoginPage() {
   const router = useRouter();
+  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -30,6 +39,8 @@ export default function LoginPage() {
   const [otp, setOtp] = useState("");
   const [otpDestination, setOtpDestination] = useState("");
   const [verificationId, setVerificationId] = useState("");
+  const [otpFlowType, setOtpFlowType] = useState<OtpFlowType | null>(null);
+  const [mfaResolver, setMfaResolver] = useState<MultiFactorResolver | null>(null);
 
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
@@ -38,6 +49,30 @@ export default function LoginPage() {
 
   const isValidEmail = (val: string) =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
+
+  useEffect(() => {
+    return () => {
+      try { recaptchaVerifierRef.current?.clear(); } catch { /* ignore teardown races */ }
+      recaptchaVerifierRef.current = null;
+    };
+  }, []);
+
+  function getOrCreateRecaptchaVerifier(): RecaptchaVerifier {
+    if (recaptchaVerifierRef.current) return recaptchaVerifierRef.current;
+    const verifier = new RecaptchaVerifier(auth, "admin-login-recaptcha", { size: "invisible" });
+    recaptchaVerifierRef.current = verifier;
+    return verifier;
+  }
+
+  function resetOtpState() {
+    setOtpMode(false);
+    setOtp("");
+    setVerificationId("");
+    setOtpDestination("");
+    setOtpError("");
+    setOtpFlowType(null);
+    setMfaResolver(null);
+  }
 
   // LOGIN
   const handleLogin = async (e: React.FormEvent) => {
@@ -79,19 +114,70 @@ export default function LoginPage() {
         return;
       }
 
-      // Request OTP from backend
-      const otpResponse = await sendOtp(email, password);
+      const uid = userCredential.user.uid;
 
-      setVerificationId(otpResponse.verification_id);
-      setOtpDestination(otpResponse.phone_masked);
+      await verifyAdmin(uid);
+
+      const userSnap = await getDoc(doc(db, "users", uid));
+      const loginPhone = (userSnap.data()?.phone || "").trim();
+      if (!loginPhone) {
+        await signOut(auth);
+        alert("No phone number found in your profile. Please contact admin to set your phone number.");
+        return;
+      }
+
+      const recaptchaVerifier = getOrCreateRecaptchaVerifier();
+      const nextVerificationId = await sendPhoneEnrollmentOtp(
+        auth,
+        userCredential.user,
+        loginPhone,
+        recaptchaVerifier,
+      );
+
+      setVerificationId(nextVerificationId);
+      setOtpFlowType("login-phone-verification");
+      setOtpDestination(`*******${loginPhone.slice(-3)}`);
       setOtp("");
       setOtpMode(true);
     } catch (error: any) {
+      if (error?.code === "auth/multi-factor-auth-required") {
+        try {
+          const resolver = getMultiFactorResolver(auth, error as MultiFactorError);
+          const phoneHint = resolver.hints.find(
+            (h: MultiFactorInfo) => h.factorId === PhoneMultiFactorGenerator.FACTOR_ID,
+          );
+          if (!phoneHint) {
+            alert("No phone-based second factor is available for this account.");
+            return;
+          }
+
+          const recaptchaVerifier = getOrCreateRecaptchaVerifier();
+          const phoneAuthProvider = new PhoneAuthProvider(auth);
+          const nextVerificationId = await phoneAuthProvider.verifyPhoneNumber(
+            { multiFactorHint: phoneHint, session: resolver.session },
+            recaptchaVerifier,
+          );
+
+          setVerificationId(nextVerificationId);
+          setMfaResolver(resolver);
+          setOtpFlowType("sign-in-mfa");
+          setOtpDestination(
+            "phoneNumber" in phoneHint ? (phoneHint as any).phoneNumber : "your phone",
+          );
+          setOtp("");
+          setOtpMode(true);
+        } catch (mfaError: any) {
+          setEmailError("Invalid email");
+          setPasswordError("Invalid password");
+        }
+        return;
+      }
+
       setEmailError("Invalid email");
       setPasswordError("Invalid password");
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
   // Reset Password
@@ -120,51 +206,55 @@ export default function LoginPage() {
   // OTP Verification
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (otp.trim().length === 0) {
+      setOtpError("Please enter the OTP");
+      return;
+    }
+
+    const trimmedOtp = otp.trim();
+    if (!/^\d{6}$/.test(trimmedOtp)) {
+      setOtpError("Please enter a valid 6-digit OTP code.");
+      return;
+    }
+
+    if (!verificationId || !otpFlowType) {
+      alert("Verification session expired. Please log in again.");
+      resetOtpState();
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      const currentUser = auth.currentUser;
-
-      if (!currentUser) {
-        alert("User not found. Please log in again.");
-        setOtpMode(false);
-        setIsLoading(false);
-        return;
+      if (otpFlowType === "sign-in-mfa") {
+        if (!mfaResolver) {
+          alert("Verification session expired. Please log in again.");
+          resetOtpState();
+          return;
+        }
+        const credential = PhoneAuthProvider.credential(verificationId, trimmedOtp);
+        const assertion = PhoneMultiFactorGenerator.assertion(credential);
+        await mfaResolver.resolveSignIn(assertion);
+      } else {
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+          alert("User not found. Please log in again.");
+          resetOtpState();
+          return;
+        }
+        await verifyAndEnrollPhoneFactor(currentUser, verificationId, trimmedOtp, "Login phone");
       }
 
-      if (!verificationId) {
-        alert("Verification session expired. Please log in again.");
-        setOtpMode(false);
-        setIsLoading(false);
-        return;
-      }
-
-      const trimmedOtp = otp.trim();
-      if (otp.trim().length === 0) {
-      setOtpError("Please enter the OTP");
-      setIsLoading(false);
-      return;
-    }
-      if (!/^\d{6}$/.test(trimmedOtp)) {
-        setOtpError("Please enter a valid 6-digit OTP code.");
-        setIsLoading(false);
-        return;
-      }
-
-      await verifyOtp(currentUser.uid, verificationId, trimmedOtp);
-
-      setOtp("");
-      setVerificationId("");
-      setOtpDestination("");
-      setOtpError("");
-
-      router.push(`/user/${currentUser.uid}`);
+      const uid = auth.currentUser?.uid;
+      resetOtpState();
+      router.push(`/user/${uid}`);
     } catch (error: any) {
       alert(error.message);
       setOtpError("Invalid OTP");
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
   return (
@@ -176,13 +266,7 @@ export default function LoginPage() {
             <>
               <button
                 className="back-btn"
-                onClick={() => {
-                  setOtpMode(false);
-                  setOtp("");
-                  setVerificationId("");
-                  setOtpDestination("");
-                  setOtpError("");
-                }}
+                onClick={resetOtpState}
               >
                 ← Back to Login
               </button>
@@ -367,6 +451,9 @@ export default function LoginPage() {
           )}
         </div>
       </div>
+
+      {/* invisible recaptcha anchor required by Firebase Phone MFA */}
+      <div id="admin-login-recaptcha" style={{ display: "none" }} />
     </div>
   );
 }
