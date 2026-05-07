@@ -43,6 +43,7 @@ dependencies:
   shared_preferences: ^2.2.3
   url_launcher: ^6.3.0
   intl: ^0.18.1
+  file_picker: ^8.1.7
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -90,6 +91,10 @@ flutter:
     - assets/moodentries.png
     - assets/success.json
     - assets/companioncats.png
+    - assets/doccat.png
+    - assets/sandclock.json
+    - assets/error.json
+    - assets/comingsoon.json
 
     - assets/faces/sad.png
     - assets/faces/anxiety.png
