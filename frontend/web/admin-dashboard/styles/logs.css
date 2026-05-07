@@ -1,0 +1,131 @@
+/* Grid layout */
+.logs-grid {
+  grid-template-columns: 2fr 1fr 1.5fr 1.5fr;
+}
+
+/* Default alignment */
+.logs-grid > div,
+.logs-grid > span {
+  display: flex;
+  align-items: center;
+}
+
+/* User column */
+.logs-grid > div:nth-child(1),
+.logs-grid > span:nth-child(1) {
+  justify-content: flex-start;
+}
+
+/* Other columns */
+.logs-grid > div:nth-child(2),
+.logs-grid > div:nth-child(3),
+.logs-grid > div:nth-child(4),
+.logs-grid > span:nth-child(2),
+.logs-grid > span:nth-child(3),
+.logs-grid > span:nth-child(4) {
+  justify-content: center;
+}
+
+/* Type badge */
+.type-badge {
+  display: inline-block;
+  min-width: 90px;
+  text-align: center;
+  padding: 4px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--font-body, 'DM Sans', sans-serif);
+}
+
+/* Badge colors */
+.type-patient {
+  background-color: #7f5db6;
+  color: #ffffff;
+}
+
+.type-companion {
+  background-color: #bb8b44;
+  color: #ffffff;
+}
+
+.type-doctor {
+  background-color: #55b555;
+  color: #ffffff;
+}
+
+.type-admin {
+  background-color: #c7664b;
+  color: #ffffff;
+}
+
+/* Date text */
+.log-text {
+  font-size: 13.5px;
+  color: var(--text-primary, #18172b);
+  font-family: var(--font-body, 'DM Sans', sans-serif);
+}
+
+.patient-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 0.5px solid #000000; 
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* wrapper */
+.custom-dropdown {
+  position: relative;
+  width: 120px;
+  font-family: var(--font-body, 'DM Sans', sans-serif);
+}
+
+/* selected box */
+.dropdown-selected {
+  padding: 10px 14px;
+  border-radius: 30px;
+  border: 1.5px solid #e0d7f5;
+  background: #fff;
+  color: #18172b;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.dropdown-selected:hover {
+  border-color: #a18fff;
+}
+
+/* menu */
+.dropdown-menu {
+  position: absolute;
+  top: 110%;
+  left: 0;
+  width: 100%;
+
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #eee;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+  color: #18172b;
+  font-size: 14px;
+
+  overflow: hidden;
+  z-index: 1000;
+}
+
+/* items */
+.dropdown-item {
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.dropdown-item:hover {
+  background: #f3efff;
+  color: #64548E;
+}
