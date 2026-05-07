@@ -13,6 +13,7 @@ import '../Tracker/Widgets/selectedDateCard.dart';
 import '../Tracker/Widgets/takenView.dart';
 import '../Tracker/tracker_service.dart';
 import 'package:lottie/lottie.dart';
+import '../Chatbot/chatbotScreen.dart';
 
 const List<Color> _missedCardColors = [
   Color(0xFF8A4C86),
@@ -42,7 +43,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
     _loadSchedule();
     _missedTimer = Timer.periodic(
       const Duration(seconds: 30),
-      (_) => _recomputeMissedStatuses(),
+          (_) => _recomputeMissedStatuses(),
     );
   }
 
@@ -126,7 +127,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
 
   List<DateTime> get visibleDates => List.generate(
     5,
-    (index) => selectedDate.subtract(Duration(days: 3 - index)),
+        (index) => selectedDate.subtract(Duration(days: 3 - index)),
   );
 
   bool _isSameDate(DateTime a, DateTime b) {
@@ -403,13 +404,13 @@ class _TrackerScreenState extends State<TrackerScreen> {
     final takenForWidget = takenMedicines
         .map(
           (item) => <String, String>{
-            'name': item.name,
-            'type': item.type,
-            'time': item.scheduledTime,
-            'tag': 'Taken',
-            'image': '',
-          },
-        )
+        'name': item.name,
+        'type': item.type,
+        'time': item.scheduledTime,
+        'tag': 'Taken',
+        'image': '',
+      },
+    )
         .toList();
 
     final missedForWidget = missedMedicines
@@ -417,12 +418,12 @@ class _TrackerScreenState extends State<TrackerScreen> {
         .entries
         .map(
           (e) => <String, dynamic>{
-            'title': e.value.name,
-            'subtitle': e.value.type,
-            'time': e.value.scheduledTime,
-            'imageColor': _missedCardColors[e.key % _missedCardColors.length],
-          },
-        )
+        'title': e.value.name,
+        'subtitle': e.value.type,
+        'time': e.value.scheduledTime,
+        'imageColor': _missedCardColors[e.key % _missedCardColors.length],
+      },
+    )
         .toList();
 
     return Scaffold(
@@ -436,17 +437,20 @@ class _TrackerScreenState extends State<TrackerScreen> {
               const SizedBox(height: 10),
               Row(
                 children: [
-                  Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: brown.withOpacity(0.25)),
-                    ),
-                    child: const Icon(
-                      Icons.chevron_left,
-                      size: 32,
-                      color: brown,
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: brown.withOpacity(0.25)),
+                      ),
+                      child: const Icon(
+                        Icons.chevron_left,
+                        size: 32,
+                        color: brown,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -504,8 +508,8 @@ class _TrackerScreenState extends State<TrackerScreen> {
                       final date = visibleDates[index];
                       final isSelected =
                           date.year == selectedDate.year &&
-                          date.month == selectedDate.month &&
-                          date.day == selectedDate.day;
+                              date.month == selectedDate.month &&
+                              date.day == selectedDate.day;
 
                       return CalendarItem(
                         child: GestureDetector(
@@ -555,93 +559,93 @@ class _TrackerScreenState extends State<TrackerScreen> {
               Expanded(
                 child: _isLoading && _scheduleItems.isEmpty
                     ? const Center(
-                        child: CircularProgressIndicator(
-                          color: green,
-                          strokeWidth: 2.5,
-                        ),
-                      )
+                  child: CircularProgressIndicator(
+                    color: green,
+                    strokeWidth: 2.5,
+                  ),
+                )
                     : selectedFilter == 1
                     ? TakenView(
-                        takenMedicines: takenForWidget,
-                        adherenceRate: _adherenceRate,
-                      )
+                  takenMedicines: takenForWidget,
+                  adherenceRate: _adherenceRate,
+                )
                     : selectedFilter == 2
                     ? MissedView(
-                        missedMedicines: missedForWidget,
-                        onMarkTaken: _markMissedAsTaken,
-                      )
+                  missedMedicines: missedForWidget,
+                  onMarkTaken: _markMissedAsTaken,
+                )
                     : _scheduleItems.isEmpty
                     ? EmptyMedicationView(
-                        onAddMedication: _isPastDate
-                            ? null
-                            : _showAddMedicationDialog,
-                      )
+                  onAddMedication: _isPastDate
+                      ? null
+                      : _showAddMedicationDialog,
+                )
                     : ListView(
-                        padding: const EdgeInsets.only(bottom: 100),
-                        children: [
-                          const Text(
-                            "TODAY'S SCHEDULE",
-                            style: TextStyle(
-                              fontSize: 17,
-                              letterSpacing: 1.2,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF45483C),
+                  padding: const EdgeInsets.only(bottom: 100),
+                  children: [
+                    const Text(
+                      "TODAY'S SCHEDULE",
+                      style: TextStyle(
+                        fontSize: 17,
+                        letterSpacing: 1.2,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF45483C),
+                      ),
+                    ),
+                    const SizedBox(height: 15),
+                    ...List.generate(_scheduleItems.length, (index) {
+                      final item = _scheduleItems[index];
+                      final isTaken = item.status == 'taken';
+                      final isMissed = item.status == 'missed';
+
+                      return Padding(
+                        padding: EdgeInsets.only(
+                          bottom: index == _scheduleItems.length - 1
+                              ? 0
+                              : 12,
+                        ),
+                        child: Dismissible(
+                          key: ValueKey(
+                            '${item.medicationId}-${item.scheduledTime}',
+                          ),
+                          direction: DismissDirection.endToStart,
+                          background: Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFD94F4F),
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            alignment: Alignment.centerRight,
+                            padding: const EdgeInsets.only(right: 20),
+                            child: const Icon(
+                              Icons.delete_outline,
+                              color: Colors.white,
+                              size: 28,
                             ),
                           ),
-                          const SizedBox(height: 15),
-                          ...List.generate(_scheduleItems.length, (index) {
-                            final item = _scheduleItems[index];
-                            final isTaken = item.status == 'taken';
-                            final isMissed = item.status == 'missed';
-
-                            return Padding(
-                              padding: EdgeInsets.only(
-                                bottom: index == _scheduleItems.length - 1
-                                    ? 0
-                                    : 12,
-                              ),
-                              child: Dismissible(
-                                key: ValueKey(
-                                  '${item.medicationId}-${item.scheduledTime}',
-                                ),
-                                direction: DismissDirection.endToStart,
-                                background: Container(
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFD94F4F),
-                                    borderRadius: BorderRadius.circular(18),
-                                  ),
-                                  alignment: Alignment.centerRight,
-                                  padding: const EdgeInsets.only(right: 20),
-                                  child: const Icon(
-                                    Icons.delete_outline,
-                                    color: Colors.white,
-                                    size: 28,
-                                  ),
-                                ),
-                                confirmDismiss: (_) async {
-                                  return true;
-                                },
-                                onDismissed: (_) =>
-                                    _deleteMedicationItem(index),
-                                child: MedicineCard(
-                                  name: item.name,
-                                  type: item.type,
-                                  time: item.scheduledTime,
-                                  tag: isTaken
-                                      ? 'Taken'
-                                      : isMissed
-                                      ? 'Missed'
-                                      : 'Take',
-                                  imagePath: null,
-                                  isTaken: isTaken,
-                                  isMissed: isMissed,
-                                  onTagTap: () => _markMedicineAsTaken(index),
-                                ),
-                              ),
-                            );
-                          }),
-                        ],
-                      ),
+                          confirmDismiss: (_) async {
+                            return true;
+                          },
+                          onDismissed: (_) =>
+                              _deleteMedicationItem(index),
+                          child: MedicineCard(
+                            name: item.name,
+                            type: item.type,
+                            time: item.scheduledTime,
+                            tag: isTaken
+                                ? 'Taken'
+                                : isMissed
+                                ? 'Missed'
+                                : 'Take',
+                            imagePath: null,
+                            isTaken: isTaken,
+                            isMissed: isMissed,
+                            onTagTap: () => _markMedicineAsTaken(index),
+                          ),
+                        ),
+                      );
+                    }),
+                  ],
+                ),
               ),
             ],
           ),
@@ -650,30 +654,30 @@ class _TrackerScreenState extends State<TrackerScreen> {
       floatingActionButton: _isPastDate
           ? null
           : Container(
-              width: 64,
-              height: 64,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Color(0x332F2146),
-                    blurRadius: 18,
-                    offset: Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: FloatingActionButton(
-                onPressed: _showAddMedicationDialog,
-                backgroundColor: const Color(0xFF7C63B8),
-                elevation: 0,
-                shape: const CircleBorder(),
-                child: const Icon(
-                  Icons.add,
-                  size: 30, // slightly bigger like UI
-                  color: Colors.white,
-                ),
-              ),
+        width: 64,
+        height: 64,
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Color(0x332F2146),
+              blurRadius: 18,
+              offset: Offset(0, 8),
             ),
+          ],
+        ),
+        child: FloatingActionButton(
+          onPressed: _showAddMedicationDialog,
+          backgroundColor: const Color(0xFF7C63B8),
+          elevation: 0,
+          shape: const CircleBorder(),
+          child: const Icon(
+            Icons.add,
+            size: 30, // slightly bigger like UI
+            color: Colors.white,
+          ),
+        ),
+      ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: SafeArea(
         top: false,
@@ -697,7 +701,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
                 const SizedBox(width: 18),
 
                 GestureDetector(
-                  onTap: () {},
+                  onTap: () => Navigator.pop(context),
                   child: const BottomNavIcon(
                     icon: Icons.home_outlined,
                     selected: false,
@@ -707,7 +711,12 @@ class _TrackerScreenState extends State<TrackerScreen> {
                 const Spacer(),
 
                 GestureDetector(
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => Chatbot()),
+                    );
+                  },
                   child: const BottomNavIcon(
                     icon: Icons.chat_bubble_outline,
                     selected: false,
@@ -1268,8 +1277,8 @@ class _TrackerScreenState extends State<TrackerScreen> {
                                 final times = selectedTimes
                                     .map(
                                       (t) =>
-                                          '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}',
-                                    )
+                                  '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}',
+                                )
                                     .toList();
 
                                 final dateKey = _toDateKey(selectedDate);
@@ -1295,42 +1304,42 @@ class _TrackerScreenState extends State<TrackerScreen> {
 
                                 Navigator.pop(context);
                                 Future.microtask(
-                                  () => _showMedicationAddedDialog(),
+                                      () => _showMedicationAddedDialog(),
                                 );
 
                                 createMedication(
-                                      name: medicineName,
-                                      type: selectedType,
-                                      times: times,
-                                      repeatUntil: repeatUntilStr,
-                                    )
+                                  name: medicineName,
+                                  type: selectedType,
+                                  times: times,
+                                  repeatUntil: repeatUntilStr,
+                                )
                                     .then((med) {
-                                      repo.replaceOptimisticItems(
-                                        dateKey,
-                                        tempId,
-                                        med,
-                                      );
-                                      repo.invalidateDate(dateKey);
-                                      repo.fetchSchedule(dateKey).then((items) {
-                                        if (mounted) {
-                                          setState(
+                                  repo.replaceOptimisticItems(
+                                    dateKey,
+                                    tempId,
+                                    med,
+                                  );
+                                  repo.invalidateDate(dateKey);
+                                  repo.fetchSchedule(dateKey).then((items) {
+                                    if (mounted) {
+                                      setState(
                                             () => _scheduleItems = items,
-                                          );
-                                        }
-                                      });
-                                    })
-                                    .catchError((_) {
-                                      repo.removeOptimisticItems(
-                                        dateKey,
-                                        tempId,
                                       );
-                                      if (mounted) {
-                                        setState(
+                                    }
+                                  });
+                                })
+                                    .catchError((_) {
+                                  repo.removeOptimisticItems(
+                                    dateKey,
+                                    tempId,
+                                  );
+                                  if (mounted) {
+                                    setState(
                                           () => _scheduleItems = repo
-                                              .scheduleFor(dateKey),
-                                        );
-                                      }
-                                    });
+                                          .scheduleFor(dateKey),
+                                    );
+                                  }
+                                });
                               },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFFA8BA78),
