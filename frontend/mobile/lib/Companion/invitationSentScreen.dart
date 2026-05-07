@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:mobile_app/Companion/sharingPrivacyScreen.dart';
 
 class InvitationSentScreen extends StatelessWidget {
-  const InvitationSentScreen({super.key});
+  final String email;
+
+  const InvitationSentScreen({super.key, required this.email});
+
+  String get _displayName => email.split('@').first;
 
   @override
   Widget build(BuildContext context) {
@@ -141,25 +145,25 @@ class InvitationSentScreen extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 28),
               child: RichText(
                 textAlign: TextAlign.center,
-                text: const TextSpan(
-                  style: TextStyle(
+                text: TextSpan(
+                  style: const TextStyle(
                     fontSize: 22,
                     height: 1.45,
                     fontWeight: FontWeight.w500,
                     color: Color(0xFF5C4B43),
                   ),
                   children: [
-                    TextSpan(text: "We've sent a magic link to\n"),
+                    const TextSpan(text: "We've sent a magic link to\n"),
                     TextSpan(
-                      text: 'sarah.woods@email.com',
-                      style: TextStyle(
+                      text: email,
+                      style: const TextStyle(
                         color: Color(0xFF2B1C16),
                         fontWeight: FontWeight.w900,
                       ),
                     ),
-                    TextSpan(
+                    const TextSpan(
                       text:
-                      ". Once they\naccept, you'll be connected in the\nSanctuary.",
+                          ". Once they\naccept, you'll be connected in the\nSanctuary.",
                     ),
                   ],
                 ),
@@ -189,17 +193,20 @@ class InvitationSentScreen extends StatelessWidget {
                   children: [
                     const CircleAvatar(
                       radius: 18,
-                      backgroundImage: NetworkImage(
-                        '',
+                      backgroundColor: Color(0xFFD6CCBF),
+                      child: Icon(
+                        Icons.person,
+                        color: Color(0xFF4B3425),
+                        size: 20,
                       ),
                     ),
                     const SizedBox(width: 14),
-                    const Expanded(
+                    Expanded(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
+                          const Text(
                             'PENDING PARTNER',
                             style: TextStyle(
                               fontSize: 14,
@@ -208,10 +215,10 @@ class InvitationSentScreen extends StatelessWidget {
                               letterSpacing: 0.3,
                             ),
                           ),
-                          SizedBox(height: 4),
+                          const SizedBox(height: 4),
                           Text(
-                            'Han',
-                            style: TextStyle(
+                            _displayName,
+                            style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w700,
                               color: Color(0xFF2B1C16),
@@ -263,7 +270,7 @@ class InvitationSentScreen extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => CompanionPrivacyScreen(),
+                        builder: (context) => const CompanionPrivacyScreen(),
                       ),
                     );
                   },

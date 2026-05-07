@@ -150,3 +150,16 @@ async def require_patient_access(
   loop = asyncio.get_running_loop()
   await loop.run_in_executor(None, functools.partial(_check_account_status, user.uid))
   return user
+
+# Allows companions to access patient endpoints
+async def require_patient_or_companion_access(
+  user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> CurrentUser:
+  if user.role not in ("patient", "companion"):
+    raise HTTPException(
+      status_code=status.HTTP_403_FORBIDDEN,
+      detail="Patient or companion role required.",
+    )
+  loop = asyncio.get_running_loop()
+  await loop.run_in_executor(None, functools.partial(_check_account_status, user.uid))
+  return user

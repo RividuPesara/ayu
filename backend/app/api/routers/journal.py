@@ -3,7 +3,7 @@ import functools
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
 
-from app.dependencies.auth import CurrentUser, require_patient_access
+from app.dependencies.auth import CurrentUser, require_patient_access, require_patient_or_companion_access
 from app.schemas.journal import (
     DailyPulseRequest,
     DailyPulseUpsertResponse,
@@ -22,6 +22,7 @@ from app.services.journal_service import (
     process_journal_entry_background,
     record_daily_pulse,
 )
+from app.services.companion_service import resolve_and_check_privacy
 
 router = APIRouter(prefix="/journal", tags=["journal"])
 
@@ -31,6 +32,7 @@ async def _run_sync(func, *args):
     return await loop.run_in_executor(None, functools.partial(func, *args))
 
 
+# patient only
 @router.post("/pulse", response_model=DailyPulseUpsertResponse, status_code=status.HTTP_200_OK)
 async def upsert_daily_pulse(
     payload: DailyPulseRequest,
@@ -61,14 +63,18 @@ async def create_entry(
     return JournalCreateResponse.model_validate(result)
 
 
+# companion allowed if moodJournal flag is on
 @router.get("/entries", response_model=list[JournalEntryResponse])
 async def get_entries(
     sort: str = Query(default="desc", pattern="^(asc|desc)$"),
     limit: int = Query(default=50, ge=1, le=200),
-    user: CurrentUser = Depends(require_patient_access),
+    user: CurrentUser = Depends(require_patient_or_companion_access),
 ) -> list[JournalEntryResponse]:
+    patient_uid = user.uid
+    if user.role == "companion":
+        patient_uid = await _run_sync(resolve_and_check_privacy, user.uid, "mood_journal")
     descending = sort.lower() != "asc"
-    return await _run_sync(list_journal_entries, user.uid, limit, descending)
+    return await _run_sync(list_journal_entries, patient_uid, limit, descending)
 
 
 @router.get("/entries/page", response_model=JournalEntriesPageResponse)
@@ -76,12 +82,15 @@ async def get_entries_page(
     sort: str = Query(default="desc", pattern="^(asc|desc)$"),
     limit: int = Query(default=4, ge=1, le=20),
     cursor: str | None = Query(default=None),
-    user: CurrentUser = Depends(require_patient_access),
+    user: CurrentUser = Depends(require_patient_or_companion_access),
 ) -> JournalEntriesPageResponse:
+    patient_uid = user.uid
+    if user.role == "companion":
+        patient_uid = await _run_sync(resolve_and_check_privacy, user.uid, "mood_journal")
     descending = sort.lower() != "asc"
     payload = await _run_sync(
         list_journal_entries_page,
-        user.uid,
+        patient_uid,
         limit,
         descending,
         cursor,
@@ -93,14 +102,20 @@ async def get_entries_page(
 @router.get("/entries/{entry_id}", response_model=JournalEntryResponse)
 async def get_entry_detail(
     entry_id: str,
-    user: CurrentUser = Depends(require_patient_access),
+    user: CurrentUser = Depends(require_patient_or_companion_access),
 ) -> JournalEntryResponse:
-    return await _run_sync(get_journal_entry, user.uid, entry_id)
+    patient_uid = user.uid
+    if user.role == "companion":
+        patient_uid = await _run_sync(resolve_and_check_privacy, user.uid, "mood_journal")
+    return await _run_sync(get_journal_entry, patient_uid, entry_id)
 
 
 @router.get("/status", response_model=MoodStatsResponse)
 async def get_status(
-    user: CurrentUser = Depends(require_patient_access),
+    user: CurrentUser = Depends(require_patient_or_companion_access),
 ) -> MoodStatsResponse:
-    status_data = await _run_sync(get_mood_stats, user.uid)
+    patient_uid = user.uid
+    if user.role == "companion":
+        patient_uid = await _run_sync(resolve_and_check_privacy, user.uid, "mood_journal")
+    status_data = await _run_sync(get_mood_stats, patient_uid)
     return MoodStatsResponse.model_validate(status_data)

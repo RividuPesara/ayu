@@ -50,3 +50,5 @@ data/
 
 # Firebase admin SDK credentials
 firebase-adminsdk.json
+
+backend-admin/serviceAccountKey.json

@@ -1,12 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'Todo List/task_service.dart';
 
-class Task {
-  String title;
-  TimeOfDay time;
-  bool isDone;
+void main() {
+  runApp(const MyApp());
+}
 
-  Task({required this.title, required this.time, this.isDone = false});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: ToDoList(),
+    );
+  }
 }
 
 class ToDoList extends StatefulWidget {
@@ -18,15 +27,24 @@ class ToDoList extends StatefulWidget {
 
 class _ToDoListState extends State<ToDoList> {
   DateTime selectedDate = DateTime.now();
+  List<TaskItem> _tasks = [];
+  bool _isLoading = false;
 
-  Map<String, List<Task>> tasksByDate = {};
+  @override
+  void initState() {
+    super.initState();
+    _loadTasks();
+  }
+
+  bool get _isPastDate {
+    final today = DateTime.now();
+    return selectedDate.isBefore(DateTime(today.year, today.month, today.day));
+  }
 
   List<DateTime> getCurrentWeek() {
     DateTime now = DateTime.now();
     int weekday = now.weekday;
-
     DateTime startOfWeek = now.subtract(Duration(days: weekday % 7));
-
     return List.generate(7, (index) => startOfWeek.add(Duration(days: index)));
   }
 
@@ -34,31 +52,86 @@ class _ToDoListState extends State<ToDoList> {
     return DateFormat('yyyy-MM-dd').format(date);
   }
 
-  List<Task> getTasksForSelectedDate() {
-    return tasksByDate[formatKey(selectedDate)] ?? [];
+  String _toTimeString(TimeOfDay time) {
+    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
   }
 
-  void addTask(String title, TimeOfDay time) {
-    String key = formatKey(selectedDate);
+  String _formatTaskTime(String time) {
+    final parts = time.split(':');
+    if (parts.length != 2) return time;
+    final dt = DateTime(0, 0, 0, int.parse(parts[0]), int.parse(parts[1]));
+    return DateFormat.jm().format(dt);
+  }
 
-    if (!tasksByDate.containsKey(key)) {
-      tasksByDate[key] = [];
+  Future<void> _loadTasks() async {
+    final dateKey = formatKey(selectedDate);
+    final repo = TaskRepository.instance;
+
+    // Show stale cache immediately while a fresh fetch runs in background
+    await repo.loadCachedTasks(dateKey);
+    if (mounted) {
+      setState(() => _tasks = repo.tasksFor(dateKey));
     }
 
-    tasksByDate[key]!.add(Task(title: title, time: time));
-
-    setState(() {});
+    if (!repo.hasFreshCache(dateKey)) {
+      if (mounted) setState(() => _isLoading = true);
+      try {
+        final tasks = await repo.fetchTasks(dateKey);
+        if (mounted) {
+          setState(() {
+            _tasks = tasks;
+            _isLoading = false;
+          });
+        }
+      } catch (_) {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    } else {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
-  void toggleTask(Task task) {
-    setState(() {
-      task.isDone = !task.isDone;
+  void _toggleTask(TaskItem task) {
+    final dateKey = formatKey(selectedDate);
+    final repo = TaskRepository.instance;
+
+    repo.optimisticallyToggle(dateKey, task.taskId);
+    setState(() => _tasks = repo.tasksFor(dateKey));
+
+    toggleTaskApi(task.taskId).catchError((_) {
+      repo.revertToggle(dateKey, task.taskId);
+      if (mounted) setState(() => _tasks = repo.tasksFor(dateKey));
+      return task;
+    });
+  }
+
+  Future<void> _deleteTask(TaskItem task) async {
+    final dateKey = formatKey(selectedDate);
+    final repo = TaskRepository.instance;
+    // Keep a backup to restore if the API call fails
+    final backup = repo.tasksFor(dateKey);
+
+    repo.removeByTaskId(dateKey, task.taskId);
+    setState(() => _tasks = repo.tasksFor(dateKey));
+
+    deleteTaskApi(task.taskId).catchError((_) {
+      repo.restoreBackup(dateKey, backup);
+      if (mounted) {
+        setState(() => _tasks = repo.tasksFor(dateKey));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Unable to delete "${task.title}". Please try again.',
+            ),
+          ),
+        );
+      }
     });
   }
 
   void showAddTaskDialog() {
     TextEditingController nameController = TextEditingController();
-    TimeOfDay? selectedTime = null;
+    TimeOfDay? selectedTime;
     bool isTextEmpty = false;
     bool isTimeMissing = false;
 
@@ -71,7 +144,6 @@ class _ToDoListState extends State<ToDoList> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
-
               title: const Text(
                 "Add Task",
                 style: TextStyle(
@@ -80,7 +152,6 @@ class _ToDoListState extends State<ToDoList> {
                   color: Color(0xFF4B3425),
                 ),
               ),
-
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -96,7 +167,6 @@ class _ToDoListState extends State<ToDoList> {
                     ),
                   ),
                   const SizedBox(height: 8),
-
                   TextField(
                     controller: nameController,
                     decoration: InputDecoration(
@@ -117,9 +187,7 @@ class _ToDoListState extends State<ToDoList> {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 16),
-
                   const Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
@@ -132,8 +200,6 @@ class _ToDoListState extends State<ToDoList> {
                     ),
                   ),
                   const SizedBox(height: 12),
-
-                  // Time selection button
                   GestureDetector(
                     onTap: () async {
                       final picked = await showTimePicker(
@@ -143,9 +209,7 @@ class _ToDoListState extends State<ToDoList> {
                       if (picked != null) {
                         setDialogState(() {
                           selectedTime = picked;
-                          if (isTimeMissing) {
-                            isTimeMissing = false;
-                          }
+                          if (isTimeMissing) isTimeMissing = false;
                         });
                       }
                     },
@@ -167,7 +231,7 @@ class _ToDoListState extends State<ToDoList> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
+                          const Icon(
                             Icons.access_time,
                             color: Color(0xff605D62),
                             size: 20,
@@ -186,21 +250,16 @@ class _ToDoListState extends State<ToDoList> {
                       ),
                     ),
                   ),
-
                   if (isTimeMissing)
                     const Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
                         "       Please select a time",
-                        style: TextStyle(
-                          color: Colors.red,
-                          fontSize: 12,
-                        ),
+                        style: TextStyle(color: Colors.red, fontSize: 12),
                       ),
                     ),
                 ],
               ),
-
               actions: [
                 const SizedBox(height: 12),
                 Row(
@@ -210,17 +269,13 @@ class _ToDoListState extends State<ToDoList> {
                         onPressed: () => Navigator.pop(context),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: const Color(0xFF4B3425),
-                          side: BorderSide(
-                            color: const Color(0xFF4B3425),
-                          ),
+                          side: const BorderSide(color: Color(0xFF4B3425)),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
                           ),
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 14,
-                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
-                        child: Text(
+                        child: const Text(
                           "Cancel",
                           style: TextStyle(
                             fontSize: 18,
@@ -241,8 +296,60 @@ class _ToDoListState extends State<ToDoList> {
 
                           if (isTextEmpty || isTimeMissing) return;
 
-                          addTask(nameController.text.trim(), selectedTime!);
+                          final title = nameController.text.trim();
+                          final dateKey = formatKey(selectedDate);
+                          final timeStr = _toTimeString(selectedTime!);
+                          final tempId =
+                              'local_${DateTime.now().millisecondsSinceEpoch}';
+                          final repo = TaskRepository.instance;
+
+                          // Insert placeholder immediately so the UI responds without waiting
+                          repo.insertOptimistic(
+                            dateKey,
+                            TaskItem(
+                              taskId: tempId,
+                              userId: '',
+                              title: title,
+                              dateKey: dateKey,
+                              time: timeStr,
+                              isDone: false,
+                            ),
+                          );
+                          setState(() => _tasks = repo.tasksFor(dateKey));
+
+                          // Capture messenger before the async gap to avoid stale context
+                          final messenger = ScaffoldMessenger.of(context);
                           Navigator.pop(context);
+
+                          createTask(
+                                title: title,
+                                dateKey: dateKey,
+                                time: timeStr,
+                              )
+                              .then((real) {
+                                repo.replaceOptimistic(dateKey, tempId, real);
+                                repo.invalidateDate(dateKey);
+                                if (mounted) {
+                                  setState(
+                                    () => _tasks = repo.tasksFor(dateKey),
+                                  );
+                                }
+                              })
+                              .catchError((_) {
+                                repo.removeByTaskId(dateKey, tempId);
+                                if (mounted) {
+                                  setState(
+                                    () => _tasks = repo.tasksFor(dateKey),
+                                  );
+                                  messenger.showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Failed to add task. Please try again.',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              });
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF7C6CA8),
@@ -251,11 +358,9 @@ class _ToDoListState extends State<ToDoList> {
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
                           ),
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 14,
-                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
-                        child: Text(
+                        child: const Text(
                           "Add",
                           style: TextStyle(
                             fontSize: 18,
@@ -298,10 +403,7 @@ class _ToDoListState extends State<ToDoList> {
                     color: Color(0xffF7F4F2),
                     shape: BoxShape.circle,
                     border: Border.fromBorderSide(
-                      BorderSide(
-                          color: Color(0xff4B3425),
-                          width: 1.0
-                      ),
+                      BorderSide(color: Color(0xff4B3425), width: 1.0),
                     ),
                   ),
                   child: const Icon(
@@ -315,22 +417,17 @@ class _ToDoListState extends State<ToDoList> {
               const Text(
                 "Weekly Tasks",
                 style: TextStyle(
-                    fontSize: 50,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xff4B3425)
+                  fontSize: 50,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xff4B3425),
                 ),
               ),
               const SizedBox(height: 10),
               const Text(
                 "Your path to balance, outlined day by day.\nTake a breath and focus on what matters.",
-                style: TextStyle(
-                  color: Color(0xff6D6661),
-                  fontSize: 17,
-                ),
+                style: TextStyle(color: Color(0xff6D6661), fontSize: 17),
               ),
-
               const SizedBox(height: 30),
-
               // Week view
               SizedBox(
                 height: 84,
@@ -339,14 +436,18 @@ class _ToDoListState extends State<ToDoList> {
                   itemCount: week.length,
                   itemBuilder: (context, index) {
                     DateTime date = week[index];
-                    bool isSelected = DateFormat('yyyy-MM-dd').format(date) ==
-                        DateFormat('yyyy-MM-dd').format(selectedDate);
+                    bool isSelected =
+                        DateFormat('yyyy-MM-dd').format(date) ==
+                            DateFormat('yyyy-MM-dd').format(selectedDate);
 
                     return GestureDetector(
                       onTap: () {
                         setState(() {
                           selectedDate = date;
+                          _tasks = [];
+                          _isLoading = true;
                         });
+                        _loadTasks();
                       },
                       child: Container(
                         width: 69,
@@ -356,12 +457,14 @@ class _ToDoListState extends State<ToDoList> {
                               ? const Color(0xFF7C6CA8)
                               : Colors.white,
                           borderRadius: BorderRadius.circular(14),
-                          boxShadow: isSelected ? [
-                            BoxShadow(
-                              color: Colors.black12,
-                              blurRadius: 5,
-                            )
-                          ] : null,
+                          boxShadow: isSelected
+                              ? [
+                                  const BoxShadow(
+                                    color: Colors.black12,
+                                    blurRadius: 5,
+                                  ),
+                                ]
+                              : null,
                         ),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -382,9 +485,7 @@ class _ToDoListState extends State<ToDoList> {
                               style: TextStyle(
                                 fontSize: 22,
                                 fontWeight: FontWeight.w700,
-                                color: isSelected
-                                    ? Colors.white
-                                    : Colors.black,
+                                color: isSelected ? Colors.white : Colors.black,
                               ),
                             ),
                           ],
@@ -394,106 +495,139 @@ class _ToDoListState extends State<ToDoList> {
                   },
                 ),
               ),
-
               const SizedBox(height: 50),
-
               // Today Task Heading
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
                     "Today's Tasks",
-                    style:
-                    TextStyle(
+                    style: TextStyle(
                       fontSize: 23,
                       fontWeight: FontWeight.bold,
                       color: Color(0xff4B3425),
                     ),
                   ),
-                  GestureDetector(
-                    onTap: showAddTaskDialog,
-                    child: const Text(
-                      "Add Task",
-                      style: TextStyle(
-                        color: Color(0xFF7C6CA8),
-                        fontWeight: FontWeight.w500,
-                        fontSize: 15,
+                  if (!_isPastDate)
+                    GestureDetector(
+                      onTap: showAddTaskDialog,
+                      child: const Text(
+                        "Add Task",
+                        style: TextStyle(
+                          color: Color(0xFF7C6CA8),
+                          fontWeight: FontWeight.w500,
+                          fontSize: 15,
+                        ),
                       ),
                     ),
-                  )
                 ],
               ),
-
               const SizedBox(height: 15),
-
               // Task List
               Expanded(
-                child: ListView(
-                  children: getTasksForSelectedDate().map((task) {
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 15),
-                      padding: const EdgeInsets.all(15),
-                      decoration: BoxDecoration(
-                        color: task.isDone
-                            ? Colors.grey.shade300
-                            : Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        children: [
-                          GestureDetector(
-                            onTap: () => toggleTask(task),
-                            child: CircleAvatar(
-                              radius: 12,
-                              backgroundColor: task.isDone
-                                  ? Colors.green
-                                  : Colors.grey.shade300,
-                              child: task.isDone
-                                  ? const Icon(Icons.check, size: 16, color: Colors.white)
-                                  : null,
+                child: _isLoading && _tasks.isEmpty
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          color: Color(0xFF7C6CA8),
+                          strokeWidth: 2.5,
+                        ),
+                      )
+                    : ListView(
+                        children: _tasks.asMap().entries.map((entry) {
+                          final index = entry.key;
+                          final task = entry.value;
+
+                          return Padding(
+                            padding: EdgeInsets.only(
+                              bottom: index == _tasks.length - 1 ? 0 : 15,
                             ),
-                          ),
-                          const SizedBox(width: 15),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  task.title,
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    decoration: task.isDone
-                                        ? TextDecoration.lineThrough
-                                        : null,
-                                  ),
+                            child: Dismissible(
+                              key: ValueKey(task.taskId),
+                              direction: DismissDirection.endToStart,
+                              background: Container(
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFD94F4F),
+                                  borderRadius: BorderRadius.circular(20),
                                 ),
-                                const SizedBox(height: 5),
-                                Row(
+                                alignment: Alignment.centerRight,
+                                padding: const EdgeInsets.only(right: 20),
+                                child: const Icon(
+                                  Icons.delete_outline,
+                                  color: Colors.white,
+                                  size: 28,
+                                ),
+                              ),
+                              onDismissed: (_) => _deleteTask(task),
+                              child: Container(
+                                padding: const EdgeInsets.all(15),
+                                decoration: BoxDecoration(
+                                  color: task.isDone
+                                      ? Colors.grey.shade300
+                                      : Colors.white,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Row(
                                   children: [
-                                    const Icon(
-                                        Icons.access_time,
-                                        size: 16,
-                                        color: Color(0xff4D5558)
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      DateFormat.jm().format(
-                                        DateTime(0, 0, 0, task.time.hour, task.time.minute),
+                                    GestureDetector(
+                                      onTap: () => _toggleTask(task),
+                                      child: CircleAvatar(
+                                        radius: 12,
+                                        backgroundColor: task.isDone
+                                            ? Colors.green
+                                            : Colors.grey.shade300,
+                                        child: task.isDone
+                                            ? const Icon(
+                                                Icons.check,
+                                                size: 16,
+                                                color: Colors.white,
+                                              )
+                                            : null,
                                       ),
-                                      style: const TextStyle(color: Color(0xff4D5558)),
+                                    ),
+                                    const SizedBox(width: 15),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            task.title,
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                              decoration: task.isDone
+                                                  ? TextDecoration.lineThrough
+                                                  : null,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 5),
+                                          Row(
+                                            children: [
+                                              const Icon(
+                                                Icons.access_time,
+                                                size: 16,
+                                                color: Color(0xff4D5558),
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                _formatTaskTime(task.time),
+                                                style: const TextStyle(
+                                                  color: Color(0xff4D5558),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ],
                                 ),
-                              ],
+                              ),
                             ),
-                          )
-                        ],
+                          );
+                        }).toList(),
                       ),
-                    );
-                  }).toList(),
-                ),
-              )
+              ),
             ],
           ),
         ),
