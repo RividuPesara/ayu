@@ -31,9 +31,36 @@ export default function LoginPage() {
   const [otpDestination, setOtpDestination] = useState("");
   const [verificationId, setVerificationId] = useState("");
 
+  const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [otpError, setOtpError] = useState("");
+  const [forgotEmailError, setForgotEmailError] = useState("");
+
+  const isValidEmail = (val: string) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
+
   // LOGIN
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    let hasError = false;
+
+    if (!email.trim()) {
+      setEmailError("Please enter the email");
+      hasError = true;
+    } else {
+      setEmailError("");
+    }
+
+    if (!password.trim()) {
+      setPasswordError("Please enter the password");
+      hasError = true;
+    } else {
+      setPasswordError("");
+    }
+
+    if (hasError) return;
+
     setIsLoading(true);
 
     try {
@@ -60,7 +87,8 @@ export default function LoginPage() {
       setOtp("");
       setOtpMode(true);
     } catch (error: any) {
-      alert(error.message);
+      setEmailError("Invalid email");
+      setPasswordError("Invalid password");
     }
 
     setIsLoading(false);
@@ -69,13 +97,21 @@ export default function LoginPage() {
   // Reset Password
   const handleForgot = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!forgotEmail.trim()) {
+      setForgotEmailError("Please enter the email");
+      return;
+    } else {
+      setForgotEmailError("");
+    }
+
     setIsLoading(true);
 
     try {
       await sendResetEmail(forgotEmail);
       setForgotSent(true);
     } catch (error: any) {
-      alert(error.message);
+      setForgotEmailError("Invalid email");
     }
 
     setIsLoading(false);
@@ -104,8 +140,14 @@ export default function LoginPage() {
       }
 
       const trimmedOtp = otp.trim();
+      if (otp.trim().length === 0) {
+      setOtpError("Please enter the OTP");
+      setIsLoading(false);
+      return;
+    }
       if (!/^\d{6}$/.test(trimmedOtp)) {
-        alert("Please enter a valid 6-digit OTP code.");
+        setOtpError("Please enter a valid 6-digit OTP code.");
+        setIsLoading(false);
         return;
       }
 
@@ -114,11 +156,12 @@ export default function LoginPage() {
       setOtp("");
       setVerificationId("");
       setOtpDestination("");
+      setOtpError("");
 
       router.push(`/user/${currentUser.uid}`);
     } catch (error: any) {
       alert(error.message);
-      setOtpMode(false);
+      setOtpError("Invalid OTP");
     }
 
     setIsLoading(false);
@@ -138,6 +181,7 @@ export default function LoginPage() {
                   setOtp("");
                   setVerificationId("");
                   setOtpDestination("");
+                  setOtpError("");
                 }}
               >
                 ← Back to Login
@@ -168,6 +212,7 @@ export default function LoginPage() {
                         const newOtp = otp.split("");
                         newOtp[i] = e.target.value.replace(/[^0-9]/g, "");
                         setOtp(newOtp.join(""));
+                        if (otpError) setOtpError("");
 
                         if (e.target.value && e.target.nextSibling) {
                           (e.target.nextSibling as HTMLInputElement).focus();
@@ -176,6 +221,7 @@ export default function LoginPage() {
                     />
                   ))}
                 </div>
+                {otpError && <span className="error-msg">{otpError}</span>}
 
                 <button className="btn-primary" disabled={isLoading}>
                   {isLoading ? "Verifying..." : "Verify OTP"}
@@ -202,13 +248,16 @@ export default function LoginPage() {
                   <label className="label">Email</label>
 
                   <input
-                    className="input"
+                    className={`input ${emailError ? "input-error" : ""}`}
                     type="email"
                     placeholder="you@gmail.com"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (emailError) setEmailError("");
+                    }}
                   />
+                  {emailError && <span className="error-msg">{emailError}</span>}
                 </div>
 
                 <div className="field">
@@ -227,14 +276,16 @@ export default function LoginPage() {
                     </button>
                   </div>
 
-                  <div className="input-wrap">
+                  <div className={`input-wrap ${passwordError ? "input-error" : ""}`}>
                     <input
                       className="input"
                       type={showPassword ? "text" : "password"}
                       placeholder="••••••••"
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        if (passwordError) setPasswordError("");
+                      }}
                     />
 
                     <button
@@ -245,6 +296,7 @@ export default function LoginPage() {
                       👁
                     </button>
                   </div>
+                  {passwordError && <span className="error-msg">{passwordError}</span>}
                 </div>
 
                 <button className="btn-primary" disabled={isLoading}>
@@ -259,6 +311,7 @@ export default function LoginPage() {
                 onClick={() => {
                   setForgotMode(false);
                   setForgotSent(false);
+                  setForgotEmailError("");
                 }}
               >
                 ← Back to Login
@@ -287,13 +340,16 @@ export default function LoginPage() {
                   <label className="label">Email</label>
 
                   <input
-                    className="input"
+                    className={`input ${forgotEmailError ? "input-error" : ""}`}
                     type="email"
                     placeholder="you@gmail.com"
                     value={forgotEmail}
-                    onChange={(e) => setForgotEmail(e.target.value)}
-                    required
+                    onChange={(e) => {
+                      setForgotEmail(e.target.value)
+                      if (forgotEmailError) setForgotEmailError("");
+                    }}
                   />
+                  {forgotEmailError && <span className="error-msg">{forgotEmailError}</span>}
                 </div>
 
                 <button
