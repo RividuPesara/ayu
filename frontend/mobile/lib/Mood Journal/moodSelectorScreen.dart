@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:mobile_app/Mood Journal/moodStatusScreen.dart';
 import 'package:mobile_app/Mood Journal/mood_journal_service.dart';
+import 'package:mobile_app/dashboardScreen.dart';
 
 class MoodSelectorScreen extends StatefulWidget {
   const MoodSelectorScreen({super.key});
@@ -69,7 +69,7 @@ class _MoodSelectorScreenState extends State<MoodSelectorScreen> {
       }
       await Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const MoodStatusScreen()),
+        MaterialPageRoute(builder: (_) => const Dashboard()),
       );
       return;
     }
@@ -84,7 +84,7 @@ class _MoodSelectorScreenState extends State<MoodSelectorScreen> {
       if (status.pulseRecordedToday) {
         await Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const MoodStatusScreen()),
+          MaterialPageRoute(builder: (_) => const Dashboard()),
         );
         return;
       }
@@ -110,10 +110,10 @@ class _MoodSelectorScreenState extends State<MoodSelectorScreen> {
   }
 
   void _updatePointerFromLocalPosition(
-    Offset localPosition,
-    Size size,
-    double wheelHeight,
-  ) {
+      Offset localPosition,
+      Size size,
+      double wheelHeight,
+      ) {
     final double centerX = size.width / 2;
     final double centerY = size.height;
 
@@ -158,7 +158,7 @@ class _MoodSelectorScreenState extends State<MoodSelectorScreen> {
       unawaited(_submitPulseInBackground(selectedMood));
       await Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const MoodStatusScreen()),
+        MaterialPageRoute(builder: (_) => const Dashboard()),
       );
     } catch (_) {
       if (!mounted) {
@@ -299,20 +299,20 @@ class _MoodSelectorScreenState extends State<MoodSelectorScreen> {
                       ),
                       child: _isSubmittingPulse
                           ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
                           : const Text(
-                              'Let’s Check In',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                        'Let’s Check In',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ),
                 ),
