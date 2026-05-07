@@ -395,7 +395,7 @@ class _ToDoListState extends State<ToDoList> {
               // Header
               const SizedBox(height: 18),
               GestureDetector(
-                onTap: () {},
+                onTap: () => Navigator.pop(context),
                 child: Container(
                   width: 58,
                   height: 58,

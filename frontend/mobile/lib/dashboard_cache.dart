@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'Tracker/tracker_service.dart';
+import 'Todo List/task_service.dart';
+import 'core/network/backend_connector.dart';
 
 class DashboardCache {
   DashboardCache._();
@@ -12,6 +15,7 @@ class DashboardCache {
   String? avatarUrl;
   String quote = '';
   List<ScheduleItem> todayMeds = [];
+  List<TaskItem> todayTasks = [];
   bool isReady = false;
 
   Completer<void>? _completer;
@@ -95,16 +99,16 @@ class DashboardCache {
     if (_completer != null) return _completer!.future;
     _completer = Completer<void>();
 
-    Future.wait([_loadUser(), _loadMeds()])
+    Future.wait([_loadUser(), _loadMeds(), _loadTasks()])
         .then((_) async {
-      await _precacheAvatar();
-      isReady = true;
-      _completer!.complete();
-    })
+          await _precacheAvatar();
+          isReady = true;
+          _completer!.complete();
+        })
         .catchError((_) {
-      isReady = true;
-      _completer!.complete();
-    });
+          isReady = true;
+          _completer!.complete();
+        });
 
     return _completer!.future;
   }
@@ -116,7 +120,7 @@ class DashboardCache {
       final done = Completer<void>();
       stream.addListener(
         ImageStreamListener(
-              (_, _) {
+          (_, _) {
             if (!done.isCompleted) done.complete();
           },
           onError: (_, _) {
@@ -136,6 +140,12 @@ class DashboardCache {
     } catch (_) {}
   }
 
+  Future<void> refreshTasks() async {
+    try {
+      todayTasks = await TaskRepository.instance.fetchTasks(adjustedDayKey());
+    } catch (_) {}
+  }
+
   void invalidate() {
     _completer = null;
     isReady = false;
@@ -143,23 +153,48 @@ class DashboardCache {
     avatarUrl = null;
     quote = '';
     todayMeds = [];
+    todayTasks = [];
+  }
+
+  Future<void> _loadTasks() async {
+    final dateKey = adjustedDayKey();
+    final repo = TaskRepository.instance;
+    await repo.loadCachedTasks(dateKey);
+    todayTasks = repo.tasksFor(dateKey);
+    if (!repo.hasFreshCache(dateKey)) {
+      try {
+        todayTasks = await repo.fetchTasks(dateKey);
+      } catch (_) {}
+    }
   }
 
   Future<void> _loadUser() async {
     final uid = resolveUid();
-    if (uid == null) {
+    if (uid != null) {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+      final data = doc.data();
+      fullName = data?['fullName'] as String? ?? '';
+      final avatar = data?['avatar'] as String?;
+      avatarUrl = (avatar != null && avatar.isNotEmpty) ? avatar : null;
+      quote = _pickQuote(data?['religion'] as String?);
+    } else {
+      // Dev mode
       quote = _pickQuote(null);
-      return;
+      try {
+        final response = await BackendConnector.instance.get(
+          '/patient/profile',
+        );
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body) as Map<String, dynamic>;
+          fullName = data['full_name'] as String? ?? '';
+          final avatar = data['avatar_url'] as String?;
+          avatarUrl = (avatar != null && avatar.isNotEmpty) ? avatar : null;
+        }
+      } catch (_) {}
     }
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .get();
-    final data = doc.data();
-    fullName = data?['fullName'] as String? ?? '';
-    final avatar = data?['avatar'] as String?;
-    avatarUrl = (avatar != null && avatar.isNotEmpty) ? avatar : null;
-    quote = _pickQuote(data?['religion'] as String?);
   }
 
   Future<void> _loadMeds() async {

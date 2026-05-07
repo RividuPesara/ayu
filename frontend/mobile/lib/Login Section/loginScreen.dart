@@ -6,6 +6,7 @@ import 'package:mobile_app/Login%20Section/emailVerificationScreen.dart';
 import 'package:mobile_app/Login%20Section/otpScreen.dart';
 import 'package:mobile_app/Login%20Section/signUpScreen.dart';
 import 'package:mobile_app/Login Section/forgotPasswordScreen.dart';
+import 'package:mobile_app/Mood Journal/moodSelectorScreen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -75,7 +76,16 @@ class _LoginScreenState extends State<LoginScreen> {
 
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => OtpScreen(session: session)),
+        MaterialPageRoute(
+          builder: (context) => OtpScreen(
+            session: session,
+            onVerified: () => Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (_) => const MoodSelectorScreen()),
+              (route) => false,
+            ),
+          ),
+        ),
       );
     } catch (error) {
       _setError(_formatError(error));

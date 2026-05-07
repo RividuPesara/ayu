@@ -100,6 +100,16 @@ flutter:
     - assets/faces/anxiety.png
     - assets/faces/happy.png
     - assets/faces/normal.png
+
+    - assets/dashboard/chatbot.png
+    - assets/dashboard/community_chat.png
+    - assets/dashboard/connect_companion.png
+    - assets/dashboard/connect_doctor.png
+    - assets/dashboard/donation_request.png
+    - assets/dashboard/emergency.png
+    - assets/dashboard/mood_journal.png
+    - assets/dashboard/to_do_list.png
+    - assets/dashboard/tracking_system.png
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

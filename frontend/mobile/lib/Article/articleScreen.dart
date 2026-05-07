@@ -104,7 +104,7 @@ class _ArticleScreenState extends State<ArticleScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   GestureDetector(
-                    // onTap: () { dashboard(); },
+                    onTap: () => Navigator.pop(context),
                     child: Container(
                       width: 58,
                       height: 58,
