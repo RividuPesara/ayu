@@ -5,6 +5,7 @@ from typing import Any
 
 from fastapi import HTTPException, status
 from firebase_admin import firestore
+from google.cloud.firestore_v1.base_query import FieldFilter
 
 from app.core.firebase import get_firestore_client
 from app.core.redis_client import get_redis
@@ -116,7 +117,7 @@ def _recompute_session_aggregates(session_id: str) -> dict[str, Any]:
     db = get_firestore_client()
     snapshots = (
         db.collection(MESSAGES_COLLECTION)
-        .where("sessionId", "==", session_id)
+        .where(filter=FieldFilter("sessionId", "==", session_id))
         .stream()
     )
 
@@ -252,8 +253,8 @@ def list_sessions(uid: str) -> list[SessionResponse]:
     db = get_firestore_client()
     snapshots = (
         db.collection(SESSIONS_COLLECTION)
-        .where("userId", "==", uid)
-        .where("status", "==", "active")
+        .where(filter=FieldFilter("userId", "==", uid))
+        .where(filter=FieldFilter("status", "==", "active"))
         .order_by("lastMessageAt", direction=firestore.Query.DESCENDING)
         .stream()
     )
@@ -331,7 +332,7 @@ def get_conversation_history(session_id: str) -> list[dict[str, str]]:
     db = get_firestore_client()
     snapshots = list(
         db.collection(MESSAGES_COLLECTION)
-        .where("sessionId", "==", session_id)
+        .where(filter=FieldFilter("sessionId", "==", session_id))
         .order_by("timestamp", direction=firestore.Query.DESCENDING)
         .limit(CONVERSATION_HISTORY_LIMIT)
         .stream()
@@ -549,7 +550,7 @@ def archive_all_sessions(uid: str) -> int:
     db = get_firestore_client()
     snapshots = (
         db.collection(SESSIONS_COLLECTION)
-        .where("userId", "==", uid)
+        .where(filter=FieldFilter("userId", "==", uid))
         .stream()
     )
 
@@ -585,9 +586,9 @@ def get_unsummarized_sessions(uid: str) -> list[dict]:
     db = get_firestore_client()
     snapshots = (
         db.collection(SESSIONS_COLLECTION)
-        .where("userId", "==", uid)
-        .where("isSummarized", "==", False)
-        .where("status", "==", "active")
+        .where(filter=FieldFilter("userId", "==", uid))
+        .where(filter=FieldFilter("isSummarized", "==", False))
+        .where(filter=FieldFilter("status", "==", "active"))
         .stream()
     )
     results = []
@@ -614,7 +615,7 @@ def list_messages(
 
     query = (
         db.collection(MESSAGES_COLLECTION)
-        .where("sessionId", "==", session_id)
+        .where(filter=FieldFilter("sessionId", "==", session_id))
         .order_by("timestamp", direction=firestore.Query.DESCENDING)
     )
 

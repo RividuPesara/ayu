@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile_app/Community/community_service.dart';
 
 class CreatePostScreen extends StatefulWidget {
   const CreatePostScreen({super.key});
@@ -11,6 +12,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   final TextEditingController _controller = TextEditingController();
 
   bool isEnabled = false;
+  bool isPosting = false;
 
   @override
   void initState() {
@@ -21,6 +23,42 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         isEnabled = _controller.text.trim().isNotEmpty;
       });
     });
+  }
+
+  Future<void> _handlePost() async {
+    final text = _controller.text.trim();
+
+    if (text.isEmpty || isPosting) return;
+
+    try {
+      setState(() {
+        isPosting = true;
+      });
+
+      await CommunityApiService.createPost(
+        type: "story",
+        title: "",
+        content: text,
+      );
+
+      if (!mounted) return;
+      Navigator.pop(context);
+    } catch (e) {
+      debugPrint("Create post error: $e");
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Failed to create post"),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isPosting = false;
+        });
+      }
+    }
   }
 
   @override
@@ -47,7 +85,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                 children: [
                   //Cancel Button
                   TextButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: isPosting ? null : () => Navigator.pop(context),
                     style: TextButton.styleFrom(
                       padding: EdgeInsets.zero,
                       minimumSize: const Size(60, 36),
@@ -67,11 +105,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   SizedBox(
                     height: 42,
                     child: ElevatedButton(
-                      onPressed: isEnabled
-                          ? () {
-                        print("Post: ${_controller.text}");
-                      }
-                          : null,
+                      onPressed: isEnabled && !isPosting ? _handlePost : null,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: purple,
                         elevation: 0,
@@ -81,14 +115,23 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                         ),
                       ).copyWith(
                         backgroundColor:
-                        MaterialStateProperty.resolveWith((states) {
-                          if (states.contains(MaterialState.disabled)) {
+                        WidgetStateProperty.resolveWith((states) {
+                          if (states.contains(WidgetState.disabled)) {
                             return purple.withOpacity(0.4);
                           }
                           return purple;
                         }),
                       ),
-                      child: const Text(
+                      child: isPosting
+                          ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                      : const Text(
                         "Post",
                         style: TextStyle(
                           fontSize: 19,
@@ -128,6 +171,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     Expanded(
                       child: TextField(
                         controller: _controller,
+                        enabled: !isPosting,
                         autofocus: true,
                         maxLines: null,
                         keyboardType: TextInputType.multiline,

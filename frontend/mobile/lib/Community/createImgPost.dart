@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
+import 'package:mobile_app/Community/community_service.dart';
 
 class CreateImgPostScreen extends StatefulWidget {
   const CreateImgPostScreen({super.key});
@@ -16,6 +17,7 @@ class _CreateImgPostScreenState extends State<CreateImgPostScreen> {
   File? _image;
 
   bool isEnabled = false;
+  bool isPosting = false;
 
   @override
   void initState() {
@@ -36,6 +38,35 @@ class _CreateImgPostScreenState extends State<CreateImgPostScreen> {
         _image = File(picked.path);
         isEnabled = true;
       });
+    }
+  }
+
+  Future<void> _handlePost() async {
+    if (_image == null || isPosting) return;
+
+    try {
+      setState(() {
+        isPosting = true;
+      });
+
+      final imageUrl = await CommunityApiService.uploadImage(_image!.path);
+
+      await CommunityApiService.createPost(
+        type: "photo",
+        caption: _controller.text.trim(),
+        imageURL: imageUrl,
+      );
+
+      if (!mounted) return;
+      Navigator.pop(context);
+    } catch (e) {
+      debugPrint("Create image post error: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          isPosting = false;
+        });
+      }
     }
   }
 
@@ -62,7 +93,7 @@ class _CreateImgPostScreenState extends State<CreateImgPostScreen> {
               child: Row(
                 children: [
                   TextButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: isPosting ? null : () => Navigator.pop(context),
                     style: TextButton.styleFrom(
                       padding: EdgeInsets.zero,
                       minimumSize: const Size(60, 36),
@@ -81,11 +112,7 @@ class _CreateImgPostScreenState extends State<CreateImgPostScreen> {
                   SizedBox(
                     height: 42,
                     child: ElevatedButton(
-                      onPressed: isEnabled
-                          ? () {
-                        print("Post: ${_controller.text}");
-                      }
-                          : null,
+                      onPressed: isEnabled && !isPosting ? _handlePost : null,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: purple,
                         elevation: 0,
@@ -95,14 +122,23 @@ class _CreateImgPostScreenState extends State<CreateImgPostScreen> {
                         ),
                       ).copyWith(
                         backgroundColor:
-                        MaterialStateProperty.resolveWith((states) {
-                          if (states.contains(MaterialState.disabled)) {
+                        WidgetStateProperty.resolveWith((states) {
+                          if (states.contains(WidgetState.disabled)) {
                             return purple.withOpacity(0.4);
                           }
                           return purple;
                         }),
                       ),
-                      child: const Text(
+                      child: isPosting
+                          ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                          : const Text(
                         "Post",
                         style: TextStyle(
                           fontSize: 19,
@@ -121,7 +157,7 @@ class _CreateImgPostScreenState extends State<CreateImgPostScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 19),
               child: GestureDetector(
-                onTap: _pickImage,
+                onTap: isPosting ? null : _pickImage,
                 child: Container(
                   height: 220,
                   width: double.infinity,
@@ -186,6 +222,7 @@ class _CreateImgPostScreenState extends State<CreateImgPostScreen> {
                     Expanded(
                       child: TextField(
                         controller: _controller,
+                        enabled: !isPosting,
                         maxLines: null,
                         keyboardType: TextInputType.multiline,
                         decoration: const InputDecoration(

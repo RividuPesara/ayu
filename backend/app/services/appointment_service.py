@@ -3,6 +3,7 @@ from typing import Any
 
 from fastapi import HTTPException, status
 from firebase_admin import firestore
+from google.cloud.firestore_v1.base_query import FieldFilter
 
 from app.core.config import get_settings
 from app.core.firebase import get_firestore_client
@@ -81,8 +82,8 @@ def list_available_slots(payload: AppointmentSlotsRequest) -> AppointmentSlotsRe
         db = get_firestore_client()
         snapshots = (
             db.collection(APPOINTMENTS_COLLECTION)
-            .where("doctorUid", "==", payload.doctor_uid)
-            .where("date", "in", date_keys)
+            .where(filter=FieldFilter("doctorUid", "==", payload.doctor_uid))
+            .where(filter=FieldFilter("date", "in", date_keys))
             .stream()
         )
         for snapshot in snapshots:
@@ -156,7 +157,7 @@ def list_patient_appointments(uid: str) -> list[PatientAppointment]:
     db = get_firestore_client()
     snapshots = (
         db.collection(APPOINTMENTS_COLLECTION)
-        .where("patientUid", "==", uid)
+        .where(filter=FieldFilter("patientUid", "==", uid))
         .stream()
     )
     # Apply runtime status for patient appointments using dashboard timezone.

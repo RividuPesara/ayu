@@ -94,6 +94,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
+  const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [otpError, setOtpError] = useState("");
+
   const [isLoading, setIsLoading] = useState(false);
   const [cooldownRemainingMs, setCooldownRemainingMs] = useState(0);
   // Store the last login identifier from a failed attempt so a page refresh doesn't make the browser forget the active cooldown.
@@ -186,11 +190,30 @@ export default function LoginPage() {
     setMfaResolver(null);
     setOtpFlowType(null);
     setOtpDestination("your phone");
+    setOtpError("");
   }
 
   // LOGIN
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    let hasValidationError = false;
+
+    if (!email.trim()) {
+      setEmailError("Please enter the username");
+      hasValidationError = true;
+    } else {
+      setEmailError("");
+    }
+
+    if (!password) {
+      setPasswordError("Please enter the password");
+      hasValidationError = true;
+    } else {
+      setPasswordError("");
+    }
+
+    if (hasValidationError) return;
 
     const availability = canAttemptLogin(loginCooldownKey);
     if (!availability.allowed) {
@@ -289,6 +312,18 @@ export default function LoginPage() {
       }
 
       const errorCode = readErrorCode(error);
+
+      if (
+        errorCode === "auth/user-not-found" ||
+        errorCode === "auth/invalid-email" ||
+        errorCode === "auth/invalid-credential"
+      ) {
+        setEmailError("Invalid username");
+        setPasswordError("Invalid password");
+      } else if (errorCode === "auth/wrong-password") {
+        setPasswordError("Invalid password");
+      }
+
       if (errorCode && errorCode.startsWith("auth/")) {
         // Remember this identifier so the same browser session still sees the cooldown even after a refresh is done
         setPersistedLoginCooldownIdentifier("email-password", email.trim() || loginIdentifier);
@@ -302,7 +337,14 @@ export default function LoginPage() {
         }
       }
 
+      if (
+        errorCode !== "auth/user-not-found" &&
+        errorCode !== "auth/invalid-email" &&
+        errorCode !== "auth/wrong-password" &&
+        errorCode !== "auth/invalid-credential"
+      ) {
       alert(getErrorMessage(error));
+      }
     } finally {
       setIsLoading(false);
     }
@@ -327,6 +369,20 @@ export default function LoginPage() {
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+
+    if (otp.trim().length === 0) {
+      setOtpError("Please enter the OTP");
+      setIsLoading(false);
+      return;
+    }
+
+    if (!/^\d{6}$/.test(otp.trim())) {
+      setOtpError("Please enter a valid 6-digit OTP code.");
+      setIsLoading(false);
+      return;
+    }
+
+    setOtpError("");
 
     try {
       if (!verificationId || !otpFlowType) {
@@ -372,7 +428,14 @@ export default function LoginPage() {
       await verifyDoctorRoleAndRedirect();
       return;
     } catch (error: unknown) {
-      alert(getErrorMessage(error));
+      if (
+        hasErrorCode(error, "auth/invalid-verification-code") ||
+        hasErrorCode(error, "auth/code-expired")
+      ) {
+        setOtpError("Invalid OTP");
+      } else {
+        alert(getErrorMessage(error));
+      }
     } finally {
       setIsLoading(false);
     }
@@ -413,12 +476,13 @@ export default function LoginPage() {
                       key={i}
                       type="text"
                       maxLength={1}
-                      className="otp-input"
+                      className={`otp-input${otpError ? " input-error" : ""}`}
                       value={otp[i] || ""}
                       onChange={(e) => {
                         const newOtp = otp.split("");
                         newOtp[i] = e.target.value.replace(/[^0-9]/g, "");
                         setOtp(newOtp.join(""));
+                        if (otpError) setOtpError("");
 
                         if (e.target.value && e.target.nextSibling) {
                           (e.target.nextSibling as HTMLInputElement).focus();
@@ -427,6 +491,7 @@ export default function LoginPage() {
                     />
                   ))}
                 </div>
+                {otpError && <p className="field-error">{otpError}</p>}
 
                 <button className="btn-primary" disabled={isLoading}>
                   {isLoading ? "Verifying..." : "Verify OTP"}
@@ -453,13 +518,16 @@ export default function LoginPage() {
                   <label className="label">Email</label>
 
                   <input
-                    className="input"
+                    className={`input${emailError ? " input-error" : ""}`}
                     type="email"
                     placeholder="you@gmail.com"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
+                    onChange={(e) => {
+                      setEmail(e.target.value)
+                      if (emailError) setEmailError("");
+                    }}
                   />
+                  {emailError && <p className="field-error">{emailError}</p>}
                 </div>
 
                 <div className="field">
@@ -480,12 +548,14 @@ export default function LoginPage() {
 
                   <div className="input-wrap">
                     <input
-                      className="input"
+                      className={`input${passwordError ? " input-error" : ""}`}
                       type={showPassword ? "text" : "password"}
                       placeholder="••••••••"
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
+                      onChange={(e) => {
+                        setPassword(e.target.value)
+                        if (passwordError) setPasswordError("");
+                      }}
                     />
 
                     <button
@@ -496,6 +566,7 @@ export default function LoginPage() {
                       👁
                     </button>
                   </div>
+                  {passwordError && <p className="field-error">{passwordError}</p>}
                 </div>
 
                 <button className="btn-primary" disabled={isLoading || cooldownRemainingMs > 0}>

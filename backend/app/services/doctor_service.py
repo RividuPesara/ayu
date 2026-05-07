@@ -10,6 +10,7 @@ import cloudinary
 from cloudinary.uploader import upload as cloudinary_upload
 from fastapi import HTTPException, status
 from firebase_admin import firestore
+from google.cloud.firestore_v1.base_query import FieldFilter
 
 from app.core.config import get_settings
 from app.core.firebase import get_firestore_client
@@ -377,7 +378,7 @@ def appointment_sort_key(appointment: Appointment) -> tuple[int, int, str]:
 def find_doctor_appointments(uid: str, limit: int) -> list[Appointment]:
     db = get_firestore_client()
     appointments_collection = db.collection("appointments")
-    snapshots = appointments_collection.where(APPOINTMENT_OWNER_FIELD, "==", uid).limit(limit).stream()
+    snapshots = appointments_collection.where(filter=FieldFilter(APPOINTMENT_OWNER_FIELD, "==", uid)).limit(limit).stream()
     return [map_appointment(snapshot.id, snapshot.to_dict() or {}) for snapshot in snapshots]
 
 

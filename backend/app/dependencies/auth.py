@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from app.core.config import get_settings
 from app.core.firebase import verify_firebase_token
-from app.services.user_service import detect_user_role, extract_uid_from_token
+from app.services.user_service import detect_user_role, extract_uid_from_token, get_account_status
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -106,6 +106,20 @@ async def get_current_user(
     None, functools.partial(_resolve_user_blocking, credentials.credentials),
   )
 
+def _check_account_status(uid: str) -> None:
+  acct_status = get_account_status(uid)
+  if acct_status == "archived":
+    raise HTTPException(
+      status_code=status.HTTP_403_FORBIDDEN,
+      detail="This account has been deleted.",
+    )
+  if acct_status == "suspended":
+    raise HTTPException(
+      status_code=status.HTTP_403_FORBIDDEN,
+      detail="This account has been suspended.",
+    )
+
+
 # Allow only users with doctor role
 async def require_doctor_user(
   user: Annotated[CurrentUser, Depends(get_current_user)],
@@ -120,6 +134,8 @@ async def require_doctor_user(
 async def require_doctor_access(
   user: Annotated[CurrentUser, Depends(require_doctor_user)],
 ) -> CurrentUser:
+  loop = asyncio.get_running_loop()
+  await loop.run_in_executor(None, functools.partial(_check_account_status, user.uid))
   return user
 
 # Allow only users with patient role
@@ -131,14 +147,19 @@ async def require_patient_access(
       status_code=status.HTTP_403_FORBIDDEN,
       detail="Patient role required.",
     )
+  loop = asyncio.get_running_loop()
+  await loop.run_in_executor(None, functools.partial(_check_account_status, user.uid))
   return user
 
 # Allows companions to access patient endpoints
-async def require_patient_or_companion_access(user: Annotated[CurrentUser, Depends(get_current_user)],
+async def require_patient_or_companion_access(
+  user: Annotated[CurrentUser, Depends(get_current_user)],
 ) -> CurrentUser:
   if user.role not in ("patient", "companion"):
     raise HTTPException(
       status_code=status.HTTP_403_FORBIDDEN,
       detail="Patient or companion role required.",
     )
+  loop = asyncio.get_running_loop()
+  await loop.run_in_executor(None, functools.partial(_check_account_status, user.uid))
   return user
