@@ -247,11 +247,28 @@ export default function LoginPage() {
       }
 
       const uid = auth.currentUser?.uid;
-      resetOtpState();
+      if (!uid) {
+        alert("User not found. Please log in again.");
+        resetOtpState();
+        return;
+      }
       router.push(`/user/${uid}`);
     } catch (error: any) {
-      alert(error.message);
-      setOtpError("Invalid OTP");
+      let seconds = 4;
+
+      setOtpError(`Invalid OTP. Please re-enter in ${seconds}s`);
+
+      const countdown = setInterval(() => {
+        seconds--;
+
+        if (seconds > 0) {
+          setOtpError(`Invalid OTP. Please re-enter in ${seconds}s`);
+        } else {
+          clearInterval(countdown);
+          setOtp("");
+          setOtpError("");
+        }
+      }, 1000);
     } finally {
       setIsLoading(false);
     }
