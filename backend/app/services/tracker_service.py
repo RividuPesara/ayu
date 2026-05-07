@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
 from firebase_admin import firestore
+from google.cloud.firestore_v1.base_query import FieldFilter
 from google.api_core import exceptions as api_exceptions
 
 from app.core.config import get_settings
@@ -146,7 +147,7 @@ def list_medications(uid: str) -> list[MedicationResponse]:
         db = get_firestore_client()
         snapshots = (
             db.collection(MEDICATIONS_COLLECTION)
-            .where("userId", "==", uid)
+            .where(filter=FieldFilter("userId", "==", uid))
             .order_by("createdAt", direction=firestore.Query.ASCENDING)
             .stream()
         )
@@ -240,8 +241,8 @@ def get_day_schedule(uid: str, date_key: str) -> dict[str, Any]:
         # to avoid a Firestore multi-inequality compound index requirement
         med_snapshots = (
             db.collection(MEDICATIONS_COLLECTION)
-            .where("userId", "==", uid)
-            .where("repeatUntil", ">=", date_key)
+            .where(filter=FieldFilter("userId", "==", uid))
+            .where(filter=FieldFilter("repeatUntil", ">=", date_key))
             .stream()
         )
 
@@ -254,8 +255,8 @@ def get_day_schedule(uid: str, date_key: str) -> dict[str, Any]:
         # Fetch all logs created for this user on this date
         log_snapshots = (
             db.collection(MEDICATION_LOGS_COLLECTION)
-            .where("userId", "==", uid)
-            .where("dateKey", "==", date_key)
+            .where(filter=FieldFilter("userId", "==", uid))
+            .where(filter=FieldFilter("dateKey", "==", date_key))
             .stream()
         )
 

@@ -2,6 +2,8 @@ from typing import Any
 
 from fastapi import HTTPException, status
 
+from google.cloud.firestore_v1.base_query import FieldFilter
+
 from app.core.firebase import get_firestore_client
 from app.schemas.doctors import DoctorSummary
 
@@ -47,7 +49,7 @@ def list_doctors(limit: int = DEFAULT_DOCTOR_LIMIT) -> list[DoctorSummary]:
     db = get_firestore_client()
     snapshots = (
         db.collection(USERS_COLLECTION)
-        .where("role", "==", "doctor")
+        .where(filter=FieldFilter("role", "==", "doctor"))
         .limit(limit)
         .stream()
     )
