@@ -5,10 +5,12 @@ import 'package:mobile_app/Donation/uploadDocScreen.dart';
 
 class DocumentStatusScreen extends StatelessWidget {
   final String status;
+  final String? rejectionReason;
 
   const DocumentStatusScreen({
     super.key,
     required this.status,
+    this.rejectionReason,
   });
 
   bool get isPending => status == 'pending';
@@ -38,7 +40,9 @@ class DocumentStatusScreen extends StatelessWidget {
     final String description = isApproved
         ? 'Your credentials and documentation\nhave been verified by our compliance team.'
         : isRejected
-        ? "We couldn't verify your identity with the documents provided.\nPlease review the notes below."
+        ? (rejectionReason != null && rejectionReason!.isNotEmpty
+            ? rejectionReason!
+            : "We couldn't verify your identity with the documents provided.")
         : 'Your document is currently being reviewed by our admins.\nResults will be provided soon.';
 
     final String buttonText = isApproved
@@ -177,6 +181,7 @@ class DocumentStatusScreen extends StatelessWidget {
                         height: 1.4,
                       ),
                     ),
+
                   ],
                 ),
               ),

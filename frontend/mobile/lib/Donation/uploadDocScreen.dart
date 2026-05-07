@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:mobile_app/Donation/donation_service.dart';
+import 'package:mobile_app/Donation/docStatusScreen.dart';
 
 class UploadDocumentScreen extends StatefulWidget {
   const UploadDocumentScreen({super.key});
@@ -15,22 +17,67 @@ class _UploadDocumentScreenState extends State<UploadDocumentScreen> {
   final FocusNode _titleFocusNode = FocusNode();
 
   String selectedFileName = "No file chosen";
+  List<int>? fileBytes;
+  String? fileMime;
+  bool isSubmitting = false;
 
   Future<void> _pickFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+      withData: true,
     );
 
     if (result != null && result.files.isNotEmpty) {
       setState(() {
         selectedFileName = result.files.single.name;
+        fileBytes = result.files.single.bytes;
+        fileMime = DonationService.mimeFromFilename(result.files.single.name);
       });
     }
   }
 
   void _editTitle() {
     _titleFocusNode.requestFocus();
+  }
+
+  Future<void> _submit() async {
+    if (fileBytes == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please choose a file first.')),
+      );
+      return;
+    }
+
+    setState(() => isSubmitting = true);
+
+    try {
+      await DonationService().submitDonation(
+        bytes: fileBytes!,
+        filename: selectedFileName,
+        contentType: fileMime!,
+      );
+
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const DocumentStatusScreen(status: 'pending'),
+        ),
+      );
+    } on DonationConflictException {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You already have an active donation application.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Submission failed. Please try again.')),
+      );
+    } finally {
+      if (mounted) setState(() => isSubmitting = false);
+    }
   }
 
   @override
@@ -265,26 +312,35 @@ class _UploadDocumentScreenState extends State<UploadDocumentScreen> {
                       borderRadius: BorderRadius.circular(30),
                     ),
                   ),
-                  onPressed: () {},
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        "Submit Document",
-                        style: TextStyle(
-                          fontSize: 21,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
+                  onPressed: isSubmitting ? null : _submit,
+                  child: isSubmitting
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2.5,
+                          ),
+                        )
+                      : const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              "Submit Document",
+                              style: TextStyle(
+                                fontSize: 21,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                            SizedBox(width: 10),
+                            Icon(
+                              Icons.check,
+                              size: 20,
+                              color: Colors.white,
+                            ),
+                          ],
                         ),
-                      ),
-                      SizedBox(width: 10),
-                      Icon(
-                        Icons.check,
-                        size: 20,
-                        color: Colors.white,
-                      ),
-                    ],
-                  ),
                 ),
               ),
 
