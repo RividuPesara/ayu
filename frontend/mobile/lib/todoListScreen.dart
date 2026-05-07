@@ -144,7 +144,6 @@ class _ToDoListState extends State<ToDoList> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
-
               title: const Text(
                 "Add Task",
                 style: TextStyle(
@@ -153,7 +152,6 @@ class _ToDoListState extends State<ToDoList> {
                   color: Color(0xFF4B3425),
                 ),
               ),
-
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -169,7 +167,6 @@ class _ToDoListState extends State<ToDoList> {
                     ),
                   ),
                   const SizedBox(height: 8),
-
                   TextField(
                     controller: nameController,
                     decoration: InputDecoration(
@@ -190,9 +187,7 @@ class _ToDoListState extends State<ToDoList> {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 16),
-
                   const Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
@@ -205,8 +200,6 @@ class _ToDoListState extends State<ToDoList> {
                     ),
                   ),
                   const SizedBox(height: 12),
-
-                  // Time selection button
                   GestureDetector(
                     onTap: () async {
                       final picked = await showTimePicker(
@@ -257,7 +250,6 @@ class _ToDoListState extends State<ToDoList> {
                       ),
                     ),
                   ),
-
                   if (isTimeMissing)
                     const Align(
                       alignment: Alignment.centerLeft,
@@ -268,7 +260,6 @@ class _ToDoListState extends State<ToDoList> {
                     ),
                 ],
               ),
-
               actions: [
                 const SizedBox(height: 12),
                 Row(
@@ -436,9 +427,7 @@ class _ToDoListState extends State<ToDoList> {
                 "Your path to balance, outlined day by day.\nTake a breath and focus on what matters.",
                 style: TextStyle(color: Color(0xff6D6661), fontSize: 17),
               ),
-
               const SizedBox(height: 30),
-
               // Week view
               SizedBox(
                 height: 84,
@@ -449,7 +438,7 @@ class _ToDoListState extends State<ToDoList> {
                     DateTime date = week[index];
                     bool isSelected =
                         DateFormat('yyyy-MM-dd').format(date) ==
-                        DateFormat('yyyy-MM-dd').format(selectedDate);
+                            DateFormat('yyyy-MM-dd').format(selectedDate);
 
                     return GestureDetector(
                       onTap: () {
@@ -506,9 +495,7 @@ class _ToDoListState extends State<ToDoList> {
                   },
                 ),
               ),
-
               const SizedBox(height: 50),
-
               // Today Task Heading
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -535,9 +522,7 @@ class _ToDoListState extends State<ToDoList> {
                     ),
                 ],
               ),
-
               const SizedBox(height: 15),
-
               // Task List
               Expanded(
                 child: _isLoading && _tasks.isEmpty

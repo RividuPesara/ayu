@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     ollama_host: str | None = None
     ollama_model: str = Field(default="qwen3.5:9b", validation_alias="MODEL")
 
+    sendgrid_api_key: str | None = None
+    sendgrid_from_email: str | None = None
     # Provider selection gemini or ollama
     chatbot_provider: str = "gemini"
     video_provider: str = "ollama"
