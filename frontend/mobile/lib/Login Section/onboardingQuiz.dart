@@ -1,4 +1,7 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:mobile_app/homeScreen.dart' show WelcomeScreen;
 
 class Quiz extends StatefulWidget {
   const Quiz({super.key});
@@ -28,12 +31,41 @@ class _QuizState extends State<Quiz> {
   int month = 1;
   int year = 2000;
 
+  String _cancerType = '';
+  bool _dobEntered = false;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkIfAlreadyCompleted();
+  }
+
+  Future<void> _checkIfAlreadyCompleted() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
+    if (!mounted) return;
+
+    final profile = doc.data()?['patientProfile'];
+    if (profile is Map && (profile['interests'] as List?)?.isNotEmpty == true) {
+      Navigator.pop(context);
+    }
+  }
+
   void nextPage() {
+    if (_isSaving) return;
     if (currentPage < 6) {
       _controller.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.ease,
       );
+    } else {
+      _saveQuizData();
     }
   }
 
@@ -43,6 +75,97 @@ class _QuizState extends State<Quiz> {
         duration: const Duration(milliseconds: 300),
         curve: Curves.ease,
       );
+    }
+  }
+
+  static const _genderLabels = [
+    'Male',
+    'Female',
+    'Transgender',
+    'Prefer not to say',
+  ];
+  static const _moodLabels = [
+    'Happy & excited',
+    'Calm & okay',
+    'A little sad',
+    'Worried or scared',
+  ];
+  static const _religionLabels = [
+    'Christian',
+    'Muslim',
+    'Buddhist',
+    'Hindu',
+    'Other',
+    'Prefer not to say',
+  ];
+  static const _stageLabels = ['Early', 'Advanced', 'In remission', 'Not sure'];
+  static const _treatmentLabels = [
+    'Chemotherapy',
+    'Surgery',
+    'Radiation',
+    'None right now',
+  ];
+  static const _interestLabels = [
+    'Calm & peaceful',
+    'Educational',
+    'Documentary',
+    'Science',
+    'Songs & music',
+  ];
+
+  Future<void> _saveQuizData() async {
+    if (interests.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select at least one story type you enjoy.'),
+        ),
+      );
+      return;
+    }
+
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    setState(() => _isSaving = true);
+
+    try {
+      final patientProfile = <String, dynamic>{
+        'interests': interests.map((i) => _interestLabels[i]).toList(),
+        if (mood != null) 'initialMood': _moodLabels[mood!],
+        if (_cancerType.isNotEmpty) 'cancerType': _cancerType,
+        if (stage != null) 'cancerStage': _stageLabels[stage!],
+        if (treatment != null) 'currentTreatment': _treatmentLabels[treatment!],
+      };
+
+      final updates = <String, dynamic>{
+        'updatedAt': FieldValue.serverTimestamp(),
+        if (gender != null) 'gender': _genderLabels[gender!],
+        if (religion != null) 'religion': _religionLabels[religion!],
+        if (_dobEntered)
+          'dateOfBirth':
+              '$year-${month.toString().padLeft(2, '0')}-${day.toString().padLeft(2, '0')}',
+        // Write each patientProfile field individually to avoid clobbering
+        for (final entry in patientProfile.entries)
+          'patientProfile.${entry.key}': entry.value,
+      };
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .update(updates);
+
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not save profile: $e')));
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
@@ -182,7 +305,7 @@ class _QuizState extends State<Quiz> {
                     size: 35,
                   ),
                 ),
-              )
+              ),
             ],
           ),
         ),
@@ -191,10 +314,7 @@ class _QuizState extends State<Quiz> {
   }
 
   // Shared Quiz Container
-  Widget quizContainer({
-    required Widget child,
-    required int index,
-  }) {
+  Widget quizContainer({required Widget child, required int index}) {
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -254,11 +374,7 @@ class _QuizState extends State<Quiz> {
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        Icons.arrow_back,
-                        color: Colors.white,
-                        size: 35,
-                      ),
+                      Icon(Icons.arrow_back, color: Colors.white, size: 35),
                       SizedBox(width: 15),
                       Text(
                         "Back",
@@ -271,7 +387,7 @@ class _QuizState extends State<Quiz> {
                   ),
                 ),
                 ElevatedButton(
-                  onPressed: nextPage,
+                  onPressed: _isSaving ? null : nextPage,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xff4B3425),
                     foregroundColor: Colors.white,
@@ -280,25 +396,34 @@ class _QuizState extends State<Quiz> {
                       horizontal: 32,
                     ),
                   ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        "Next",
-                        style: TextStyle(
-                          fontSize: 25,
-                          color: Color(0xffF7F4F2),
+                  child: _isSaving && index == 5
+                      ? const SizedBox(
+                          width: 28,
+                          height: 28,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 3,
+                          ),
+                        )
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              index == 5 ? "Finish" : "Next",
+                              style: const TextStyle(
+                                fontSize: 25,
+                                color: Color(0xffF7F4F2),
+                              ),
+                            ),
+                            const SizedBox(width: 15),
+                            const Icon(
+                              Icons.arrow_forward,
+                              color: Colors.white,
+                              size: 35,
+                            ),
+                          ],
                         ),
-                      ),
-                      SizedBox(width: 15),
-                      Icon(
-                        Icons.arrow_forward,
-                        color: Colors.white,
-                        size: 35,
-                      ),
-                    ],
-                  ),
-                )
+                ),
               ],
             ),
           ),
@@ -384,6 +509,7 @@ class _QuizState extends State<Quiz> {
                           onChanged: (value) {
                             setState(() {
                               day = int.tryParse(value) ?? day;
+                              _dobEntered = true;
                             });
                           },
                         ),
@@ -431,6 +557,7 @@ class _QuizState extends State<Quiz> {
                           onChanged: (value) {
                             setState(() {
                               month = int.tryParse(value) ?? month;
+                              _dobEntered = true;
                             });
                           },
                         ),
@@ -478,6 +605,7 @@ class _QuizState extends State<Quiz> {
                           onChanged: (value) {
                             setState(() {
                               year = int.tryParse(value) ?? year;
+                              _dobEntered = true;
                             });
                           },
                         ),
@@ -512,7 +640,7 @@ class _QuizState extends State<Quiz> {
       "How do you describe yourself?",
       ["Male", "Female", "Transgender", "Prefer not to say"],
       gender,
-          (v) => setState(() => gender = v),
+      (v) => setState(() => gender = v),
       subtitle: "Tell us a bit about you",
     );
   }
@@ -530,11 +658,9 @@ class _QuizState extends State<Quiz> {
         "Songs & music",
       ],
       interests,
-          (i) {
+      (i) {
         setState(() {
-          interests.contains(i)
-              ? interests.remove(i)
-              : interests.add(i);
+          interests.contains(i) ? interests.remove(i) : interests.add(i);
         });
       },
       subtitle: "Pick what sounds fun to you!\n(You can choose more than one)",
@@ -546,19 +672,14 @@ class _QuizState extends State<Quiz> {
     return singleChoiceQuiz(
       3,
       "How are you feeling right now?",
-      [
-        "Happy & excited",
-        "Calm & okay",
-        "A little sad",
-        "Worried or scared"
-      ],
+      ["Happy & excited", "Calm & okay", "A little sad", "Worried or scared"],
       mood,
-          (v) => setState(() => mood = v),
+      (v) => setState(() => mood = v),
       subtitle: "There's no wrong answer.\nJust tell us honestly",
     );
   }
 
-// Religion Quiz
+  // Religion Quiz
   Widget religionQuiz() {
     return singleChoiceQuiz(
       4,
@@ -569,17 +690,17 @@ class _QuizState extends State<Quiz> {
         "Buddhist",
         "Hindu",
         "Other",
-        "Prefer not to say"
+        "Prefer not to say",
       ],
       religion,
-          (v) => setState(() => religion = v),
+      (v) => setState(() => religion = v),
       subtitle: "Totally optional.\nThis helps us customize your journey",
     );
   }
 
   // Stage Button Widget
 
-// Medical Quiz
+  // Medical Quiz
   Widget medicalQuiz() {
     return quizContainer(
       index: 5,
@@ -604,10 +725,7 @@ class _QuizState extends State<Quiz> {
             const Text(
               "Tell us about your health (all optional)",
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 22,
-                color: Color(0xff6D6661),
-              ),
+              style: TextStyle(fontSize: 22, color: Color(0xff6D6661)),
             ),
 
             const SizedBox(height: 30),
@@ -631,8 +749,8 @@ class _QuizState extends State<Quiz> {
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(34),
                       border: Border.all(
-                        color: const Color(0xffCCC4BE),  // Outer border color
-                        width: 5,  // Outer border width
+                        color: const Color(0xffCCC4BE), // Outer border color
+                        width: 5, // Outer border width
                       ),
                     ),
                     child: Container(
@@ -640,10 +758,12 @@ class _QuizState extends State<Quiz> {
                       height: 120,
                       decoration: BoxDecoration(
                         color: const Color(0xffF4F1EC),
-                        borderRadius: BorderRadius.circular(30),  // Inner border radius
+                        borderRadius: BorderRadius.circular(
+                          30,
+                        ), // Inner border radius
                         border: Border.all(
-                          color: const Color(0xff4B3425),  // Inner border color
-                          width: 1.5,  // Inner border width
+                          color: const Color(0xff4B3425), // Inner border color
+                          width: 1.5, // Inner border width
                         ),
                       ),
                       // User input test field
@@ -656,8 +776,11 @@ class _QuizState extends State<Quiz> {
                         decoration: InputDecoration(
                           hintText: "e.g., Leukemia, Lymphoma, etc.",
                           hintStyle: const TextStyle(
-                            fontSize: 22,  // Hint text size (can be different from input)
-                            color: Color(0xff878E96),  // Hint text color (usually lighter)
+                            fontSize:
+                                22, // Hint text size (can be different from input)
+                            color: Color(
+                              0xff878E96,
+                            ), // Hint text color (usually lighter)
                             fontWeight: FontWeight.w400,
                           ),
                           border: InputBorder.none,
@@ -666,8 +789,10 @@ class _QuizState extends State<Quiz> {
                             vertical: 7,
                           ),
                         ),
+                        onChanged: (value) => _cancerType = value.trim(),
                       ),
-                    ),)
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -727,7 +852,7 @@ class _QuizState extends State<Quiz> {
                       "Chemotherapy",
                       "Surgery",
                       "Radiation",
-                      "None right now"
+                      "None right now",
                     ],
                     selectedValue: treatment,
                     onChanged: (value) {
@@ -779,7 +904,9 @@ class _QuizState extends State<Quiz> {
           color: isSelected ? const Color(0xff7B6BA8) : Colors.white,
           borderRadius: BorderRadius.circular(35),
           border: Border.all(
-            color: isSelected ? const Color(0xff7B6BA8) : const Color(0xffCCC4BE),
+            color: isSelected
+                ? const Color(0xff7B6BA8)
+                : const Color(0xffCCC4BE),
             width: 2,
           ),
         ),
@@ -806,15 +933,15 @@ class _QuizState extends State<Quiz> {
               ),
               child: isSelected
                   ? Center(
-                child: Container(
-                  width: 12,
-                  height: 12,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white,
-                  ),
-                ),
-              )
+                      child: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white,
+                        ),
+                      ),
+                    )
                   : null,
             ),
           ],
@@ -835,7 +962,6 @@ class _QuizState extends State<Quiz> {
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-
         // Options Container
         Container(
           constraints: BoxConstraints(
@@ -854,10 +980,14 @@ class _QuizState extends State<Quiz> {
                   onTap: () => onChanged(i),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: isSelected ? const Color(0xff7B6BA8) : Colors.white,
+                      color: isSelected
+                          ? const Color(0xff7B6BA8)
+                          : Colors.white,
                       borderRadius: BorderRadius.circular(35),
                       border: Border.all(
-                        color: isSelected ? const Color(0xff7B6BA8) : const Color(0xffCCC4BE),
+                        color: isSelected
+                            ? const Color(0xff7B6BA8)
+                            : const Color(0xffCCC4BE),
                         width: 2,
                       ),
                     ),
@@ -896,15 +1026,15 @@ class _QuizState extends State<Quiz> {
                             ),
                             child: isSelected
                                 ? Center(
-                              child: Container(
-                                width: 12,
-                                height: 12,
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Color(0xffFFFFFF),
-                                ),
-                              ),
-                            )
+                                    child: Container(
+                                      width: 12,
+                                      height: 12,
+                                      decoration: const BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: Color(0xffFFFFFF),
+                                      ),
+                                    ),
+                                  )
                                 : null,
                           ),
                         ],
@@ -923,13 +1053,13 @@ class _QuizState extends State<Quiz> {
 
   // Multi Choice
   Widget multiChoiceQuiz(
-      int index,
-      String title,
-      List<String> options,
-      Set<int> selectedValues,
-      Function(int) onChanged, {
-        String? subtitle,
-      }) {
+    int index,
+    String title,
+    List<String> options,
+    Set<int> selectedValues,
+    Function(int) onChanged, {
+    String? subtitle,
+  }) {
     return quizContainer(
       index: index,
       child: Center(
@@ -1025,15 +1155,15 @@ class _QuizState extends State<Quiz> {
                                   ),
                                   child: isSelected
                                       ? Center(
-                                    child: Container(
-                                      width: 12,
-                                      height: 12,
-                                      decoration: const BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: Color(0xffFFFFFF),
-                                      ),
-                                    ),
-                                  )
+                                          child: Container(
+                                            width: 12,
+                                            height: 12,
+                                            decoration: const BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: Color(0xffFFFFFF),
+                                            ),
+                                          ),
+                                        )
                                       : null,
                                 ),
                               ],
@@ -1055,13 +1185,13 @@ class _QuizState extends State<Quiz> {
 
   // Single Choice
   Widget singleChoiceQuiz(
-      int index,
-      String title,
-      List<String> options,
-      int? groupValue,
-      Function(int) onChanged, {
-        String? subtitle,
-      }) {
+    int index,
+    String title,
+    List<String> options,
+    int? groupValue,
+    Function(int) onChanged, {
+    String? subtitle,
+  }) {
     return quizContainer(
       index: index,
       child: Center(
@@ -1157,15 +1287,15 @@ class _QuizState extends State<Quiz> {
                                   ),
                                   child: isSelected
                                       ? Center(
-                                    child: Container(
-                                      width: 12,
-                                      height: 12,
-                                      decoration: const BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: Color(0xffFFFFFF),
-                                      ),
-                                    ),
-                                  )
+                                          child: Container(
+                                            width: 12,
+                                            height: 12,
+                                            decoration: const BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: Color(0xffFFFFFF),
+                                            ),
+                                          ),
+                                        )
                                       : null,
                                 ),
                               ],
