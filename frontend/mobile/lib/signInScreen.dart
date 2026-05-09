@@ -3,16 +3,24 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mobile_app/Login%20Section/loginScreen.dart';
+import 'package:mobile_app/Login%20Section/termsOfServices.dart';
+import 'package:mobile_app/Login%20Section/privacyPolicy.dart';
 
 class SignInScreen extends StatelessWidget {
   const SignInScreen({super.key});
 
-  void _openTerms() {
-
+  void _openTerms(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => TermsOfServiceScreen()),
+    );
   }
 
-  void _openPrivacy() {
-
+  void _openPrivacy(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => PrivacyPolicyScreen()),
+    );
   }
 
   @override
@@ -41,7 +49,10 @@ class SignInScreen extends StatelessWidget {
               child: Container(
                 width: double.infinity,
                 height: MediaQuery.of(context).size.height * 0.50,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 48,
+                ),
                 decoration: const BoxDecoration(
                   color: Colors.white,
                   boxShadow: [
@@ -67,7 +78,9 @@ class SignInScreen extends StatelessWidget {
                         ),
                         children: [
                           const TextSpan(
-                              text: "\nLet's get you started! How would you like to "),
+                            text:
+                                "\nLet's get you started! How would you like to ",
+                          ),
                           const TextSpan(
                             text: "sign in",
                             style: TextStyle(color: Color(0xFF9BB068)),
@@ -135,7 +148,9 @@ class SignInScreen extends StatelessWidget {
                         onPressed: () {
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => LoginScreen()),
+                            MaterialPageRoute(
+                              builder: (context) => LoginScreen(),
+                            ),
                           );
                         },
                         child: Row(
@@ -175,7 +190,9 @@ class SignInScreen extends StatelessWidget {
                           color: Color(0xFF4B3425),
                         ),
                         children: [
-                          const TextSpan(text: "By continuing, you agree to\nour "),
+                          const TextSpan(
+                            text: "By continuing, you agree to\nour ",
+                          ),
                           TextSpan(
                             text: "Terms of Service",
                             style: const TextStyle(
@@ -183,7 +200,8 @@ class SignInScreen extends StatelessWidget {
                               fontWeight: FontWeight.w600,
                               decoration: TextDecoration.underline,
                             ),
-                            recognizer: TapGestureRecognizer()..onTap = _openTerms,
+                            recognizer: TapGestureRecognizer()
+                              ..onTap = () => _openTerms(context),
                           ),
                           const TextSpan(text: " and "),
                           TextSpan(
@@ -193,7 +211,8 @@ class SignInScreen extends StatelessWidget {
                               fontWeight: FontWeight.w600,
                               decoration: TextDecoration.underline,
                             ),
-                            recognizer: TapGestureRecognizer()..onTap = _openPrivacy,
+                            recognizer: TapGestureRecognizer()
+                              ..onTap = () => _openPrivacy(context),
                           ),
                         ],
                       ),
@@ -214,10 +233,7 @@ class TopArcClipper extends CustomClipper<Path> {
   Path getClip(Size size) {
     final path = Path();
     path.moveTo(0, 60);
-    path.quadraticBezierTo(
-      size.width / 2, 0,
-      size.width, 60,
-    );
+    path.quadraticBezierTo(size.width / 2, 0, size.width, 60);
     path.lineTo(size.width, size.height);
     path.lineTo(0, size.height);
     path.close();
