@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:mobile_app/core/network/backend_connector.dart';
 import 'package:mobile_app/splashScreen.dart';
 
+final RouteObserver<ModalRoute<void>> routeObserver =
+    RouteObserver<ModalRoute<void>>();
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
@@ -28,6 +31,7 @@ class MyApp extends StatelessWidget {
         colorScheme: .fromSeed(seedColor: Colors.deepPurple),
         fontFamily: 'Urbanist',
       ),
+      navigatorObservers: [routeObserver],
       home: SplashScreen(),
     );
   }

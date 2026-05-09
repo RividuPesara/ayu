@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile_app/main.dart';
 import 'dashboard_cache.dart';
 import 'package:intl/intl.dart';
 import 'Chatbot/chatbotScreen.dart';
@@ -25,7 +26,7 @@ class Dashboard extends StatefulWidget {
   State<Dashboard> createState() => _DashboardState();
 }
 
-class _DashboardState extends State<Dashboard> {
+class _DashboardState extends State<Dashboard> with RouteAware {
   int _currentPage = 0;
   int _selectedIndex = 0;
 
@@ -66,6 +67,24 @@ class _DashboardState extends State<Dashboard> {
         if (mounted) setState(_readFromCache);
       });
     }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    routeObserver.subscribe(this, ModalRoute.of(context)!);
+  }
+
+  @override
+  void dispose() {
+    routeObserver.unsubscribe(this);
+    super.dispose();
+  }
+
+  @override
+  void didPopNext() {
+    _refreshTodayMeds();
+    _refreshTodayTasks();
   }
 
   void _onItemTapped(int index) {
@@ -135,7 +154,7 @@ class _DashboardState extends State<Dashboard> {
         Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => const TrackerScreen()),
-        );
+        ).then((_) => _refreshTodayMeds());
       },
     },
     {
@@ -576,7 +595,7 @@ class _DashboardState extends State<Dashboard> {
             Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => const TrackerScreen()),
-            );
+            ).then((_) => _refreshTodayMeds());
           },
           backgroundColor: const Color(0xff7C63B8),
           elevation: 0,
@@ -640,7 +659,7 @@ class _DashboardState extends State<Dashboard> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => TrackerScreen()),
-                    );
+                    ).then((_) => _refreshTodayMeds());
                   },
                   child: BottomNavIcon(
                     icon: Icons.bar_chart_rounded,
@@ -805,6 +824,17 @@ class _DashboardState extends State<Dashboard> {
         ],
       ),
     );
+  }
+
+  void _refreshTodayMeds() {
+    final dateKey = DashboardCache.adjustedDayKey();
+    final repo = TrackerRepository.instance;
+    if (mounted) setState(() => _todayMeds = repo.scheduleFor(dateKey));
+    repo.invalidateDate(dateKey);
+    repo.fetchSchedule(dateKey).then((fresh) {
+      DashboardCache.instance.todayMeds = fresh;
+      if (mounted) setState(() => _todayMeds = fresh);
+    }).catchError((_) {});
   }
 
   void _refreshTodayTasks() {

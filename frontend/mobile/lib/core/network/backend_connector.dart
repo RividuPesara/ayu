@@ -22,15 +22,9 @@ class BackendConnector {
     TokenProvider? tokenProvider,
     String? fallbackToken,
   }) {
-    if (baseUrl != null) {
-      _baseUrlOverride = baseUrl;
-    }
-    if (tokenProvider != null) {
-      _tokenProvider = tokenProvider;
-    }
-    if (fallbackToken != null) {
-      _fallbackToken = fallbackToken;
-    }
+    if (baseUrl != null) _baseUrlOverride = baseUrl;
+    if (tokenProvider != null) _tokenProvider = tokenProvider;
+    if (fallbackToken != null) _fallbackToken = fallbackToken;
   }
 
   String get baseUrl {
@@ -165,12 +159,14 @@ class BackendConnector {
     req.headers.addAll(
       await buildHeaders(extra: headers, includeJsonContentType: false),
     );
-    req.files.add(http.MultipartFile.fromBytes(
-      field,
-      bytes,
-      filename: filename,
-      contentType: contentType != null ? MediaType.parse(contentType) : null,
-    ));
+    req.files.add(
+      http.MultipartFile.fromBytes(
+        field,
+        bytes,
+        filename: filename,
+        contentType: contentType != null ? MediaType.parse(contentType) : null,
+      ),
+    );
     final streamed = await req.send();
     return http.Response.fromStream(streamed);
   }

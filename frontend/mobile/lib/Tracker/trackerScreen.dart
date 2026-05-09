@@ -1319,14 +1319,11 @@ class _TrackerScreenState extends State<TrackerScreen> {
                                     tempId,
                                     med,
                                   );
-                                  repo.invalidateDate(dateKey);
-                                  repo.fetchSchedule(dateKey).then((items) {
-                                    if (mounted) {
-                                      setState(
-                                            () => _scheduleItems = items,
-                                      );
-                                    }
-                                  });
+                                  if (mounted) {
+                                    setState(
+                                      () => _scheduleItems = repo.scheduleFor(dateKey),
+                                    );
+                                  }
                                 })
                                     .catchError((_) {
                                   repo.removeOptimisticItems(
@@ -1335,8 +1332,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
                                   );
                                   if (mounted) {
                                     setState(
-                                          () => _scheduleItems = repo
-                                          .scheduleFor(dateKey),
+                                      () => _scheduleItems = repo.scheduleFor(dateKey),
                                     );
                                   }
                                 });

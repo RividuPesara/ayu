@@ -131,11 +131,8 @@ class DashboardCache {
   }
 
   Future<void> refreshMeds() async {
-    try {
-      todayMeds = await TrackerRepository.instance.fetchSchedule(
-        adjustedDayKey(),
-      );
-    } catch (_) {}
+    TrackerRepository.instance.invalidateDate(adjustedDayKey());
+    await _loadMeds();
   }
 
   Future<void> refreshTasks() async {
