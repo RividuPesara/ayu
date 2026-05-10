@@ -5,7 +5,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 
 from app.core import chatbot_engine
@@ -126,7 +126,7 @@ async def archive_all_chat_sessions(
 
 # Send a message and receive Ayu's response
 @router.post("/sessions/{session_id}/messages", response_model=ChatResponse)
-async def send_message(session_id: str,payload: SendMessageRequest,user : CurrentUser = Depends(require_patient_access),
+async def send_message(session_id: str, payload: SendMessageRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_patient_access),
 ) -> ChatResponse:
     # Validate session ownership and gather all Firestore context concurrently
     _, conversation_history, aggregates, long_term_summary = (
@@ -160,13 +160,14 @@ async def send_message(session_id: str,payload: SendMessageRequest,user : Curren
         "triggered_by": result["triggered_by"],
     }
 
-    # Persist both the patient message and Ayu's reply then remove the history cache
+    # both message saves must complete before returning so the next request sees full history
     message_id = await _run_sync(
         save_patient_message, session_id, user.uid, payload.content, analysis
     )
     await _run_sync(save_chatbot_message, session_id, user.uid, result["response"])
-    await _run_sync(update_session_stats, session_id, result["sentiment"], result["safety_flag"])
-    await _run_sync(invalidate_conversation_history, session_id)
+    # stats update and cache invalidation don't affect the next request's correctness
+    background_tasks.add_task(_run_sync, update_session_stats, session_id, result["sentiment"], result["safety_flag"])
+    background_tasks.add_task(_run_sync, invalidate_conversation_history, session_id)
 
     return ChatResponse(
         response = result["response"],

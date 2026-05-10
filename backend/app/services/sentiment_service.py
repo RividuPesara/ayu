@@ -180,24 +180,18 @@ def remove_patterns(text: str) -> str:
     return text.strip()
 
 
-def _get_wordnet_pos(word: str):
-    # map pos tag for better lemmatization
-    tag = nltk.pos_tag([word])[0][1][0].upper()
+def _wordnet_pos(treebank_tag: str):
     tag_map = {'J': wordnet.ADJ, 'V': wordnet.VERB, 'R': wordnet.ADV}
-    return tag_map.get(tag, wordnet.NOUN)
+    return tag_map.get(treebank_tag[0].upper() if treebank_tag else 'N', wordnet.NOUN)
 
 
 def lemmatize_text(text: str) -> str:
-    # convert words to base form
-    tokens = word_tokenize(text)
-    result = []
-    for token in tokens:
-        if not token.isalpha():
-            continue
-        pos = _get_wordnet_pos(token)
-        lemma = _lemmatizer.lemmatize(token, pos)
-        result.append(lemma)
-    return ' '.join(result)
+    # pos_tag called once for the full token list, not once per word
+    tokens = [t for t in word_tokenize(text) if t.isalpha()]
+    if not tokens:
+        return ''
+    tagged = nltk.pos_tag(tokens)
+    return ' '.join(_lemmatizer.lemmatize(tok, _wordnet_pos(tag)) for tok, tag in tagged)
 
 # Feature engineering
 def _count_lexicon(text: str, lexicon: set) -> int:
@@ -236,41 +230,43 @@ def _avg_word_length(text: str) -> float:
     return sum(len(w) for w in words) / len(words)
 
 
+def _build_features_for_text(text: str) -> np.ndarray:
+    # extract numerical features directly from a single text string — no pandas overhead
+    return np.array([[
+        len(text),
+        len(sent_tokenize(text)),
+        len(text.split()),
+        _avg_word_length(text),
+        _exclamation_count(text),
+        _question_count(text),
+        _caps_ratio(text),
+        _has_negation(text),
+        _count_lexicon(text, JOY_WORDS),
+        _count_lexicon(text, ANXIETY_WORDS),
+        _count_lexicon(text, STRESS_WORDS),
+        _count_lexicon(text, DEPRESSION_WORDS),
+        _count_lexicon(text, SUICIDAL_WORDS),
+    ]], dtype=float)
+
+
 def build_features(df: pd.DataFrame) -> np.ndarray:
-    # extract numerical features from text
-    features = pd.DataFrame()
-    features['num_chars'] = df['text'].str.len()
-    features['num_sentences'] = df['text'].apply(lambda x: len(sent_tokenize(str(x))))
-    features['num_words'] = df['text'].str.split().str.len()
-    features['avg_word_len'] = df['text'].apply(_avg_word_length)
-    features['exclamation'] = df['text'].apply(_exclamation_count)
-    features['question'] = df['text'].apply(_question_count)
-    features['caps_ratio'] = df['text'].apply(_caps_ratio)
-    features['has_negation'] = df['text'].apply(_has_negation)
-
-    # emotion scores from lexicons
-    features['joy_score'] = df['text'].apply(lambda x: _count_lexicon(x, JOY_WORDS))
-    features['anxiety_score'] = df['text'].apply(lambda x: _count_lexicon(x, ANXIETY_WORDS))
-    features['stress_score'] = df['text'].apply(lambda x: _count_lexicon(x, STRESS_WORDS))
-    features['depression_score'] = df['text'].apply(lambda x: _count_lexicon(x, DEPRESSION_WORDS))
-    features['suicidal_score'] = df['text'].apply(lambda x: _count_lexicon(x, SUICIDAL_WORDS))
-
-    return features.values
+    # kept for any external callers; delegates to the single-text helper
+    return np.vstack([_build_features_for_text(str(t)) for t in df['text']])
 
 
-def _preprocess(text: str):
-    # clean and convert text into model input
-    clean = lemmatize_text(remove_patterns(fix_encoding(text)))
-    row = pd.DataFrame([{'text': text}])
+def _preprocess(text: str, clean: str | None = None):
+    # clean and convert text into model input; accepts pre-computed clean string to avoid double lemmatization
+    if clean is None:
+        clean = lemmatize_text(remove_patterns(fix_encoding(text)))
     uni = _tfidf_uni.transform([clean])
     bi = _tfidf_bi.transform([clean])
-    num = csr_matrix(build_features(row))
+    num = csr_matrix(_build_features_for_text(text))
     return hstack([uni, bi, num])
 
 
-def predict_label(text: str) -> dict:
-    # run all models and combine predictions
-    X = _preprocess(text)
+def predict_label(text: str, clean: str | None = None) -> dict:
+    # run all models and combine predictions  and accepts precomputed clean string to avoid double lemmatization
+    X = _preprocess(text, clean=clean)
 
     lr_proba = _lr_model.predict_proba(X)[0]
     xgb_proba = _xgb_model.predict_proba(X)[0]
@@ -298,11 +294,12 @@ def predict_label(text: str) -> dict:
 
 
 def analyze_safety(user_text: str) -> dict:
-    # detect crisis using keyword and model
+    # detect crisis using keyword and model; lemmatize once and reuse across predict_label and has_medical_vocabulary
     lower = user_text.lower()
     keyword_hit = any(kw in lower for kw in KEYWORD_CRISIS)
 
-    model_detail = predict_label(user_text)
+    clean = lemmatize_text(remove_patterns(fix_encoding(user_text)))
+    model_detail = predict_label(user_text, clean=clean)
     model_label = model_detail['final_label']
     suicidal_score = model_detail['scores'].get('Suicidal', 0)
 
@@ -329,11 +326,13 @@ def analyze_safety(user_text: str) -> dict:
         'suicidal_confidence': suicidal_score,
         'model_scores': model_detail.get('scores', {}),
         'model_detail': model_detail,
+        '_clean': clean,
     }
 
 
-def has_medical_vocabulary(query: str) -> bool:
-    # check if query contains medical terms from training vocabulary
-    clean = lemmatize_text(remove_patterns(fix_encoding(query)))
+def has_medical_vocabulary(query: str, clean: str | None = None) -> bool:
+    # check if query contains medical terms from training vocabulary; accepts pre-computed clean string
+    if clean is None:
+        clean = lemmatize_text(remove_patterns(fix_encoding(query)))
     vec = _tfidf_uni.transform([clean])
     return vec.nnz > 0

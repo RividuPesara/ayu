@@ -58,7 +58,7 @@ NEVER mention, reference, or allude to anything from that memory unless the user
 If the user says "hi" or starts small talk, respond only to what they just said. Pretend you do not remember anything from before.
 The memory is only for silent context — to adjust your tone and give accurate medical advice — NOT to bring up past events."""
 
-CRISIS_HARDCODED_PREFIX = "I'm here with you."
+CRISIS_HARDCODED_PREFIX = "I'm here with you"
 
 CRISIS_FALLBACK_TEMPLATES = [
     "I'm here with you right now. If you're in danger, call 1990. Are you safe?",
@@ -303,18 +303,7 @@ def _search_knowledge(query: str, top_n: int = 2) -> list[dict]:
             "lexical" : _lexical_score(doc, query_terms),
         }
 
-    # Add manual keyword matches
-    for doc in _split_docs:
-        key = _doc_key(doc)
-        lex= _lexical_score(doc, query_terms)
-        if lex <= 0:
-            continue
-        if key not in combined:
-            combined[key] = {"doc": doc, "semantic": 0.0, "lexical": lex}
-        else:
-            combined[key]["lexical"] = max(combined[key]["lexical"], lex)
-
-    # Rank by combined semantic and lexical scores
+    # Rank by combined semantic and lexical scores (lexical only re-scores the 20 semantic hits)
     ranked = sorted(
         combined.values(),
         key=lambda r: r["semantic"] + 0.25 * r["lexical"],
@@ -511,7 +500,7 @@ def _stream_with_gemini(user_prompt: str, is_crisis: bool = False):
 
 def _generate_with_ollama(user_prompt: str, is_crisis: bool = False) -> str:
     try:
-        full_prompt = f"\n{SYSTEM_PROMPT}\n\nFollow the system instructions above strictly.\n\n{user_prompt}"
+        full_prompt = f"{SYSTEM_PROMPT}\n\n{user_prompt}"
         response = _ollama_client.chat(
             model=_ollama_model,
             messages=[{"role": "user", "content": full_prompt}],
@@ -522,7 +511,10 @@ def _generate_with_ollama(user_prompt: str, is_crisis: bool = False) -> str:
         elif isinstance(response, dict):
             raw = str(response.get("message", {}).get("content", ""))
         raw = raw.strip()
-        return raw if raw else _fallback_text_for_error("unknown", is_crisis)
+        if not raw:
+            logger.warning("Ollama returned empty response for model %s", _ollama_model)
+            return _fallback_text_for_error("unknown", is_crisis)
+        return raw
     except Exception as exc:
         logger.warning("Ollama chat failed: %s", exc)
         return _fallback_text_for_error("unknown", is_crisis)
@@ -530,7 +522,7 @@ def _generate_with_ollama(user_prompt: str, is_crisis: bool = False) -> str:
 
 def _stream_with_ollama(user_prompt: str, is_crisis: bool = False):
     try:
-        full_prompt = f"\n{SYSTEM_PROMPT}\n\nFollow the system instructions above strictly.\n\n{user_prompt}"
+        full_prompt = f"{SYSTEM_PROMPT}\n\n{user_prompt}"
         for chunk in _ollama_client.chat(
             model=_ollama_model,
             messages=[{"role": "user", "content": full_prompt}],
@@ -761,37 +753,31 @@ def _handle_crisis_response(
     history_context = _format_history_for_prompt(conversation_history, max_turns=4)
     memory_block = _build_memory_block(long_term_summary)
 
-    prompt = f"""CRISIS SITUATION - Someone may be in danger.
+    prompt = f"""CRISIS SITUATION — someone may be in danger.
 
-CRITICAL INSTRUCTION:
-A short message has ALREADY been sent to them: "{CRISIS_HARDCODED_PREFIX}"
+The message stream has already started with: "{CRISIS_HARDCODED_PREFIX}"
 
-Your job is to write ONLY what comes AFTER that opening message.
-Do NOT repeat or rephrase "{CRISIS_HARDCODED_PREFIX}" in any way.
+Your job is to write ONLY the continuation — the text that comes directly after "{CRISIS_HARDCODED_PREFIX}".
 
-Your continuation should:
-1. Keep them talking - ask if they're safe right now or if someone is with them
-2. Show genuine care without sounding clinical or robotic
-3. Gently mention calling 1990 (ambulance) if they're in immediate danger
-4. Keep your tone calm, warm, and human - like a caring friend who's genuinely worried
-5. Be brief and direct - this is urgent
+HOW TO CONTINUE:
+- Start with a comma or conjunction so it reads as one natural sentence, e.g. ", and I hear you." or " — what you're feeling sounds incredibly heavy."
+- After that first connecting phrase, acknowledge what they specifically said in your own warm words. Do NOT be generic.
+- Then gently ask one simple question — are they safe, is anyone with them, or what's happening right now.
+- If there is immediate danger, mention calling 1990 once, naturally — not as a robotic instruction.
+- Keep it short, warm, human. Like a close friend who just heard something that scared them.
+- Do NOT repeat "{CRISIS_HARDCODED_PREFIX}". Do NOT start with "I'm here".
 
 {memory_block}
 
 Recent conversation:
 {history_context}
 
-Session stats: {user_summary}
-
-Detected emotion: {persona_packet['sentiment_label']}
-
 What they just said: {persona_packet['user_message']}
-
-Remember: Just write the continuation. The opening "{CRISIS_HARDCODED_PREFIX}" is already there.
+Their emotion: {persona_packet['sentiment_label']}
 """
 
     continuation = _invoke_llm(prompt, is_crisis=True).strip()
-    return f"{CRISIS_HARDCODED_PREFIX} {continuation}"
+    return f"{CRISIS_HARDCODED_PREFIX}{continuation}"
 
 
 def _handle_knowledge_based_response(
@@ -875,6 +861,7 @@ def process_user_message(
 ) -> dict:
     # Main chatbot pipeline where it checks safety, gets info if needed and generates a response
     safety_report = analyze_safety(user_message)
+    _clean = safety_report.get("_clean")
 
     if safety_report["safety_flag"] == "crisis":
         knowledge_context = {
@@ -886,7 +873,7 @@ def process_user_message(
             "retrieval_skipped": True,
             "skip_reason": "crisis_mode",
         }
-    elif not has_medical_vocabulary(user_message):
+    elif not has_medical_vocabulary(user_message, clean=_clean):
         knowledge_context = {
             "user_message": user_message,
             "knowledge_found": False,
@@ -947,33 +934,27 @@ long_term_summary: str = "",
         memory_block = _build_memory_block(long_term_summary)
 
     if handler_type == "crisis":
-        return f"""CRISIS SITUATION - Someone may be in danger.
+        return f"""CRISIS SITUATION — someone may be in danger.
 
-CRITICAL INSTRUCTION:
-A short message has ALREADY been sent to them: "{CRISIS_HARDCODED_PREFIX}"
+The message stream has already started with: "{CRISIS_HARDCODED_PREFIX}"
 
-Your job is to write ONLY what comes AFTER that opening message.
-Do NOT repeat or rephrase "{CRISIS_HARDCODED_PREFIX}" in any way.
+Your job is to write ONLY the continuation — the text that comes directly after "{CRISIS_HARDCODED_PREFIX}".
 
-Your continuation should:
-1. Keep them talking - ask if they're safe right now or if someone is with them
-2. Show genuine care without sounding clinical or robotic
-3. Gently mention calling 1990 (ambulance) if they're in immediate danger
-4. Keep your tone calm, warm, and human - like a caring friend who's genuinely worried
-5. Be brief and direct - this is urgent
+HOW TO CONTINUE:
+- Start with a comma or conjunction so it reads as one natural sentence, e.g. ", and I hear you." or " — what you're feeling sounds incredibly heavy."
+- After that first connecting phrase, acknowledge what they specifically said in your own warm words. Do NOT be generic.
+- Then gently ask one simple question — are they safe, is anyone with them, or what's happening right now.
+- If there is immediate danger, mention calling 1990 once, naturally — not as a robotic instruction.
+- Keep it short, warm, human. Like a close friend who just heard something that scared them.
+- Do NOT repeat "{CRISIS_HARDCODED_PREFIX}". Do NOT start with "I'm here".
 
 {memory_block}
 
 Recent conversation:
 {history_context}
 
-Session stats: {user_summary}
-
-Detected emotion: {persona_packet['sentiment_label']}
-
 What they just said: {persona_packet['user_message']}
-
-Remember: Just write the continuation. The opening "{CRISIS_HARDCODED_PREFIX}" is already there.
+Their emotion: {persona_packet['sentiment_label']}
 """
 
     if handler_type == "knowledge":
@@ -1033,6 +1014,7 @@ def prepare_streaming_context(
 ) -> dict:
     # Runs safety check, retrieval, and prompt building and returns data needed for streaming without calling Gemini
     safety_report = analyze_safety(user_message)
+    _clean = safety_report.get("_clean")
 
     if safety_report["safety_flag"] == "crisis":
         knowledge_context = {
@@ -1044,7 +1026,7 @@ def prepare_streaming_context(
             "retrieval_skipped": True,
             "skip_reason": "crisis_mode",
         }
-    elif not has_medical_vocabulary(user_message):
+    elif not has_medical_vocabulary(user_message, clean=_clean):
         knowledge_context = {
             "user_message": user_message,
             "knowledge_found": False,
@@ -1092,5 +1074,5 @@ def prepare_streaming_context(
 def stream_gemini_response(prompt: str, is_crisis: bool = False):
     # Streams Gemini response in small chunks as it generates
     if is_crisis:
-        yield CRISIS_HARDCODED_PREFIX + " "
+        yield CRISIS_HARDCODED_PREFIX
     yield from _stream_llm(prompt, is_crisis=is_crisis)

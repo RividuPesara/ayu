@@ -24,6 +24,8 @@ AGGREGATES_CACHE_TTL = 3600   # 1 hour
 SUMMARY_CACHE_TTL    = 86400  # 24 hours
 
 
+SESSION_OWNER_CACHE_TTL = 1800  # 30 minutes
+
 def _history_cache_key(session_id: str) -> str:
     return f"ayu:chat:history:{session_id}"
 
@@ -32,6 +34,9 @@ def _aggregates_cache_key(session_id: str) -> str:
 
 def _summary_cache_key(uid: str) -> str:
     return f"ayu:user:summary:{uid}"
+
+def _session_owner_cache_key(session_id: str) -> str:
+    return f"ayu:session:owner:{session_id}"
 
 
 def _redis_set_json(key: str, value: Any, ttl: int, label: str) -> None:
@@ -299,6 +304,24 @@ def get_session_aggregates(session_id: str) -> dict[str, Any]:
 
 
 def get_session(session_id: str, uid: str) -> dict[str, Any]:
+    # check Redis for cached ownership before hitting Firestore
+    r = get_redis()
+    owner_key = _session_owner_cache_key(session_id)
+    if r is not None:
+        try:
+            cached_uid = r.get(owner_key)
+            if cached_uid is not None:
+                if cached_uid != uid:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="You cannot access this session.",
+                    )
+                return {"userId": uid, "_from_cache": True}
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.warning("Redis session owner cache read failed for %s: %s", session_id, exc)
+
     db = get_firestore_client()
     snapshot = db.collection(SESSIONS_COLLECTION).document(session_id).get()
 
@@ -308,12 +331,18 @@ def get_session(session_id: str, uid: str) -> dict[str, Any]:
             detail="Session not found.",
         )
     data = snapshot.to_dict() or {}
-    # check that the session actually belongs to the requesting user
     if data.get("userId") != uid:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You cannot access this session.",
         )
+
+    # cache the owner uid so subsequent messages skip the Firestore read
+    if r is not None:
+        try:
+            r.set(owner_key, uid, ex=SESSION_OWNER_CACHE_TTL)
+        except Exception as exc:
+            logger.warning("Redis session owner cache write failed for %s: %s", session_id, exc)
 
     return data
 
@@ -543,6 +572,7 @@ def archive_session(session_id: str) -> None:
         "status": "archived",
         "archivedAt": firestore.SERVER_TIMESTAMP,
     })
+    _redis_delete(_session_owner_cache_key(session_id), f"owner:{session_id}")
 
 
 def archive_all_sessions(uid: str) -> int:

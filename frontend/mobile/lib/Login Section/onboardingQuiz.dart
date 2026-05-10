@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_app/Mood Journal/moodSelectorScreen.dart';
+import 'package:mobile_app/homeScreen.dart';
 
 class Quiz extends StatefulWidget {
   const Quiz({super.key});
@@ -389,12 +390,12 @@ class _QuizState extends State<Quiz> {
                 ElevatedButton(
                   onPressed: index == 5
                       ? () => Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const MoodSelectorScreen(),
-                            ),
-                            (route) => false,
-                          )
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const MoodSelectorScreen(),
+                          ),
+                          (route) => false,
+                        )
                       : nextPage,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: index == 5
@@ -424,7 +425,7 @@ class _QuizState extends State<Quiz> {
                       ),
                     ],
                   ),
-                )
+                ),
               ],
             ),
           ),
