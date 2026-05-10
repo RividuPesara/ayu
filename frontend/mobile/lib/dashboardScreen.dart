@@ -3,7 +3,7 @@ import 'package:mobile_app/main.dart';
 import 'dashboard_cache.dart';
 import 'package:intl/intl.dart';
 import 'Chatbot/chatbotScreen.dart';
-import 'Mood Journal/pastJournalEntries.dart';
+import 'Mood Journal/moodStatusScreen.dart';
 import 'Community/communityFeedScreen.dart';
 import 'Connect Doctor/docAppointmentScreen.dart';
 import 'Article/articleScreen.dart';
@@ -34,6 +34,7 @@ class _DashboardState extends State<Dashboard> with RouteAware {
   String _quote = '';
   String _fullName = '';
   String? _avatarUrl;
+  bool _avatarLoadError = false;
   List<ScheduleItem> _todayMeds = [];
   List<TaskItem> _todayTasks = [];
 
@@ -85,6 +86,12 @@ class _DashboardState extends State<Dashboard> with RouteAware {
   void didPopNext() {
     _refreshTodayMeds();
     _refreshTodayTasks();
+    final cache = DashboardCache.instance;
+    setState(() {
+      _fullName = cache.fullName;
+      _avatarUrl = cache.avatarUrl;
+      _avatarLoadError = false;
+    });
   }
 
   void _onItemTapped(int index) {
@@ -98,9 +105,12 @@ class _DashboardState extends State<Dashboard> with RouteAware {
   }
 
   double getProgress() {
-    final visible = _todayMeds.where((m) => m.status != 'missed').toList();
-    if (visible.isEmpty) return 0.0;
-    return visible.where((m) => m.status == 'taken').length / visible.length;
+    final visibleMeds = _todayMeds.where((m) => m.status != 'missed').toList();
+    final total = visibleMeds.length + _todayTasks.length;
+    if (total == 0) return 0.0;
+    final done = visibleMeds.where((m) => m.status == 'taken').length +
+        _todayTasks.where((t) => t.isDone).length;
+    return done / total;
   }
 
   late List<Map<String, dynamic>> needCards;
@@ -128,7 +138,7 @@ class _DashboardState extends State<Dashboard> with RouteAware {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => const PastJournalEntriesScreen(),
+            builder: (context) => const MoodStatusScreen(),
           ),
         );
       },
@@ -305,11 +315,21 @@ class _DashboardState extends State<Dashboard> with RouteAware {
                       // Profile
                       Row(
                         children: [
-                          CircleAvatar(
-                            radius: 37,
-                            backgroundImage: _avatarUrl != null
-                                ? NetworkImage(_avatarUrl!) as ImageProvider
-                                : const AssetImage("assets/avatar.png"),
+                          ClipOval(
+                            child: _avatarUrl != null && !_avatarLoadError
+                                ? Image.network(
+                                    _avatarUrl!,
+                                    width: 74,
+                                    height: 74,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, _, _) {
+                                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                                        if (mounted) setState(() => _avatarLoadError = true);
+                                      });
+                                      return Image.asset("assets/avatar.png", width: 74, height: 74, fit: BoxFit.cover);
+                                    },
+                                  )
+                                : Image.asset("assets/avatar.png", width: 74, height: 74, fit: BoxFit.cover),
                           ),
 
                           const SizedBox(width: 10),

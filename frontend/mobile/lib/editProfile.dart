@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:lottie/lottie.dart';
 import 'package:mobile_app/Login Section/loginScreen.dart';
 import 'package:mobile_app/patient_service.dart';
+import 'dashboard_cache.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -130,6 +131,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       if (newPassword.isNotEmpty) {
         await FirebaseAuth.instance.currentUser?.updatePassword(newPassword);
       }
+
+      // Keep dashboard in sync without a full cache reload
+      final cache = DashboardCache.instance;
+      final first = _firstNameCtrl.text.trim();
+      final last = _lastNameCtrl.text.trim();
+      cache.fullName = last.isEmpty ? first : '$first $last';
+      if (uploadedAvatarUrl != null) cache.avatarUrl = uploadedAvatarUrl;
 
       if (!mounted) return;
       setState(() {
