@@ -18,7 +18,7 @@
 
 ---
 
-Ayu is a mental health and cancer support platform built for Sri Lankan patients. It combines an AI-powered chatbot, mood tracking, medication reminders, doctor consultations, and video recommendations into a single mobile app - backed by two FastAPI services and a Next.js doctor dashboard.
+Ayu is a mental health and cancer support platform built for Sri Lankan patients. It combines an AI-powered chatbot, mood tracking, medication reminders, doctor consultations, and video recommendations into a single mobile app ,backed by two FastAPI services, a Next.js doctor dashboard, and a Next.js admin dashboard.
 
 Tested on **Pixel 9 Pro XL** · Flutter **3.41.5**
 
@@ -58,7 +58,7 @@ Tested on **Pixel 9 Pro XL** · Flutter **3.41.5**
     <td align="center" width="25%">
       <img src="frontend/mobile/assets/dashboard/connect_companion.png" width="100"><br>
       <b>Companions</b><br>
-      <sub>Connect with family memeber to let them check on you and for emotional support.</sub>
+      <sub>Connect with family members to let them check on you and for emotional support.</sub>
     </td>
     <td align="center" width="25%">
       <img src="frontend/mobile/assets/video.png" width="100"><br>
@@ -119,7 +119,7 @@ Next.js web app for platform administrators.
 | Mobile | Flutter 3.41.5 · Dart |
 | Main backend | FastAPI 0.129.0 · Python 3.10 · Uvicorn |
 | Admin backend | FastAPI · Python 3.10 (no Docker) |
-| AI / ML | Gemini 2.5 Flash Lite · ChromaDB · HuggingFace `all-MiniLM-L6-v2` · Scikit-learn · XGBoost |
+| AI / ML | Gemini 2.5 Flash Lite · ChromaDB · FastEmbed `all-MiniLM-L6-v2` · Scikit-learn · XGBoost |
 | LLM (video queries) | Ollama `gemma4:e4b-it-q8_0` |
 | Infrastructure | Nginx NJS · Docker Compose · Redis 7 |
 | Auth | Firebase Auth · Firestore |
@@ -198,7 +198,7 @@ Before starting, ensure these exist:
 - `backend/firebase-adminsdk.json`
 - `models/` - `bnb_model.pkl`, `lr_model.pkl`, `xgb_model.pkl`, `vectorizer.pkl`, `label_encoder.pkl`
 - `data/cancer_knowledge_base.json`
-- HuggingFace `all-MiniLM-L6-v2` model cached locally - Docker runs with `HF_HUB_OFFLINE=1` so the model must be cached before the container starts or the chatbot will fail to initialise
+- FastEmbed `all-MiniLM-L6-v2` model cached locally - Docker runs with `HF_HUB_OFFLINE=1` so the model must be cached before the container starts or the chatbot will fail to initialise
 
 `data/chroma_db/` does not need to exist beforehand - it is created automatically on first startup.
 
@@ -255,7 +255,7 @@ npm run dev   # http://localhost:3000
 ```bash
 cd frontend/web/admin-dashboard
 npm install
-npm run dev   # http://localhost:3000
+npm run dev -- -p 3001   # http://localhost:3001
 ```
 
 ### Mobile app
@@ -322,7 +322,10 @@ APP_BASE_URL=http://localhost:3001
 
 ## Switching AI providers
 
-Both the chatbot and the video recommendation service support **Gemini** and **Ollama** as interchangeable providers. Switch between them by setting two environment variables in `backend/.env` - no code changes needed.
+Both the chatbot and the video recommendation service support **Gemini** and **Ollama** as interchangeable providers. Switch between them in one of two ways, no other code changes needed:
+
+- Edit the defaults directly in `backend/app/core/config.py`
+- Or add the variables to `backend/.env` to override the defaults at runtime (the `.env` value takes priority)
 
 | Variable | Options | Default |
 |----------|---------|---------|
