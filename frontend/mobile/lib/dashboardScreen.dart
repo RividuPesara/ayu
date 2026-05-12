@@ -8,6 +8,7 @@ import 'Community/communityFeedScreen.dart';
 import 'Connect Doctor/docAppointmentScreen.dart';
 import 'Article/articleScreen.dart';
 import 'Article/articleRead.dart';
+import 'Article/article_service.dart';
 import 'Notification/notification.dart';
 import 'editProfile.dart';
 import 'Tracker/trackerScreen.dart';
@@ -36,7 +37,11 @@ class _DashboardState extends State<Dashboard> with RouteAware {
   String? _avatarUrl;
   bool _avatarLoadError = false;
   List<ScheduleItem> _todayMeds = [];
+<<<<<<< HEAD
   List<TaskItem> _todayTasks = [];
+=======
+  late Future<List<ArticleModel>> _recentArticlesFuture;
+>>>>>>> master
 
   void _readFromCache() {
     final cache = DashboardCache.instance;
@@ -51,7 +56,11 @@ class _DashboardState extends State<Dashboard> with RouteAware {
   @override
   void initState() {
     super.initState();
+<<<<<<< HEAD
     _initNeedCards();
+=======
+    _recentArticlesFuture = ArticleService.fetchPublished();
+>>>>>>> master
     final cache = DashboardCache.instance;
     if (cache.isReady) {
       _readFromCache();
@@ -560,30 +569,34 @@ class _DashboardState extends State<Dashboard> with RouteAware {
 
                       const SizedBox(height: 15),
 
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            buildResourceCard(
-                              "Mental Health Basics",
-                              "Learn the essentials of mental health",
-                                  () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const ArticleRead(
-                                      title: "Mental Health Basics",
-                                      content:
-                                      "Learn the essentials of mental health",
+                      FutureBuilder<List<ArticleModel>>(
+                        future: _recentArticlesFuture,
+                        builder: (context, snapshot) {
+                          final articles = (snapshot.data ?? []).take(3).toList();
+                          if (articles.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+                          return SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: articles.map((article) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 15),
+                                  child: buildResourceCard(
+                                    article.genre.isNotEmpty ? article.genre : "Article",
+                                    article.title,
+                                    () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => ArticleRead(article: article),
+                                      ),
                                     ),
                                   ),
                                 );
-                              },
+                              }).toList(),
                             ),
-
-                            const SizedBox(width: 15),
-                          ],
-                        ),
+                          );
+                        },
                       ),
 
                       const SizedBox(height: 10),

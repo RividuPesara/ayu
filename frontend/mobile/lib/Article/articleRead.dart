@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
+import 'article_service.dart';
 
 class ArticleRead extends StatelessWidget {
-  final String title;
-  final String content;
+  final ArticleModel article;
 
-  const ArticleRead({
-    super.key,
-    required this.title,
-    required this.content,
-  });
+  const ArticleRead({super.key, required this.article});
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +17,7 @@ class ArticleRead extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: Container(
-                padding: const EdgeInsets.fromLTRB(20, 70, 20, 30), // left, top, right, bottom
+                padding: const EdgeInsets.fromLTRB(20, 70, 20, 30),
                 decoration: const BoxDecoration(
                   color: Color(0xff4B3425),
                   borderRadius: BorderRadius.only(
@@ -29,16 +25,13 @@ class ArticleRead extends StatelessWidget {
                     bottomRight: Radius.circular(30),
                   ),
                 ),
-
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
                         GestureDetector(
-                          onTap: () {
-                            Navigator.pop(context);
-                          },
+                          onTap: () => Navigator.pop(context),
                           child: Container(
                             width: 58,
                             height: 58,
@@ -46,10 +39,7 @@ class ArticleRead extends StatelessWidget {
                               color: Color(0xff4B3425),
                               shape: BoxShape.circle,
                               border: Border.fromBorderSide(
-                                BorderSide(
-                                  color: Colors.white,
-                                  width: 2.0,
-                                ),
+                                BorderSide(color: Colors.white, width: 2.0),
                               ),
                             ),
                             child: const Icon(
@@ -76,20 +66,21 @@ class ArticleRead extends StatelessWidget {
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
-                            color: Color(0xff4B3425),
+                            color: const Color(0xff4B3425),
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: Color(0xffF7F4F2),   // Border color
-                              width: 1,
-                            ),
+                                color: const Color(0xffF7F4F2), width: 1),
                           ),
-                          child: const Text(
-                            "ARTICLE",
-                            style: TextStyle(
+                          child: Text(
+                            article.genre.isNotEmpty
+                                ? article.genre.toUpperCase()
+                                : "ARTICLE",
+                            style: const TextStyle(
                               fontSize: 15,
-                              color: Color(0xffF7F4F2), // Text
+                              color: Color(0xffF7F4F2),
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -100,7 +91,7 @@ class ArticleRead extends StatelessWidget {
                     const SizedBox(height: 25),
 
                     Text(
-                      title,
+                      article.title,
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 38,
@@ -108,9 +99,9 @@ class ArticleRead extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 25),
-                    const Text(
-                      "By Johann Liebert",
-                      style: TextStyle(
+                    Text(
+                      "By ${article.author.isNotEmpty ? article.author : 'Unknown'}",
+                      style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w600,
                         fontSize: 17,
@@ -134,24 +125,70 @@ class ArticleRead extends StatelessWidget {
                       color: Color(0xff4B3425),
                     ),
                   ),
-
                   const SizedBox(height: 10),
-
-                  Text(
-                    content,
-                    style: const TextStyle(
-                      height: 1.6,
-                      fontSize: 20,
-                      color: Color(0xff908A85),
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
+                  _buildContent(article.content, article.contentImages),
                 ],
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildContent(String content, List<ContentImage> images) {
+    if (images.isEmpty) {
+      return Text(
+        content,
+        style: const TextStyle(
+          height: 1.6,
+          fontSize: 20,
+          color: Color(0xff908A85),
+          fontWeight: FontWeight.w400,
+        ),
+      );
+    }
+
+    final parts = content.split(RegExp(r'!\[[^\]]*\]\([^)]*\)'));
+    final tagIds = RegExp(r'!\[([^\]]*)\]\([^)]*\)')
+        .allMatches(content)
+        .map((m) => m.group(1) ?? '')
+        .toList();
+
+    final widgets = <Widget>[];
+    for (int i = 0; i < parts.length; i++) {
+      if (parts[i].trim().isNotEmpty) {
+        widgets.add(Text(
+          parts[i].trim(),
+          style: const TextStyle(
+            height: 1.6,
+            fontSize: 20,
+            color: Color(0xff908A85),
+            fontWeight: FontWeight.w400,
+          ),
+        ));
+        widgets.add(const SizedBox(height: 16));
+      }
+      if (i < tagIds.length) {
+        final img = images.where((ci) => ci.id == tagIds[i]).firstOrNull;
+        if (img != null && img.dataUrl.isNotEmpty) {
+          widgets.add(ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.network(
+              img.dataUrl,
+              width: double.infinity,
+              fit: BoxFit.cover,
+              errorBuilder: (context, e, stack) => const SizedBox.shrink(),
+            ),
+          ));
+          widgets.add(const SizedBox(height: 16));
+        }
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: widgets,
     );
   }
 }

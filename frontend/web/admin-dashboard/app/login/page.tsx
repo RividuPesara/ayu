@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import "../../styles/LoginPage.css";
 import { auth, db } from "../lib/firebase";
@@ -18,6 +18,15 @@ import {
 import { doc, getDoc } from "firebase/firestore";
 import { loginWithEmail, sendResetEmail, verifyAdmin } from "../lib/loginService";
 import { sendPhoneEnrollmentOtp, verifyAndEnrollPhoneFactor } from "../lib/phone-mfa";
+import {
+  canAttemptLogin,
+  createLoginCooldownKey,
+  getLoginCooldownRemainingMs,
+  getPersistedLoginCooldownIdentifier,
+  registerFailedLoginAttempt,
+  registerSuccessfulLoginAttempt,
+  setPersistedLoginCooldownIdentifier,
+} from "../lib/login-cooldown";
 
 type OtpFlowType = "sign-in-mfa" | "login-phone-verification";
 
@@ -30,6 +39,8 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
+  const [cooldownRemainingMs, setCooldownRemainingMs] = useState(0);
+  const [persistedLoginIdentifier, setPersistedLoginIdentifier] = useState<string | null>(null);
 
   const [forgotMode, setForgotMode] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
@@ -47,8 +58,17 @@ export default function LoginPage() {
   const [otpError, setOtpError] = useState("");
   const [forgotEmailError, setForgotEmailError] = useState("");
 
-  const isValidEmail = (val: string) =>
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
+  const loginIdentifier = useMemo(
+    () => email.trim() || persistedLoginIdentifier || "anonymous",
+    [email, persistedLoginIdentifier],
+  );
+
+  const loginCooldownKey = useMemo(
+    () => createLoginCooldownKey("admin-email-password", loginIdentifier),
+    [loginIdentifier],
+  );
+
+  const cooldownRemainingSeconds = Math.ceil(cooldownRemainingMs / 1000);
 
   useEffect(() => {
     return () => {
@@ -56,6 +76,29 @@ export default function LoginPage() {
       recaptchaVerifierRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const storedIdentifier = getPersistedLoginCooldownIdentifier("admin-email-password");
+    if (storedIdentifier) {
+      setPersistedLoginIdentifier(storedIdentifier);
+    }
+  }, []);
+
+  useEffect(() => {
+    setCooldownRemainingMs(getLoginCooldownRemainingMs(loginCooldownKey));
+  }, [loginCooldownKey]);
+
+  useEffect(() => {
+    if (cooldownRemainingMs <= 0) return;
+
+    const intervalId = window.setInterval(() => {
+      const remainingMs = getLoginCooldownRemainingMs(loginCooldownKey);
+      setCooldownRemainingMs(remainingMs);
+      if (remainingMs <= 0) window.clearInterval(intervalId);
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [cooldownRemainingMs, loginCooldownKey]);
 
   function getOrCreateRecaptchaVerifier(): RecaptchaVerifier {
     if (recaptchaVerifierRef.current) return recaptchaVerifierRef.current;
@@ -96,6 +139,13 @@ export default function LoginPage() {
 
     if (hasError) return;
 
+    const availability = canAttemptLogin(loginCooldownKey);
+    if (!availability.allowed) {
+      setCooldownRemainingMs(availability.remainingMs);
+      alert(`Too many failed attempts. Try again in ${Math.ceil(availability.remainingMs / 1000)} seconds.`);
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -105,7 +155,7 @@ export default function LoginPage() {
       if (!userCredential.user.emailVerified) {
         try {
           await sendEmailVerification(userCredential.user);
-        } catch (emailError: any) {
+        } catch (emailError: unknown) {
           console.error("Email verification error:", emailError);
         }
 
@@ -117,6 +167,9 @@ export default function LoginPage() {
       const uid = userCredential.user.uid;
 
       await verifyAdmin(uid);
+
+      registerSuccessfulLoginAttempt(loginCooldownKey);
+      setCooldownRemainingMs(0);
 
       const userSnap = await getDoc(doc(db, "users", uid));
       const loginPhone = (userSnap.data()?.phone || "").trim();
@@ -139,8 +192,12 @@ export default function LoginPage() {
       setOtpDestination(`*******${loginPhone.slice(-3)}`);
       setOtp("");
       setOtpMode(true);
-    } catch (error: any) {
-      if (error?.code === "auth/multi-factor-auth-required") {
+    } catch (error: unknown) {
+      const code = (error as { code?: string })?.code;
+
+      if (code === "auth/multi-factor-auth-required") {
+        registerSuccessfulLoginAttempt(loginCooldownKey);
+        setCooldownRemainingMs(0);
         try {
           const resolver = getMultiFactorResolver(auth, error as MultiFactorError);
           const phoneHint = resolver.hints.find(
@@ -162,15 +219,27 @@ export default function LoginPage() {
           setMfaResolver(resolver);
           setOtpFlowType("sign-in-mfa");
           setOtpDestination(
-            "phoneNumber" in phoneHint ? (phoneHint as any).phoneNumber : "your phone",
+            "phoneNumber" in phoneHint
+              ? (phoneHint as { phoneNumber?: string }).phoneNumber ?? "your phone"
+              : "your phone",
           );
           setOtp("");
           setOtpMode(true);
-        } catch (mfaError: any) {
+        } catch {
           setEmailError("Invalid email");
           setPasswordError("Invalid password");
         }
         return;
+      }
+
+      if (code && code.startsWith("auth/")) {
+        setPersistedLoginCooldownIdentifier("admin-email-password", email.trim() || loginIdentifier);
+        const failedAttemptState = registerFailedLoginAttempt(loginCooldownKey);
+        if (failedAttemptState.isCoolingDown) {
+          setCooldownRemainingMs(failedAttemptState.remainingMs);
+          alert(`Too many failed attempts. Try again in ${Math.ceil(failedAttemptState.remainingMs / 1000)} seconds.`);
+          return;
+        }
       }
 
       setEmailError("Invalid email");
@@ -400,8 +469,12 @@ export default function LoginPage() {
                   {passwordError && <span className="error-msg">{passwordError}</span>}
                 </div>
 
-                <button className="btn-primary" disabled={isLoading}>
-                  {isLoading ? "Signing in..." : "Sign In"}
+                <button className="btn-primary" disabled={isLoading || cooldownRemainingMs > 0}>
+                  {isLoading
+                    ? "Signing in..."
+                    : cooldownRemainingMs > 0
+                    ? `Try again in ${cooldownRemainingSeconds}s`
+                    : "Sign In"}
                 </button>
               </form>
             </>

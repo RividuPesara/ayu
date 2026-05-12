@@ -1,19 +1,6 @@
 import 'package:flutter/material.dart';
 import 'articleRead.dart';
-
-class Article {
-  final String title;
-  final String category;
-  final String content;
-  final String image;
-
-  Article({
-    required this.title,
-    required this.category,
-    required this.content,
-    required this.image,
-  });
-}
+import 'article_service.dart';
 
 class ArticleScreen extends StatefulWidget {
   const ArticleScreen({super.key});
@@ -24,27 +11,21 @@ class ArticleScreen extends StatefulWidget {
 
 class _ArticleScreenState extends State<ArticleScreen> {
   TextEditingController searchController = TextEditingController();
-
   String selectedCategory = "All";
+  late Future<List<ArticleModel>> _articlesFuture;
 
-  List<Article> articles = [
-    Article(
-      title: "15 Mindfulness Tips in the Age of AI you should do today",
-      category: "Stress",
-      content: "Mindfulness helps reduce stress...",
-      image: "assets/thumbnail.png",
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _articlesFuture = ArticleService.fetchPublished();
+  }
 
-  List<Article> get filteredArticles {
-    return articles.where((article) {
-      final matchesSearch = article.title
-          .toLowerCase()
-          .contains(searchController.text.toLowerCase());
-
+  List<ArticleModel> _filtered(List<ArticleModel> all) {
+    return all.where((a) {
+      final matchesSearch =
+          a.title.toLowerCase().contains(searchController.text.toLowerCase());
       final matchesCategory =
-          selectedCategory == "All" || article.category == selectedCategory;
-
+          selectedCategory == "All" || a.genre == selectedCategory;
       return matchesSearch && matchesCategory;
     }).toList();
   }
@@ -239,110 +220,141 @@ class _ArticleScreenState extends State<ArticleScreen> {
 
             const SizedBox(height: 30),
 
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
-              child: GridView.builder(
-                padding: EdgeInsets.zero,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: filteredArticles.length,
-                gridDelegate:
-                const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  childAspectRatio: .85,
-                  crossAxisSpacing: 15,
-                  mainAxisSpacing: 15,
-                ),
-                itemBuilder: (context, index) {
-                  final article = filteredArticles[index];
+            FutureBuilder<List<ArticleModel>>(
+              future: _articlesFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.all(40),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                if (snapshot.hasError || !snapshot.hasData) {
+                  return const Padding(
+                    padding: EdgeInsets.all(40),
+                    child: Center(child: Text("Failed to load articles.")),
+                  );
+                }
 
-                  return GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => ArticleRead(
-                            title: article.title,
-                            content: article.content,
+                final articles = _filtered(snapshot.data!);
+
+                if (articles.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.all(40),
+                    child: Center(child: Text("No articles found.")),
+                  );
+                }
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+                  child: GridView.builder(
+                    padding: EdgeInsets.zero,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: articles.length,
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      childAspectRatio: .85,
+                      crossAxisSpacing: 15,
+                      mainAxisSpacing: 15,
+                    ),
+                    itemBuilder: (context, index) {
+                      final article = articles[index];
+
+                      return GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ArticleRead(article: article),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(18),
+                            boxShadow: const [
+                              BoxShadow(color: Colors.black12, blurRadius: 5),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Stack(
+                                  children: [
+                                    article.thumbnail.isNotEmpty
+                                        ? Image.network(
+                                            article.thumbnail,
+                                            height: 150,
+                                            width: double.infinity,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, e) =>
+                                                _placeholder(),
+                                          )
+                                        : _placeholder(),
+                                    Positioned(
+                                      top: 8,
+                                      left: 8,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 10, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xffE5EAD7),
+                                          borderRadius: BorderRadius.circular(20),
+                                        ),
+                                        child: Text(
+                                          article.genre,
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            color: Color(0xff99AF66),
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                                child: Text(
+                                  article.title,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xff4B3425),
+                                    fontSize: 18,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       );
                     },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(18),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black12,
-                            blurRadius: 5,
-                          )
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Thumbnail Image with overlay badge
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Stack(
-                              children: [
-                                Image.asset(
-                                  article.image,
-                                  height: 150,
-                                  width: double.infinity,
-                                  fit: BoxFit.cover,
-                                ),
-                                // Badge positioned at top-left
-                                Positioned(
-                                  top: 8,
-                                  left: 8,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 10, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: Color(0xffE5EAD7),
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: const Text(
-                                      "Tips & Tricks",
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: Color(0xff99AF66),
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          const SizedBox(height: 10),
-
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                            child: Text(
-                              article.title,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xff4B3425),
-                                fontSize: 18,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             ),
 
             const SizedBox(height: 40),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _placeholder() {
+    return Container(
+      height: 150,
+      width: double.infinity,
+      color: const Color(0xffE5EAD7),
+      child: const Icon(Icons.article, color: Color(0xff99AF66), size: 40),
     );
   }
 }
