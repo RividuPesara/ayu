@@ -3,9 +3,10 @@ import functools
 
 from fastapi import APIRouter, Depends, status
 
-from app.dependencies.auth import CurrentUser, require_patient_access
+from app.dependencies.auth import CurrentUser, require_patient_access, require_patient_or_companion_access
 from app.schemas.task import TaskCreateRequest, TaskResponse
 from app.services.task_service import create_task, delete_task, list_tasks, toggle_task
+from app.services.companion_service import resolve_and_check_privacy
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -23,10 +24,12 @@ async def add_task(payload: TaskCreateRequest,user: CurrentUser = Depends(requir
 
 
 @router.get("", response_model=list[TaskResponse])
-async def get_tasks(date: str,user: CurrentUser = Depends(require_patient_access),
+async def get_tasks(date: str, user: CurrentUser = Depends(require_patient_or_companion_access),
 ) -> list[TaskResponse]:
-    # Return all tasks for the patient for the date
-    return await _run_sync(list_tasks, user.uid, date)
+    patient_uid = user.uid
+    if user.role == "companion":
+        patient_uid = await _run_sync(resolve_and_check_privacy, user.uid, "todo_list")
+    return await _run_sync(list_tasks, patient_uid, date)
 
 
 @router.patch("/{task_id}/toggle", response_model=TaskResponse)

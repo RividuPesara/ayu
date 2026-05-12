@@ -7,6 +7,7 @@ import 'package:mobile_app/Login%20Section/otpScreen.dart';
 import 'package:mobile_app/Login%20Section/signUpScreen.dart';
 import 'package:mobile_app/Login Section/forgotPasswordScreen.dart';
 import 'package:mobile_app/Mood Journal/moodSelectorScreen.dart';
+import 'package:mobile_app/companion-dashboard/compDashboard.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -63,6 +64,16 @@ class _LoginScreenState extends State<LoginScreen> {
           MaterialPageRoute(
             builder: (context) => EmailVerificationScreen(email: result.email),
           ),
+        );
+        return;
+      }
+
+      // Companions skip MFA go straight to their dashboard
+      if (result.nextStep == AuthNextStep.companionReady) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const CompanionDashboard()),
+          (route) => false,
         );
         return;
       }
