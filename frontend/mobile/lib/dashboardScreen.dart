@@ -37,11 +37,8 @@ class _DashboardState extends State<Dashboard> with RouteAware {
   String? _avatarUrl;
   bool _avatarLoadError = false;
   List<ScheduleItem> _todayMeds = [];
-<<<<<<< HEAD
   List<TaskItem> _todayTasks = [];
-=======
   late Future<List<ArticleModel>> _recentArticlesFuture;
->>>>>>> master
 
   void _readFromCache() {
     final cache = DashboardCache.instance;
@@ -56,11 +53,8 @@ class _DashboardState extends State<Dashboard> with RouteAware {
   @override
   void initState() {
     super.initState();
-<<<<<<< HEAD
     _initNeedCards();
-=======
     _recentArticlesFuture = ArticleService.fetchPublished();
->>>>>>> master
     final cache = DashboardCache.instance;
     if (cache.isReady) {
       _readFromCache();
