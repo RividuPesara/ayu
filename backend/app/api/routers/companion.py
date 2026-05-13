@@ -66,9 +66,9 @@ user: CurrentUser = Depends(require_patient_access),
 
 
 @router.get("/privacy", response_model=CompanionPrivacyResponse, status_code=status.HTTP_200_OK)
-async def get_privacy(user: CurrentUser = Depends(require_patient_access),
+async def get_privacy(user: CurrentUser = Depends(require_patient_or_companion_access),
 ) -> CompanionPrivacyResponse:
-    # Only patient can read and manage their privacy settings
+    # Patient reads own settings . companion reads their patient's settings using service
     result = await _run_sync(get_companion_privacy, user.uid, user.role)
     return CompanionPrivacyResponse.model_validate(result)
 

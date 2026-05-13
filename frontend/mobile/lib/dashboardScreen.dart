@@ -57,14 +57,13 @@ class _DashboardState extends State<Dashboard> with RouteAware {
     _recentArticlesFuture = ArticleService.fetchPublished();
     final cache = DashboardCache.instance;
     if (cache.isReady) {
-      _readFromCache();
-      Future.wait([cache.refreshMeds(), cache.refreshTasks()]).then((_) {
-        if (mounted) {
-          setState(() {
-            _todayMeds = List.from(cache.todayMeds);
-            _todayTasks = List.from(cache.todayTasks);
-          });
-        }
+      final needsProfileRefresh = cache.fullName.isEmpty;
+      Future.wait([
+        cache.refreshMeds(),
+        cache.refreshTasks(),
+        if (needsProfileRefresh) cache.refreshProfile(),
+      ]).then((_) {
+        if (mounted) setState(_readFromCache);
       });
     } else {
       cache.preload().then((_) {

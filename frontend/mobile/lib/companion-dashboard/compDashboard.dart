@@ -7,9 +7,9 @@ import '../Article/articleScreen.dart';
 import '../Tracker/Widgets/bottomNavIcons.dart';
 import 'companion_service.dart';
 import '../Mood Journal/pastJournalEntries.dart';
-import 'companion_tracker_screen.dart';
+import '../Tracker/trackerScreen.dart';
 import '../Connect Doctor/mySessions.dart';
-import 'companion_todos_screen.dart';
+import '../todoListScreen.dart';
 import '../Tracker/tracker_service.dart';
 
 class CompanionDashboard extends StatefulWidget {
@@ -102,7 +102,7 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
         'image': 'assets/dashboard/tracking_system.png',
         'color': const Color(0xffB4C48D),
         'icon': Icons.medication_outlined,
-        'screen': const CompanionTrackerScreen(),
+        'screen': const TrackerScreen(isReadOnly: true),
       });
     }
     if (_privacy.doctorAppointments) {
@@ -120,7 +120,7 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
         'image': 'assets/dashboard/to_do_list.png',
         'color': const Color(0xffFFDB8F),
         'icon': Icons.description_outlined,
-        'screen': const CompanionTodosScreen(),
+        'screen': const ToDoList(isReadOnly: true),
       });
     }
     return cards;
@@ -481,17 +481,13 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
                 GestureDetector(
                   onTap: () {
                     setState(() => _selectedIndex = 2);
-                    if (_privacy.tracking) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const CompanionTrackerScreen(),
-                        ),
-                      );
-                    }
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const Notifications()),
+                    );
                   },
                   child: BottomNavIcon(
-                    icon: Icons.bar_chart_rounded,
+                    icon: Icons.notifications_none,
                     selected: _selectedIndex == 2,
                   ),
                 ),
@@ -501,7 +497,9 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
                     setState(() => _selectedIndex = 3);
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => EditProfileScreen()),
+                      MaterialPageRoute(
+                        builder: (_) => const EditProfileScreen(isCompanion: true),
+                      ),
                     );
                   },
                   child: BottomNavIcon(

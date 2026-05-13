@@ -164,7 +164,17 @@ class DashboardCache {
   }
 
   Future<void> _loadUser() async {
-    final uid = resolveUid();
+    String? uid;
+    try {
+      final user = await FirebaseAuth.instance
+          .authStateChanges()
+          .first
+          .timeout(const Duration(seconds: 4));
+      uid = user?.uid;
+    } catch (_) {
+      uid = resolveUid();
+    }
+
     if (uid != null) {
       final doc = await FirebaseFirestore.instance
           .collection('users')
@@ -178,6 +188,11 @@ class DashboardCache {
     } else {
       quote = _pickQuote(null);
     }
+  }
+
+  Future<void> refreshProfile() async {
+    await _loadUser();
+    await _precacheAvatar();
   }
 
   Future<void> _loadMeds() async {

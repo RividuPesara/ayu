@@ -225,6 +225,7 @@ class MoodJournalRepository {
   int _journalStreak = 0;
   String _lastActiveDateKey = '';
   bool _pulseRecordedToday = false;
+  String _pulseRecordedDate = '';
   String _currentStatus = 'Mainly Neutral';
   String _emotionMessage = '';
 
@@ -240,7 +241,13 @@ class MoodJournalRepository {
   int get activeDaysCount => _activeDaysCount;
   int get journalStreak => _journalStreak;
   String get lastActiveDateKey => _lastActiveDateKey;
-  bool get pulseRecordedToday => _pulseRecordedToday;
+  static String _todayKey() {
+    final now = DateTime.now();
+    return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+  }
+
+  bool get pulseRecordedToday =>
+      _pulseRecordedToday && _pulseRecordedDate == _todayKey();
   String get currentStatus => _currentStatus;
   String get emotionMessage => _emotionMessage;
 
@@ -262,6 +269,7 @@ class MoodJournalRepository {
       _journalStreak = (data['journal_streak'] as num?)?.toInt() ?? 0;
       _lastActiveDateKey = data['last_active_date_key'] as String? ?? '';
       _pulseRecordedToday = data['pulse_recorded_today'] as bool? ?? false;
+      _pulseRecordedDate = data['pulse_recorded_date'] as String? ?? '';
       _currentStatus = data['current_status'] as String? ?? 'Mainly Neutral';
       _emotionMessage = data['emotion_message'] as String? ?? '';
 
@@ -299,6 +307,7 @@ class MoodJournalRepository {
     _activeDaysCount = stats.activeDaysCount;
     _journalStreak = stats.journalStreak;
     _pulseRecordedToday = stats.pulseRecordedToday;
+    if (stats.pulseRecordedToday) _pulseRecordedDate = _todayKey();
     _currentStatus = stats.currentStatus.isNotEmpty
         ? stats.currentStatus
         : stats.dominantEmotion;
@@ -323,6 +332,7 @@ class MoodJournalRepository {
 
   void markPulseRecordedTodayLocally() {
     _pulseRecordedToday = true;
+    _pulseRecordedDate = _todayKey();
     _persistLightCache();
   }
 
@@ -639,6 +649,7 @@ class MoodJournalRepository {
       'journal_streak': _journalStreak,
       'last_active_date_key': _lastActiveDateKey,
       'pulse_recorded_today': _pulseRecordedToday,
+      'pulse_recorded_date': _pulseRecordedDate,
       'current_status': _currentStatus,
       'emotion_message': _emotionMessage,
       'recent_entries': recentEntries.map(_entryToJson).toList(),

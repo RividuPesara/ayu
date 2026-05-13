@@ -19,7 +19,9 @@ class MyApp extends StatelessWidget {
 }
 
 class ToDoList extends StatefulWidget {
-  const ToDoList({super.key});
+  const ToDoList({super.key, this.isReadOnly = false});
+
+  final bool isReadOnly;
 
   @override
   State<ToDoList> createState() => _ToDoListState();
@@ -508,7 +510,7 @@ class _ToDoListState extends State<ToDoList> {
                       color: Color(0xff4B3425),
                     ),
                   ),
-                  if (!_isPastDate)
+                  if (!widget.isReadOnly && !_isPastDate)
                     GestureDetector(
                       onTap: showAddTaskDialog,
                       child: const Text(
@@ -543,7 +545,9 @@ class _ToDoListState extends State<ToDoList> {
                             ),
                             child: Dismissible(
                               key: ValueKey(task.taskId),
-                              direction: DismissDirection.endToStart,
+                              direction: widget.isReadOnly
+                                  ? DismissDirection.none
+                                  : DismissDirection.endToStart,
                               background: Container(
                                 decoration: BoxDecoration(
                                   color: const Color(0xFFD94F4F),
@@ -569,7 +573,9 @@ class _ToDoListState extends State<ToDoList> {
                                 child: Row(
                                   children: [
                                     GestureDetector(
-                                      onTap: () => _toggleTask(task),
+                                      onTap: widget.isReadOnly
+                                          ? null
+                                          : () => _toggleTask(task),
                                       child: CircleAvatar(
                                         radius: 12,
                                         backgroundColor: task.isDone

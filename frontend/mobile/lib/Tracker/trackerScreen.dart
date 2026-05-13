@@ -24,7 +24,9 @@ const List<Color> _missedCardColors = [
 ];
 
 class TrackerScreen extends StatefulWidget {
-  const TrackerScreen({super.key});
+  const TrackerScreen({super.key, this.isReadOnly = false});
+
+  final bool isReadOnly;
 
   @override
   State<TrackerScreen> createState() => _TrackerScreenState();
@@ -572,11 +574,11 @@ class _TrackerScreenState extends State<TrackerScreen> {
                     : selectedFilter == 2
                     ? MissedView(
                   missedMedicines: missedForWidget,
-                  onMarkTaken: _markMissedAsTaken,
+                  onMarkTaken: widget.isReadOnly ? (_) {} : _markMissedAsTaken,
                 )
                     : _scheduleItems.isEmpty
                     ? EmptyMedicationView(
-                  onAddMedication: _isPastDate
+                  onAddMedication: widget.isReadOnly || _isPastDate
                       ? null
                       : _showAddMedicationDialog,
                 )
@@ -608,7 +610,9 @@ class _TrackerScreenState extends State<TrackerScreen> {
                           key: ValueKey(
                             '${item.medicationId}-${item.scheduledTime}',
                           ),
-                          direction: DismissDirection.endToStart,
+                          direction: widget.isReadOnly
+                              ? DismissDirection.none
+                              : DismissDirection.endToStart,
                           background: Container(
                             decoration: BoxDecoration(
                               color: const Color(0xFFD94F4F),
@@ -639,7 +643,9 @@ class _TrackerScreenState extends State<TrackerScreen> {
                             imagePath: null,
                             isTaken: isTaken,
                             isMissed: isMissed,
-                            onTagTap: () => _markMedicineAsTaken(index),
+                            onTagTap: widget.isReadOnly
+                                ? () {}
+                                : () => _markMedicineAsTaken(index),
                           ),
                         ),
                       );
@@ -651,7 +657,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
           ),
         ),
       ),
-      floatingActionButton: _isPastDate
+      floatingActionButton: widget.isReadOnly || _isPastDate
           ? null
           : Container(
         width: 64,
