@@ -3,7 +3,9 @@ import 'package:mobile_app/Connect Doctor/currentAppointments.dart';
 import 'package:mobile_app/Connect%20Doctor/appointment_service.dart';
 
 class MyAppointmentScreen extends StatefulWidget {
-  const MyAppointmentScreen({super.key});
+  const MyAppointmentScreen({super.key, this.isReadOnly = false});
+
+  final bool isReadOnly;
 
   @override
   State<MyAppointmentScreen> createState() => _MyAppointmentScreenState();
@@ -115,9 +117,11 @@ class _MyAppointmentScreenState extends State<MyAppointmentScreen> {
                   ),
                 ),
                 const SizedBox(height: 18),
-                const Text(
-                  "My Appointments",
-                  style: TextStyle(
+                Text(
+                  widget.isReadOnly
+                      ? "Patient's Appointments"
+                      : "My Appointments",
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 34,
                     fontWeight: FontWeight.w800,

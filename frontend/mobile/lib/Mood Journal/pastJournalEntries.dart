@@ -14,7 +14,9 @@ const Color paleGreen = Color(0xFFF2F5EB);
 const Color paleOrange = Color(0xFFFFE3D6);
 
 class PastJournalEntriesScreen extends StatefulWidget {
-  const PastJournalEntriesScreen({super.key});
+  const PastJournalEntriesScreen({super.key, this.isReadOnly = false});
+
+  final bool isReadOnly;
 
   @override
   State<PastJournalEntriesScreen> createState() =>
@@ -410,9 +412,11 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
                                 ),
                               ),
                               const SizedBox(width: 12),
-                              const Text(
-                                'Your Entries',
-                                style: TextStyle(
+                              Text(
+                                widget.isReadOnly
+                                    ? 'Patient\'s Entries'
+                                    : 'Your Entries',
+                                style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 24,
                                   fontWeight: FontWeight.w700,
@@ -493,47 +497,48 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
                 ),
               ),
             ),
-            Positioned(
-              left: 0,
-              right: 0,
-              top: topSectionHeight - 118,
-              child: Center(
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(50),
-                    onTap: () async {
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const NewJournalEntryPage(),
+            if (!widget.isReadOnly)
+              Positioned(
+                left: 0,
+                right: 0,
+                top: topSectionHeight - 118,
+                child: Center(
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(50),
+                      onTap: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const NewJournalEntryPage(),
+                          ),
+                        );
+                        if (!mounted) {
+                          return;
+                        }
+                        setState(() {
+                          _syncFromRepository();
+                        });
+                        await _loadInitial();
+                      },
+                      child: Container(
+                        width: 60,
+                        height: 60,
+                        decoration: const BoxDecoration(
+                          color: textDark,
+                          shape: BoxShape.circle,
                         ),
-                      );
-                      if (!mounted) {
-                        return;
-                      }
-                      setState(() {
-                        _syncFromRepository();
-                      });
-                      await _loadInitial();
-                    },
-                    child: Container(
-                      width: 60,
-                      height: 60,
-                      decoration: const BoxDecoration(
-                        color: textDark,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.add,
-                        color: Colors.white,
-                        size: 28,
+                        child: const Icon(
+                          Icons.add,
+                          color: Colors.white,
+                          size: 28,
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
           ],
         ),
       ),
