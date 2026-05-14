@@ -96,6 +96,7 @@ flutter:
     - assets/sandclock.json
     - assets/error.json
     - assets/comingsoon.json
+    - assets/not_found.png
 
     - assets/faces/sad.png
     - assets/faces/anxiety.png

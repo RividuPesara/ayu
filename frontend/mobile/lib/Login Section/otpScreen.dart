@@ -117,7 +117,7 @@ class _OtpScreenState extends State<OtpScreen> {
 
               const Center(
                 child: Text(
-                  "Scan your biometric fingerprint to make your\naccount more secure.",
+                  "An OTP has been sent to your number",
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 16,
