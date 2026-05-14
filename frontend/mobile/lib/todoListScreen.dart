@@ -536,7 +536,17 @@ class _ToDoListState extends State<ToDoList> {
                         ),
                       )
                     : ListView(
-                        children: _tasks.asMap().entries.map((entry) {
+                        children: ([..._tasks]
+                              ..sort((a, b) {
+                                final doneOrder = a.isDone == b.isDone
+                                    ? 0
+                                    : a.isDone ? 1 : -1;
+                                if (doneOrder != 0) return doneOrder;
+                                return a.time.compareTo(b.time);
+                              }))
+                            .asMap()
+                            .entries
+                            .map((entry) {
                           final index = entry.key;
                           final task = entry.value;
 

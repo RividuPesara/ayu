@@ -524,11 +524,14 @@ class _DashboardState extends State<Dashboard> with RouteAware {
 
                       Builder(
                         builder: (_) {
+                          final now = DateTime.now();
+                          final nowStr =
+                              '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
                           final visibleMeds = _todayMeds
                               .where((m) => m.status == 'pending')
                               .toList();
                           final visibleTasks = _todayTasks
-                              .where((t) => !t.isDone)
+                              .where((t) => !t.isDone && t.time.compareTo(nowStr) >= 0)
                               .toList();
                           if (visibleMeds.isEmpty && visibleTasks.isEmpty) {
                             return const Padding(

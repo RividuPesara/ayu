@@ -420,6 +420,9 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
                         const SizedBox(height: 15),
                         Builder(
                           builder: (_) {
+                            final now = DateTime.now();
+                            final nowStr =
+                                '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
                             final visibleMeds = _privacy.tracking
                                 ? _patientMeds
                                     .where((m) => m.status == 'pending')
@@ -427,7 +430,7 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
                                 : <ScheduleItem>[];
                             final visibleTasks = _privacy.todoList
                                 ? _patientTasks
-                                    .where((t) => !t.isDone)
+                                    .where((t) => !t.isDone && t.time.compareTo(nowStr) >= 0)
                                     .toList()
                                 : <TaskItem>[];
                             if (visibleMeds.isEmpty && visibleTasks.isEmpty) {

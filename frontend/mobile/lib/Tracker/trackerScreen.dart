@@ -596,8 +596,19 @@ class _TrackerScreenState extends State<TrackerScreen> {
                       ),
                     ),
                     const SizedBox(height: 15),
-                    ...List.generate(_scheduleItems.length, (index) {
-                      final item = _scheduleItems[index];
+                    ...([..._scheduleItems]
+                          ..sort((a, b) {
+                            const order = {'taken': 0, 'pending': 1, 'missed': 2};
+                            final so = (order[a.status] ?? 1)
+                                .compareTo(order[b.status] ?? 1);
+                            if (so != 0) return so;
+                            return a.scheduledTime.compareTo(b.scheduledTime);
+                          }))
+                        .asMap()
+                        .entries
+                        .map((e) {
+                      final index = e.key;
+                      final item = e.value;
                       final isTaken = item.status == 'taken';
                       final isMissed = item.status == 'missed';
 
@@ -631,7 +642,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
                             return true;
                           },
                           onDismissed: (_) =>
-                              _deleteMedicationItem(index),
+                              _deleteMedicationItem(_scheduleItems.indexOf(item)),
                           child: MedicineCard(
                             name: item.name,
                             type: item.type,
@@ -646,7 +657,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
                             isMissed: isMissed,
                             onTagTap: widget.isReadOnly
                                 ? () {}
-                                : () => _markMedicineAsTaken(index),
+                                : () => _markMedicineAsTaken(_scheduleItems.indexOf(item)),
                           ),
                         ),
                       );
