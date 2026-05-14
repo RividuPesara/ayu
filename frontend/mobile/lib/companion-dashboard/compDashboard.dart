@@ -11,6 +11,7 @@ import '../Tracker/trackerScreen.dart';
 import '../Connect Doctor/mySessions.dart';
 import '../todoListScreen.dart';
 import '../Tracker/tracker_service.dart';
+import '../Todo List/task_service.dart';
 
 class CompanionDashboard extends StatefulWidget {
   const CompanionDashboard({super.key});
@@ -34,6 +35,7 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
 
   CompanionPrivacy _privacy = const CompanionPrivacy();
   List<ScheduleItem> _patientMeds = [];
+  List<TaskItem> _patientTasks = [];
 
   @override
   void initState() {
@@ -54,11 +56,19 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
     final status = results[1] as CompanionStatus;
     final privacy = results[2] as CompanionPrivacy;
 
+    final dateKey = DashboardCache.adjustedDayKey();
+
     List<ScheduleItem> meds = [];
     if (privacy.tracking) {
       try {
-        final dateKey = DashboardCache.adjustedDayKey();
         meds = await TrackerRepository.instance.fetchSchedule(dateKey);
+      } catch (_) {}
+    }
+
+    List<TaskItem> tasks = [];
+    if (privacy.todoList) {
+      try {
+        tasks = await TaskRepository.instance.fetchTasks(dateKey);
       } catch (_) {}
     }
 
@@ -71,6 +81,7 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
       _patientAvatar = status.patientAvatar;
       _privacy = privacy;
       _patientMeds = meds;
+      _patientTasks = tasks;
       _isLoading = false;
     });
   }
@@ -80,9 +91,12 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
   }
 
   double getProgress() {
-    final visible = _patientMeds.where((m) => m.status != 'missed').toList();
-    if (visible.isEmpty) return 0.0;
-    return visible.where((m) => m.status == 'taken').length / visible.length;
+    final visibleMeds = _patientMeds.where((m) => m.status != 'missed').toList();
+    final total = visibleMeds.length + _patientTasks.length;
+    if (total == 0) return 0.0;
+    final done = visibleMeds.where((m) => m.status == 'taken').length +
+        _patientTasks.where((t) => t.isDone).length;
+    return done / total;
   }
 
   List<Map<String, dynamic>> get _featureCards {
@@ -386,10 +400,10 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
                       const SizedBox(height: 25),
 
                       // Patient's plans for today
-                      if (_privacy.tracking) ...[
+                      if (_privacy.tracking || _privacy.todoList) ...[
                         Text(
                           patientFirst.isNotEmpty
-                              ? "${patientFirst}'s Plans For Today"
+                              ? "$patientFirst's Plans For Today"
                               : "Plans For Today",
                           style: const TextStyle(
                             fontSize: 20,
@@ -406,22 +420,23 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
                         const SizedBox(height: 15),
                         Builder(
                           builder: (_) {
-                            final visible = _patientMeds
+                            final visibleMeds = _patientMeds
                                 .where((m) => m.status != 'missed')
                                 .toList();
-                            if (visible.isEmpty) {
+                            if (visibleMeds.isEmpty && _patientTasks.isEmpty) {
                               return const Padding(
                                 padding: EdgeInsets.symmetric(vertical: 8),
                                 child: Text(
-                                  'No medications scheduled for today.',
+                                  'No plans for today.',
                                   style: TextStyle(color: Color(0xff9B8A7E)),
                                 ),
                               );
                             }
                             return Column(
-                              children: visible
-                                  .map<Widget>((item) => _buildMedCard(item))
-                                  .toList(),
+                              children: [
+                                ...visibleMeds.map<Widget>(_buildMedCard),
+                                ..._patientTasks.map<Widget>(_buildTaskCard),
+                              ],
                             );
                           },
                         ),
@@ -612,6 +627,84 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
             size: 24,
             color: Color(0xffCCCCCC),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTaskCard(TaskItem task) {
+    final isDone = task.isDone;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: isDone ? Colors.grey.shade200 : Colors.white,
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: const Color(0xffFFF3D4),
+                  borderRadius: BorderRadius.circular(25),
+                ),
+                child: const Icon(
+                  Icons.check_circle_outline,
+                  color: Color(0xffFFDB8F),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    task.title,
+                    style: TextStyle(
+                      decoration: isDone
+                          ? TextDecoration.lineThrough
+                          : TextDecoration.none,
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      const Icon(Icons.access_time,
+                          size: 14, color: Color(0xff9B8A7E)),
+                      const SizedBox(width: 4),
+                      Text(
+                        task.time,
+                        style: const TextStyle(
+                            color: Color(0xff9B8A7E), fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+          isDone
+              ? Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.green,
+                    border: Border.all(
+                      color: const Color(0xff4B3425),
+                      width: 2,
+                    ),
+                  ),
+                  child: const Icon(Icons.check, color: Colors.white, size: 16),
+                )
+              : const Icon(
+                  Icons.circle_outlined,
+                  size: 24,
+                  color: Color(0xffCCCCCC),
+                ),
         ],
       ),
     );

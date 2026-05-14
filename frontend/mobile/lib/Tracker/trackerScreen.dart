@@ -12,6 +12,7 @@ import '../Tracker/Widgets/missedView.dart';
 import '../Tracker/Widgets/selectedDateCard.dart';
 import '../Tracker/Widgets/takenView.dart';
 import '../Tracker/tracker_service.dart';
+import '../dashboard_cache.dart';
 import 'package:lottie/lottie.dart';
 import '../Chatbot/chatbotScreen.dart';
 
@@ -34,7 +35,7 @@ class TrackerScreen extends StatefulWidget {
 
 class _TrackerScreenState extends State<TrackerScreen> {
   int selectedFilter = 0;
-  DateTime selectedDate = DateTime.now();
+  DateTime selectedDate = DashboardCache.adjustedNow();
   List<ScheduleItem> _scheduleItems = [];
   bool _isLoading = true;
   Timer? _missedTimer;
@@ -62,7 +63,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
       _scheduleItems.where((s) => s.status == 'missed').toList();
 
   bool get _isPastDate {
-    final today = DateTime.now();
+    final today = DashboardCache.adjustedNow();
     return selectedDate.isBefore(DateTime(today.year, today.month, today.day));
   }
 
@@ -79,7 +80,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
   }
 
   void _recomputeMissedStatuses() {
-    final today = DateTime.now();
+    final today = DashboardCache.adjustedNow();
     final todayKey = _toDateKey(today);
     if (_toDateKey(selectedDate) != todayKey) return;
 
@@ -155,7 +156,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
   }
 
   String get formattedHeaderDate {
-    final today = DateTime.now();
+    final today = DashboardCache.adjustedNow();
 
     if (_isSameDate(selectedDate, today)) {
       return "Today, ${_monthLabel(selectedDate.month)} ${selectedDate.day}";
@@ -1302,6 +1303,10 @@ class _TrackerScreenState extends State<TrackerScreen> {
                                     selectedType,
                                     times,
                                   );
+                                  if (dateKey == DashboardCache.adjustedDayKey()) {
+                                    DashboardCache.instance.todayMeds =
+                                        repo.scheduleFor(dateKey);
+                                  }
                                   setState(() {
                                     _scheduleItems = repo.scheduleFor(dateKey);
                                     selectedFilter = 0;
@@ -1325,6 +1330,10 @@ class _TrackerScreenState extends State<TrackerScreen> {
                                     tempId,
                                     med,
                                   );
+                                  if (dateKey == DashboardCache.adjustedDayKey()) {
+                                    DashboardCache.instance.todayMeds =
+                                        repo.scheduleFor(dateKey);
+                                  }
                                   if (mounted) {
                                     setState(
                                       () => _scheduleItems = repo.scheduleFor(dateKey),
@@ -1336,6 +1345,10 @@ class _TrackerScreenState extends State<TrackerScreen> {
                                     dateKey,
                                     tempId,
                                   );
+                                  if (dateKey == DashboardCache.adjustedDayKey()) {
+                                    DashboardCache.instance.todayMeds =
+                                        repo.scheduleFor(dateKey);
+                                  }
                                   if (mounted) {
                                     setState(
                                       () => _scheduleItems = repo.scheduleFor(dateKey),

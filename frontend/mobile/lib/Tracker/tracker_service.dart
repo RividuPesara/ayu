@@ -79,7 +79,7 @@ class TrackerRepository {
 
   final Map<String, List<ScheduleItem>> _scheduleCache = {};
   final Map<String, DateTime> _cacheTimes = {};
-  bool _isFetching = false;
+  final Map<String, Future<List<ScheduleItem>>> _inFlight = {};
 
   static const String _cachePrefix = 'tracker_schedule_v1_';
   static const Duration _todayTtl = Duration(minutes: 5);
@@ -116,9 +116,11 @@ class TrackerRepository {
     }
   }
 
-  Future<List<ScheduleItem>> fetchSchedule(String dateKey) async {
-    if (_isFetching) return scheduleFor(dateKey);
-    _isFetching = true;
+  Future<List<ScheduleItem>> fetchSchedule(String dateKey) {
+    return _inFlight[dateKey] ??= _doFetch(dateKey);
+  }
+
+  Future<List<ScheduleItem>> _doFetch(String dateKey) async {
     try {
       final response = await _backend.get(
         '/tracker/schedule',
@@ -139,7 +141,7 @@ class TrackerRepository {
       await _persistSchedule(dateKey, items);
       return items;
     } finally {
-      _isFetching = false;
+      _inFlight.remove(dateKey);
     }
   }
 
@@ -169,16 +171,12 @@ class TrackerRepository {
     final now = DateTime.now();
     final todayKey =
         '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-    final currentTime =
-        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
     final isPast = dateKey.compareTo(todayKey) < 0;
 
     final existing = List<ScheduleItem>.from(_scheduleCache[dateKey] ?? []);
     for (final time in times) {
       final String itemStatus;
       if (isPast) {
-        itemStatus = 'missed';
-      } else if (dateKey == todayKey && time.compareTo(currentTime) < 0) {
         itemStatus = 'missed';
       } else {
         itemStatus = 'pending';
@@ -195,12 +193,14 @@ class TrackerRepository {
     }
     existing.sort((a, b) => a.scheduledTime.compareTo(b.scheduledTime));
     _scheduleCache[dateKey] = existing;
+    _persistSchedule(dateKey, existing);
   }
 
   void removeOptimisticItems(String dateKey, String tempId) {
     final existing = List<ScheduleItem>.from(_scheduleCache[dateKey] ?? []);
     existing.removeWhere((item) => item.medicationId == tempId);
     _scheduleCache[dateKey] = existing;
+    _persistSchedule(dateKey, existing);
   }
 
   void replaceOptimisticItems(
@@ -223,6 +223,7 @@ class TrackerRepository {
     }
     existing.sort((a, b) => a.scheduledTime.compareTo(b.scheduledTime));
     _scheduleCache[dateKey] = existing;
+    _persistSchedule(dateKey, existing);
   }
 
   // Mark an item taken right away in local cache, before server reply
@@ -240,6 +241,7 @@ class TrackerRepository {
         break;
       }
     }
+    _persistSchedule(dateKey, items);
   }
 
   void revertMarkTaken(
@@ -257,10 +259,27 @@ class TrackerRepository {
         break;
       }
     }
+    _persistSchedule(dateKey, items);
   }
 
   void invalidateDate(String dateKey) {
     _cacheTimes.remove(dateKey);
+  }
+
+  void clearAll() {
+    _scheduleCache.clear();
+    _cacheTimes.clear();
+    _inFlight.clear();
+  }
+
+  Future<void> clearPersisted() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys().where((k) => k.startsWith(_cachePrefix)).toList();
+      for (final key in keys) {
+        await prefs.remove(key);
+      }
+    } catch (_) {}
   }
 
   Future<void> removeItemsForMedication(

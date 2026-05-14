@@ -117,12 +117,14 @@ class TaskRepository {
     final list = List<TaskItem>.from(_cache[dateKey] ?? []);
     list.add(task);
     _cache[dateKey] = list;
+    _persistTasks(dateKey, list);
   }
 
   void removeByTaskId(String dateKey, String taskId) {
     final list = List<TaskItem>.from(_cache[dateKey] ?? []);
     list.removeWhere((t) => t.taskId == taskId);
     _cache[dateKey] = list;
+    _persistTasks(dateKey, list);
   }
 
   // Swap a temp local entry with the server assigned TaskItem after creation succeeds
@@ -135,6 +137,7 @@ class TaskRepository {
       list.add(real);
     }
     _cache[dateKey] = list;
+    _persistTasks(dateKey, list);
   }
 
   void optimisticallyToggle(String dateKey, String taskId) {
@@ -146,6 +149,7 @@ class TaskRepository {
         break;
       }
     }
+    _persistTasks(dateKey, list);
   }
 
   // Toggling twice restores the original state
@@ -154,9 +158,25 @@ class TaskRepository {
 
   void restoreBackup(String dateKey, List<TaskItem> backup) {
     _cache[dateKey] = List.from(backup);
+    _persistTasks(dateKey, _cache[dateKey]!);
   }
 
   void invalidateDate(String dateKey) => _cacheTimes.remove(dateKey);
+
+  void clearAll() {
+    _cache.clear();
+    _cacheTimes.clear();
+  }
+
+  Future<void> clearPersisted() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys().where((k) => k.startsWith(_cachePrefix)).toList();
+      for (final key in keys) {
+        await prefs.remove(key);
+      }
+    } catch (_) {}
+  }
 
   String _fmtKey(DateTime dt) =>
       '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';

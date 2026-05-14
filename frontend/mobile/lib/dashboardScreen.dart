@@ -57,17 +57,38 @@ class _DashboardState extends State<Dashboard> with RouteAware {
     _recentArticlesFuture = ArticleService.fetchPublished();
     final cache = DashboardCache.instance;
     if (cache.isReady) {
-      final needsProfileRefresh = cache.fullName.isEmpty;
+      _readFromCache();
+      final needsProfileRefresh = _fullName.isEmpty;
       Future.wait([
         cache.refreshMeds(),
         cache.refreshTasks(),
         if (needsProfileRefresh) cache.refreshProfile(),
       ]).then((_) {
-        if (mounted) setState(_readFromCache);
-      });
+        if (mounted) {
+          setState(() {
+            _fullName = cache.fullName;
+            _avatarUrl = cache.avatarUrl;
+            _todayMeds = List.from(cache.todayMeds);
+            _todayTasks = List.from(cache.todayTasks);
+          });
+        }
+      }).catchError((_) {});
     } else {
-      cache.preload().then((_) {
-        if (mounted) setState(_readFromCache);
+      cache.preload().then((_) async {
+        if (!mounted) return;
+        setState(_readFromCache);
+        await Future.wait([
+          cache.refreshMeds(),
+          cache.refreshTasks(),
+          cache.refreshProfile(),
+        ]);
+        if (!mounted) return;
+        setState(() {
+          _todayMeds = List.from(cache.todayMeds);
+          _todayTasks = List.from(cache.todayTasks);
+          _fullName = cache.fullName;
+          _avatarUrl = cache.avatarUrl;
+        });
       });
     }
   }
@@ -503,9 +524,7 @@ class _DashboardState extends State<Dashboard> with RouteAware {
 
                       Builder(
                         builder: (_) {
-                          final visibleMeds = _todayMeds
-                              .where((m) => m.status != 'missed')
-                              .toList();
+                          final visibleMeds = _todayMeds;
                           if (visibleMeds.isEmpty && _todayTasks.isEmpty) {
                             return const Padding(
                               padding: EdgeInsets.symmetric(vertical: 8),
@@ -853,26 +872,15 @@ class _DashboardState extends State<Dashboard> with RouteAware {
   }
 
   void _refreshTodayMeds() {
+    if (!mounted) return;
     final dateKey = DashboardCache.adjustedDayKey();
-    final repo = TrackerRepository.instance;
-    if (mounted) setState(() => _todayMeds = repo.scheduleFor(dateKey));
-    repo.invalidateDate(dateKey);
-    repo.fetchSchedule(dateKey).then((fresh) {
-      DashboardCache.instance.todayMeds = fresh;
-      if (mounted) setState(() => _todayMeds = fresh);
-    }).catchError((_) {});
+    setState(() => _todayMeds = TrackerRepository.instance.scheduleFor(dateKey));
   }
 
   void _refreshTodayTasks() {
+    if (!mounted) return;
     final dateKey = DashboardCache.adjustedDayKey();
-    final repo = TaskRepository.instance;
-    if (mounted) setState(() => _todayTasks = repo.tasksFor(dateKey));
-    if (!repo.hasFreshCache(dateKey)) {
-      repo.fetchTasks(dateKey).then((fresh) {
-        DashboardCache.instance.todayTasks = fresh;
-        if (mounted) setState(() => _todayTasks = fresh);
-      }).catchError((_) {});
-    }
+    setState(() => _todayTasks = TaskRepository.instance.tasksFor(dateKey));
   }
 
   void _toggleTodayTask(TaskItem task) {

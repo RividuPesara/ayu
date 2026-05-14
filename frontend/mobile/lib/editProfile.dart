@@ -7,6 +7,8 @@ import 'package:lottie/lottie.dart';
 import 'package:mobile_app/Login Section/loginScreen.dart';
 import 'package:mobile_app/patient_service.dart';
 import 'dashboard_cache.dart';
+import 'Tracker/tracker_service.dart';
+import 'Todo List/task_service.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key, this.isCompanion = false});
@@ -102,6 +104,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _logout() async {
+    DashboardCache.instance.invalidate();
+    await Future.wait([
+      TrackerRepository.instance.clearPersisted(),
+      TaskRepository.instance.clearPersisted(),
+    ]);
+    TrackerRepository.instance.clearAll();
+    TaskRepository.instance.clearAll();
     await FirebaseAuth.instance.signOut();
     if (mounted) {
       Navigator.of(context).pushAndRemoveUntil(

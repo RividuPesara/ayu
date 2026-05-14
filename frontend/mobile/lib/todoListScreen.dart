@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'Todo List/task_service.dart';
+import 'dashboard_cache.dart';
 
 void main() {
   runApp(const MyApp());
@@ -28,7 +29,7 @@ class ToDoList extends StatefulWidget {
 }
 
 class _ToDoListState extends State<ToDoList> {
-  DateTime selectedDate = DateTime.now();
+  DateTime selectedDate = DashboardCache.adjustedNow();
   List<TaskItem> _tasks = [];
   bool _isLoading = false;
 
@@ -39,12 +40,12 @@ class _ToDoListState extends State<ToDoList> {
   }
 
   bool get _isPastDate {
-    final today = DateTime.now();
+    final today = DashboardCache.adjustedNow();
     return selectedDate.isBefore(DateTime(today.year, today.month, today.day));
   }
 
   List<DateTime> getCurrentWeek() {
-    DateTime now = DateTime.now();
+    DateTime now = DashboardCache.adjustedNow();
     int weekday = now.weekday;
     DateTime startOfWeek = now.subtract(Duration(days: weekday % 7));
     return List.generate(7, (index) => startOfWeek.add(Duration(days: index)));

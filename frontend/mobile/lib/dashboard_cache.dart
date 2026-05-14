@@ -75,9 +75,13 @@ class DashboardCache {
     ],
   };
 
-  static String adjustedDayKey() {
+  static DateTime adjustedNow() {
     final now = DateTime.now();
-    final d = now.hour < 5 ? now.subtract(const Duration(days: 1)) : now;
+    return now.hour < 5 ? now.subtract(const Duration(days: 1)) : now;
+  }
+
+  static String adjustedDayKey() {
+    final d = adjustedNow();
     return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
   }
 
@@ -97,16 +101,15 @@ class DashboardCache {
     if (_completer != null) return _completer!.future;
     _completer = Completer<void>();
 
-    Future.wait([_loadUser(), _loadMeds(), _loadTasks()])
-        .then((_) async {
-          await _precacheAvatar();
-          isReady = true;
-          _completer!.complete();
-        })
-        .catchError((_) {
-          isReady = true;
-          _completer!.complete();
-        });
+    () async {
+      try {
+        await _loadUser();
+        await Future.wait([_loadMeds(), _loadTasks()]);
+        await _precacheAvatar();
+      } catch (_) {}
+      isReady = true;
+      _completer!.complete();
+    }();
 
     return _completer!.future;
   }
@@ -176,15 +179,19 @@ class DashboardCache {
     }
 
     if (uid != null) {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
-      final data = doc.data();
-      fullName = data?['fullName'] as String? ?? '';
-      final avatar = data?['avatar'] as String?;
-      avatarUrl = (avatar != null && avatar.isNotEmpty) ? avatar : null;
-      quote = _pickQuote(data?['religion'] as String?);
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .get();
+        final data = doc.data();
+        fullName = data?['fullName'] as String? ?? '';
+        final avatar = data?['avatar'] as String?;
+        avatarUrl = (avatar != null && avatar.isNotEmpty) ? avatar : null;
+        quote = _pickQuote(data?['religion'] as String?);
+      } catch (_) {
+        if (quote.isEmpty) quote = _pickQuote(null);
+      }
     } else {
       quote = _pickQuote(null);
     }
