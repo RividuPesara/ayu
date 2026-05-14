@@ -524,8 +524,13 @@ class _DashboardState extends State<Dashboard> with RouteAware {
 
                       Builder(
                         builder: (_) {
-                          final visibleMeds = _todayMeds;
-                          if (visibleMeds.isEmpty && _todayTasks.isEmpty) {
+                          final visibleMeds = _todayMeds
+                              .where((m) => m.status == 'pending')
+                              .toList();
+                          final visibleTasks = _todayTasks
+                              .where((t) => !t.isDone)
+                              .toList();
+                          if (visibleMeds.isEmpty && visibleTasks.isEmpty) {
                             return const Padding(
                               padding: EdgeInsets.symmetric(vertical: 8),
                               child: Text(
@@ -537,7 +542,7 @@ class _DashboardState extends State<Dashboard> with RouteAware {
                           return Column(
                             children: [
                               ...visibleMeds.map<Widget>(_buildMedCard),
-                              ..._todayTasks.map<Widget>(_buildTaskCard),
+                              ...visibleTasks.map<Widget>(_buildTaskCard),
                             ],
                           );
                         },

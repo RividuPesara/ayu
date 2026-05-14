@@ -420,10 +420,17 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
                         const SizedBox(height: 15),
                         Builder(
                           builder: (_) {
-                            final visibleMeds = _patientMeds
-                                .where((m) => m.status != 'missed')
-                                .toList();
-                            if (visibleMeds.isEmpty && _patientTasks.isEmpty) {
+                            final visibleMeds = _privacy.tracking
+                                ? _patientMeds
+                                    .where((m) => m.status == 'pending')
+                                    .toList()
+                                : <ScheduleItem>[];
+                            final visibleTasks = _privacy.todoList
+                                ? _patientTasks
+                                    .where((t) => !t.isDone)
+                                    .toList()
+                                : <TaskItem>[];
+                            if (visibleMeds.isEmpty && visibleTasks.isEmpty) {
                               return const Padding(
                                 padding: EdgeInsets.symmetric(vertical: 8),
                                 child: Text(
@@ -435,7 +442,7 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
                             return Column(
                               children: [
                                 ...visibleMeds.map<Widget>(_buildMedCard),
-                                ..._patientTasks.map<Widget>(_buildTaskCard),
+                                ...visibleTasks.map<Widget>(_buildTaskCard),
                               ],
                             );
                           },
