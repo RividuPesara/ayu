@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:mobile_app/main.dart';
 import 'dashboard_cache.dart';
 import 'package:intl/intl.dart';
 import 'Chatbot/chatbotScreen.dart';
-import 'Mood Journal/pastJournalEntries.dart';
+import 'Mood Journal/moodStatusScreen.dart';
 import 'Community/communityFeedScreen.dart';
 import 'Connect Doctor/docAppointmentScreen.dart';
 import 'Article/articleScreen.dart';
@@ -13,6 +14,11 @@ import 'editProfile.dart';
 import 'Tracker/trackerScreen.dart';
 import 'Tracker/tracker_service.dart';
 import 'Tracker/Widgets/bottomNavIcons.dart';
+import 'todoListScreen.dart';
+import 'Todo List/task_service.dart';
+import 'Companion/companionInviteScreen.dart';
+import 'Donation/donationEntryScreen.dart';
+import 'videoRecommendations.dart';
 
 class Dashboard extends StatefulWidget {
   const Dashboard({super.key});
@@ -21,7 +27,7 @@ class Dashboard extends StatefulWidget {
   State<Dashboard> createState() => _DashboardState();
 }
 
-class _DashboardState extends State<Dashboard> {
+class _DashboardState extends State<Dashboard> with RouteAware {
   int _currentPage = 0;
   int _selectedIndex = 0;
 
@@ -29,7 +35,9 @@ class _DashboardState extends State<Dashboard> {
   String _quote = '';
   String _fullName = '';
   String? _avatarUrl;
+  bool _avatarLoadError = false;
   List<ScheduleItem> _todayMeds = [];
+  List<TaskItem> _todayTasks = [];
   late Future<List<ArticleModel>> _recentArticlesFuture;
 
   void _readFromCache() {
@@ -38,24 +46,75 @@ class _DashboardState extends State<Dashboard> {
     _avatarUrl = cache.avatarUrl;
     _quote = cache.quote;
     _todayMeds = List.from(cache.todayMeds);
+    _todayTasks = List.from(cache.todayTasks);
     _isLoading = false;
   }
 
   @override
   void initState() {
     super.initState();
+    _initNeedCards();
     _recentArticlesFuture = ArticleService.fetchPublished();
     final cache = DashboardCache.instance;
     if (cache.isReady) {
       _readFromCache();
-      cache.refreshMeds().then((_) {
-        if (mounted) setState(() => _todayMeds = List.from(cache.todayMeds));
-      });
+      final needsProfileRefresh = _fullName.isEmpty;
+      Future.wait([
+        cache.refreshMeds(),
+        cache.refreshTasks(),
+        if (needsProfileRefresh) cache.refreshProfile(),
+      ]).then((_) {
+        if (mounted) {
+          setState(() {
+            _fullName = cache.fullName;
+            _avatarUrl = cache.avatarUrl;
+            _todayMeds = List.from(cache.todayMeds);
+            _todayTasks = List.from(cache.todayTasks);
+          });
+        }
+      }).catchError((_) {});
     } else {
-      cache.preload().then((_) {
-        if (mounted) setState(_readFromCache);
+      cache.preload().then((_) async {
+        if (!mounted) return;
+        setState(_readFromCache);
+        await Future.wait([
+          cache.refreshMeds(),
+          cache.refreshTasks(),
+          cache.refreshProfile(),
+        ]);
+        if (!mounted) return;
+        setState(() {
+          _todayMeds = List.from(cache.todayMeds);
+          _todayTasks = List.from(cache.todayTasks);
+          _fullName = cache.fullName;
+          _avatarUrl = cache.avatarUrl;
+        });
       });
     }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    routeObserver.subscribe(this, ModalRoute.of(context)!);
+  }
+
+  @override
+  void dispose() {
+    routeObserver.unsubscribe(this);
+    super.dispose();
+  }
+
+  @override
+  void didPopNext() {
+    _refreshTodayMeds();
+    _refreshTodayTasks();
+    final cache = DashboardCache.instance;
+    setState(() {
+      _fullName = cache.fullName;
+      _avatarUrl = cache.avatarUrl;
+      _avatarLoadError = false;
+    });
   }
 
   void _onItemTapped(int index) {
@@ -69,12 +128,18 @@ class _DashboardState extends State<Dashboard> {
   }
 
   double getProgress() {
-    final visible = _todayMeds.where((m) => m.status != 'missed').toList();
-    if (visible.isEmpty) return 0.0;
-    return visible.where((m) => m.status == 'taken').length / visible.length;
+    final visibleMeds = _todayMeds.where((m) => m.status != 'missed').toList();
+    final total = visibleMeds.length + _todayTasks.length;
+    if (total == 0) return 0.0;
+    final done = visibleMeds.where((m) => m.status == 'taken').length +
+        _todayTasks.where((t) => t.isDone).length;
+    return done / total;
   }
 
-  List<Map<String, dynamic>> needCards = [
+  late List<Map<String, dynamic>> needCards;
+
+  void _initNeedCards() {
+    needCards = [
     {
       "title": "Chatbot",
       "image": "assets/dashboard/chatbot.png",
@@ -96,20 +161,23 @@ class _DashboardState extends State<Dashboard> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => const PastJournalEntriesScreen(),
+            builder: (context) => const MoodStatusScreen(),
           ),
         );
       },
     },
-    /*
     {
       "title": "To-Do List",
       "image": "assets/dashboard/to_do_list.png",
       "color": Color(0xffFFDB8F),
       "icon": Icons.description_outlined,
-      "onTap": () {},
+      "onTap": (BuildContext context) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const ToDoList()),
+        ).then((_) => _refreshTodayTasks());
+      },
     },
-     */
     {
       "title": "Tracking\nSystem",
       "image": "assets/dashboard/tracking_system.png",
@@ -119,33 +187,51 @@ class _DashboardState extends State<Dashboard> {
         Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => const TrackerScreen()),
-        );
+        ).then((_) => _refreshTodayMeds());
       },
     },
-    /*
     {
       "title": "Connect\nCompanion",
       "image": "assets/dashboard/connect_companion.png",
       "color": Color(0xff9BB068),
-      "icon": Icons.mood_bad_outlined,
-      "onTap": () {},
-    },
-
-    {
-      "title": "Donation\nRequest",
-      "image": "assets/dashboard/donation_request.png",
-      "color": Color(0xff7D944D),
-      "icon": Icons.description_outlined,
+      "icon": Icons.people_outline,
       "onTap": (BuildContext context) {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => const Donation(),
+            builder: (context) => const CompanionInviteScreen(),
           ),
         );
       },
     },
-     */
+    {
+      "title": "Donation\nRequest",
+      "image": "assets/dashboard/donation_request.png",
+      "color": Color(0xff7D944D),
+      "icon": Icons.volunteer_activism_outlined,
+      "onTap": (BuildContext context) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const DonationEntryScreen(),
+          ),
+        );
+      },
+    },
+    {
+      "title": "Video\nRecommend",
+      "image": "assets/dashboard/mood_journal.png",
+      "color": Color(0xff5C7AA0),
+      "icon": Icons.play_circle_outline,
+      "onTap": (BuildContext context) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const DailyRecommendationsScreen(),
+          ),
+        );
+      },
+    },
     {
       "title": "Community\nGroup Chat",
       "image": "assets/dashboard/community_chat.png",
@@ -173,6 +259,7 @@ class _DashboardState extends State<Dashboard> {
       },
     },
   ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -251,11 +338,21 @@ class _DashboardState extends State<Dashboard> {
                       // Profile
                       Row(
                         children: [
-                          CircleAvatar(
-                            radius: 37,
-                            backgroundImage: _avatarUrl != null
-                                ? NetworkImage(_avatarUrl!) as ImageProvider
-                                : const AssetImage("assets/avatar.png"),
+                          ClipOval(
+                            child: _avatarUrl != null && !_avatarLoadError
+                                ? Image.network(
+                                    _avatarUrl!,
+                                    width: 74,
+                                    height: 74,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, _, _) {
+                                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                                        if (mounted) setState(() => _avatarLoadError = true);
+                                      });
+                                      return Image.asset("assets/avatar.png", width: 74, height: 74, fit: BoxFit.cover);
+                                    },
+                                  )
+                                : Image.asset("assets/avatar.png", width: 74, height: 74, fit: BoxFit.cover),
                           ),
 
                           const SizedBox(width: 10),
@@ -427,22 +524,29 @@ class _DashboardState extends State<Dashboard> {
 
                       Builder(
                         builder: (_) {
-                          final visible = _todayMeds
-                              .where((m) => m.status != 'missed')
+                          final now = DateTime.now();
+                          final nowStr =
+                              '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+                          final visibleMeds = _todayMeds
+                              .where((m) => m.status == 'pending')
                               .toList();
-                          if (visible.isEmpty) {
+                          final visibleTasks = _todayTasks
+                              .where((t) => !t.isDone && t.time.compareTo(nowStr) >= 0)
+                              .toList();
+                          if (visibleMeds.isEmpty && visibleTasks.isEmpty) {
                             return const Padding(
                               padding: EdgeInsets.symmetric(vertical: 8),
                               child: Text(
-                                'No tasks for today.',
+                                'No plans for today.',
                                 style: TextStyle(color: Color(0xff9B8A7E)),
                               ),
                             );
                           }
                           return Column(
-                            children: visible
-                                .map<Widget>(_buildMedCard)
-                                .toList(),
+                            children: [
+                              ...visibleMeds.map<Widget>(_buildMedCard),
+                              ...visibleTasks.map<Widget>(_buildTaskCard),
+                            ],
                           );
                         },
                       ),
@@ -544,7 +648,7 @@ class _DashboardState extends State<Dashboard> {
             Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => const TrackerScreen()),
-            );
+            ).then((_) => _refreshTodayMeds());
           },
           backgroundColor: const Color(0xff7C63B8),
           elevation: 0,
@@ -608,7 +712,7 @@ class _DashboardState extends State<Dashboard> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => TrackerScreen()),
-                    );
+                    ).then((_) => _refreshTodayMeds());
                   },
                   child: BottomNavIcon(
                     icon: Icons.bar_chart_rounded,
@@ -768,6 +872,101 @@ class _DashboardState extends State<Dashboard> {
                 size: 16,
               ),
             )
+                : const Icon(Icons.circle_outlined, size: 24),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _refreshTodayMeds() {
+    if (!mounted) return;
+    final dateKey = DashboardCache.adjustedDayKey();
+    setState(() => _todayMeds = TrackerRepository.instance.scheduleFor(dateKey));
+  }
+
+  void _refreshTodayTasks() {
+    if (!mounted) return;
+    final dateKey = DashboardCache.adjustedDayKey();
+    setState(() => _todayTasks = TaskRepository.instance.tasksFor(dateKey));
+  }
+
+  void _toggleTodayTask(TaskItem task) {
+    final dateKey = DashboardCache.adjustedDayKey();
+    final repo = TaskRepository.instance;
+    repo.optimisticallyToggle(dateKey, task.taskId);
+    setState(() => _todayTasks = repo.tasksFor(dateKey));
+
+    toggleTaskApi(task.taskId).catchError((_) {
+      repo.revertToggle(dateKey, task.taskId);
+      if (mounted) setState(() => _todayTasks = repo.tasksFor(dateKey));
+      return task;
+    });
+  }
+
+  Widget _buildTaskCard(TaskItem task) {
+    final isDone = task.isDone;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: isDone ? Colors.grey.shade200 : Colors.white,
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: const Color(0xffFFF3D4),
+                  borderRadius: BorderRadius.circular(25),
+                ),
+                child: const Icon(
+                  Icons.check_circle_outline,
+                  color: Color(0xffFFDB8F),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    task.title,
+                    style: TextStyle(
+                      decoration: isDone ? TextDecoration.lineThrough : TextDecoration.none,
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      const Icon(Icons.access_time, size: 14, color: Color(0xff9B8A7E)),
+                      const SizedBox(width: 4),
+                      Text(
+                        task.time,
+                        style: const TextStyle(color: Color(0xff9B8A7E), fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+          GestureDetector(
+            onTap: () => _toggleTodayTask(task),
+            child: isDone
+                ? Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.green,
+                      border: Border.all(color: const Color(0xff4B3425), width: 2),
+                    ),
+                    child: const Icon(Icons.check, color: Colors.white, size: 16),
+                  )
                 : const Icon(Icons.circle_outlined, size: 24),
           ),
         ],

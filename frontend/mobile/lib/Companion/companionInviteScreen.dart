@@ -61,13 +61,13 @@ class _CompanionInviteScreenState extends State<CompanionInviteScreen> {
     try {
       await _service.sendInvite(email);
       if (!mounted) return;
-      Navigator.push(
+      await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => InvitationSentScreen(email: email),
         ),
       );
-      // Refresh status when returning from invite flow
+      if (!mounted) return;
       await _loadStatus();
     } catch (e) {
       if (!mounted) return;

@@ -193,12 +193,15 @@ class _PaymentScreenState extends State<PaymentScreen> {
                             );
 
                             if (!mounted) return;
-                            Navigator.pushAndRemoveUntil(
+                            int _popCount = 0;
+                            Navigator.of(context).popUntil(
+                              (_) => _popCount++ == 3,
+                            );
+                            Navigator.push(
                               context,
                               MaterialPageRoute(
                                 builder: (_) => const MyAppointmentScreen(),
                               ),
-                              (route) => false,
                             );
                           } catch (error) {
                             if (!mounted) return;

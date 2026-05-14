@@ -6,9 +6,14 @@ import 'package:image_picker/image_picker.dart';
 import 'package:lottie/lottie.dart';
 import 'package:mobile_app/Login Section/loginScreen.dart';
 import 'package:mobile_app/patient_service.dart';
+import 'dashboard_cache.dart';
+import 'Tracker/tracker_service.dart';
+import 'Todo List/task_service.dart';
 
 class EditProfileScreen extends StatefulWidget {
-  const EditProfileScreen({super.key});
+  const EditProfileScreen({super.key, this.isCompanion = false});
+
+  final bool isCompanion;
 
   @override
   State<EditProfileScreen> createState() => _EditProfileScreenState();
@@ -99,6 +104,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _logout() async {
+    DashboardCache.instance.invalidate();
+    await Future.wait([
+      TrackerRepository.instance.clearPersisted(),
+      TaskRepository.instance.clearPersisted(),
+    ]);
+    TrackerRepository.instance.clearAll();
+    TaskRepository.instance.clearAll();
     await FirebaseAuth.instance.signOut();
     if (mounted) {
       Navigator.of(context).pushAndRemoveUntil(
@@ -122,7 +134,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       await _service.updateProfile(
         firstName: _firstNameCtrl.text.trim(),
         lastName: _lastNameCtrl.text.trim(),
-        phone: _mobileCtrl.text.trim().isEmpty ? null : _mobileCtrl.text.trim(),
+        phone: widget.isCompanion
+            ? null
+            : (_mobileCtrl.text.trim().isEmpty ? null : _mobileCtrl.text.trim()),
         avatarUrl: uploadedAvatarUrl,
       );
 
@@ -130,6 +144,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       if (newPassword.isNotEmpty) {
         await FirebaseAuth.instance.currentUser?.updatePassword(newPassword);
       }
+
+      // Keep dashboard in sync without a full cache reload
+      final cache = DashboardCache.instance;
+      final first = _firstNameCtrl.text.trim();
+      final last = _lastNameCtrl.text.trim();
+      cache.fullName = last.isEmpty ? first : '$first $last';
+      if (uploadedAvatarUrl != null) cache.avatarUrl = uploadedAvatarUrl;
 
       if (!mounted) return;
       setState(() {
@@ -314,15 +335,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       const SizedBox(height: 8),
                       _buildField(_lastNameFocus, _lastNameCtrl, "Last Name"),
 
-                      const SizedBox(height: 12),
-                      _buildLabel("Mobile Number"),
-                      const SizedBox(height: 8),
-                      _buildField(
-                        _mobileFocus,
-                        _mobileCtrl,
-                        "07XXXXXXXX",
-                        keyboardType: TextInputType.number,
-                      ),
+                      if (!widget.isCompanion) ...[
+                        const SizedBox(height: 12),
+                        _buildLabel("Mobile Number"),
+                        const SizedBox(height: 8),
+                        _buildField(
+                          _mobileFocus,
+                          _mobileCtrl,
+                          "07XXXXXXXX",
+                          keyboardType: TextInputType.number,
+                        ),
+                      ],
 
                       const SizedBox(height: 12),
                       _buildLabel("Email Address"),

@@ -40,7 +40,7 @@ class AuthStatus {
 
 enum AuthOtpFlowType { signInMfa, enrollPhone }
 
-enum AuthNextStep { emailVerification, otp }
+enum AuthNextStep { emailVerification, otp, companionReady }
 
 // Wraps the result of an auth attempt to tell the UI where to go next
 class AuthFlowResult {
@@ -108,8 +108,18 @@ class AuthService {
         );
       }
 
-      // Verify user role and check for registered phone number
+      // Verify user role and branch by account type
       final authStatus = await fetchAuthStatus();
+
+      if (authStatus.role == 'companion') {
+        // Companions skip MFA no phone number on record
+        return AuthFlowResult(
+          nextStep: AuthNextStep.companionReady,
+          otpSession: null,
+          email: user.email ?? email,
+        );
+      }
+
       if (authStatus.role != 'patient') {
         await _auth.signOut();
         throw StateError('Access denied: only patient accounts are allowed.');

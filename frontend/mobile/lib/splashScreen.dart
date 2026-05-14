@@ -18,7 +18,12 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    DashboardCache.instance.preload();
+    FirebaseAuth.instance
+        .authStateChanges()
+        .first
+        .then((user) {
+      if (user != null) DashboardCache.instance.preload();
+    });
     Future.delayed(const Duration(seconds: 6), _route);
   }
 

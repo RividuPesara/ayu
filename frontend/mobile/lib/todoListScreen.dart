@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'Todo List/task_service.dart';
+import 'dashboard_cache.dart';
 
 void main() {
   runApp(const MyApp());
@@ -19,14 +20,16 @@ class MyApp extends StatelessWidget {
 }
 
 class ToDoList extends StatefulWidget {
-  const ToDoList({super.key});
+  const ToDoList({super.key, this.isReadOnly = false});
+
+  final bool isReadOnly;
 
   @override
   State<ToDoList> createState() => _ToDoListState();
 }
 
 class _ToDoListState extends State<ToDoList> {
-  DateTime selectedDate = DateTime.now();
+  DateTime selectedDate = DashboardCache.adjustedNow();
   List<TaskItem> _tasks = [];
   bool _isLoading = false;
 
@@ -37,12 +40,12 @@ class _ToDoListState extends State<ToDoList> {
   }
 
   bool get _isPastDate {
-    final today = DateTime.now();
+    final today = DashboardCache.adjustedNow();
     return selectedDate.isBefore(DateTime(today.year, today.month, today.day));
   }
 
   List<DateTime> getCurrentWeek() {
-    DateTime now = DateTime.now();
+    DateTime now = DashboardCache.adjustedNow();
     int weekday = now.weekday;
     DateTime startOfWeek = now.subtract(Duration(days: weekday % 7));
     return List.generate(7, (index) => startOfWeek.add(Duration(days: index)));
@@ -395,7 +398,7 @@ class _ToDoListState extends State<ToDoList> {
               // Header
               const SizedBox(height: 18),
               GestureDetector(
-                onTap: () {},
+                onTap: () => Navigator.pop(context),
                 child: Container(
                   width: 58,
                   height: 58,
@@ -508,7 +511,7 @@ class _ToDoListState extends State<ToDoList> {
                       color: Color(0xff4B3425),
                     ),
                   ),
-                  if (!_isPastDate)
+                  if (!widget.isReadOnly && !_isPastDate)
                     GestureDetector(
                       onTap: showAddTaskDialog,
                       child: const Text(
@@ -533,7 +536,17 @@ class _ToDoListState extends State<ToDoList> {
                         ),
                       )
                     : ListView(
-                        children: _tasks.asMap().entries.map((entry) {
+                        children: ([..._tasks]
+                              ..sort((a, b) {
+                                final doneOrder = a.isDone == b.isDone
+                                    ? 0
+                                    : a.isDone ? 1 : -1;
+                                if (doneOrder != 0) return doneOrder;
+                                return a.time.compareTo(b.time);
+                              }))
+                            .asMap()
+                            .entries
+                            .map((entry) {
                           final index = entry.key;
                           final task = entry.value;
 
@@ -543,7 +556,9 @@ class _ToDoListState extends State<ToDoList> {
                             ),
                             child: Dismissible(
                               key: ValueKey(task.taskId),
-                              direction: DismissDirection.endToStart,
+                              direction: widget.isReadOnly
+                                  ? DismissDirection.none
+                                  : DismissDirection.endToStart,
                               background: Container(
                                 decoration: BoxDecoration(
                                   color: const Color(0xFFD94F4F),
@@ -569,7 +584,9 @@ class _ToDoListState extends State<ToDoList> {
                                 child: Row(
                                   children: [
                                     GestureDetector(
-                                      onTap: () => _toggleTask(task),
+                                      onTap: widget.isReadOnly
+                                          ? null
+                                          : () => _toggleTask(task),
                                       child: CircleAvatar(
                                         radius: 12,
                                         backgroundColor: task.isDone

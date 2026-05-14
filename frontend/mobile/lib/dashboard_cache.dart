@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'Tracker/tracker_service.dart';
+import 'Todo List/task_service.dart';
 
 class DashboardCache {
   DashboardCache._();
@@ -12,6 +13,7 @@ class DashboardCache {
   String? avatarUrl;
   String quote = '';
   List<ScheduleItem> todayMeds = [];
+  List<TaskItem> todayTasks = [];
   bool isReady = false;
 
   Completer<void>? _completer;
@@ -73,9 +75,13 @@ class DashboardCache {
     ],
   };
 
-  static String adjustedDayKey() {
+  static DateTime adjustedNow() {
     final now = DateTime.now();
-    final d = now.hour < 5 ? now.subtract(const Duration(days: 1)) : now;
+    return now.hour < 5 ? now.subtract(const Duration(days: 1)) : now;
+  }
+
+  static String adjustedDayKey() {
+    final d = adjustedNow();
     return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
   }
 
@@ -95,16 +101,15 @@ class DashboardCache {
     if (_completer != null) return _completer!.future;
     _completer = Completer<void>();
 
-    Future.wait([_loadUser(), _loadMeds()])
-        .then((_) async {
-      await _precacheAvatar();
+    () async {
+      try {
+        await _loadUser();
+        await Future.wait([_loadMeds(), _loadTasks()]);
+        await _precacheAvatar();
+      } catch (_) {}
       isReady = true;
       _completer!.complete();
-    })
-        .catchError((_) {
-      isReady = true;
-      _completer!.complete();
-    });
+    }();
 
     return _completer!.future;
   }
@@ -116,7 +121,7 @@ class DashboardCache {
       final done = Completer<void>();
       stream.addListener(
         ImageStreamListener(
-              (_, _) {
+          (_, _) {
             if (!done.isCompleted) done.complete();
           },
           onError: (_, _) {
@@ -129,10 +134,13 @@ class DashboardCache {
   }
 
   Future<void> refreshMeds() async {
+    TrackerRepository.instance.invalidateDate(adjustedDayKey());
+    await _loadMeds();
+  }
+
+  Future<void> refreshTasks() async {
     try {
-      todayMeds = await TrackerRepository.instance.fetchSchedule(
-        adjustedDayKey(),
-      );
+      todayTasks = await TaskRepository.instance.fetchTasks(adjustedDayKey());
     } catch (_) {}
   }
 
@@ -143,23 +151,55 @@ class DashboardCache {
     avatarUrl = null;
     quote = '';
     todayMeds = [];
+    todayTasks = [];
+  }
+
+  Future<void> _loadTasks() async {
+    final dateKey = adjustedDayKey();
+    final repo = TaskRepository.instance;
+    await repo.loadCachedTasks(dateKey);
+    todayTasks = repo.tasksFor(dateKey);
+    if (!repo.hasFreshCache(dateKey)) {
+      try {
+        todayTasks = await repo.fetchTasks(dateKey);
+      } catch (_) {}
+    }
   }
 
   Future<void> _loadUser() async {
-    final uid = resolveUid();
-    if (uid == null) {
-      quote = _pickQuote(null);
-      return;
+    String? uid;
+    try {
+      final user = await FirebaseAuth.instance
+          .authStateChanges()
+          .first
+          .timeout(const Duration(seconds: 4));
+      uid = user?.uid;
+    } catch (_) {
+      uid = resolveUid();
     }
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .get();
-    final data = doc.data();
-    fullName = data?['fullName'] as String? ?? '';
-    final avatar = data?['avatar'] as String?;
-    avatarUrl = (avatar != null && avatar.isNotEmpty) ? avatar : null;
-    quote = _pickQuote(data?['religion'] as String?);
+
+    if (uid != null) {
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .get();
+        final data = doc.data();
+        fullName = data?['fullName'] as String? ?? '';
+        final avatar = data?['avatar'] as String?;
+        avatarUrl = (avatar != null && avatar.isNotEmpty) ? avatar : null;
+        quote = _pickQuote(data?['religion'] as String?);
+      } catch (_) {
+        if (quote.isEmpty) quote = _pickQuote(null);
+      }
+    } else {
+      quote = _pickQuote(null);
+    }
+  }
+
+  Future<void> refreshProfile() async {
+    await _loadUser();
+    await _precacheAvatar();
   }
 
   Future<void> _loadMeds() async {

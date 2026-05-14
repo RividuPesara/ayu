@@ -3,7 +3,7 @@ import functools
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
-from app.dependencies.auth import CurrentUser, require_patient_access
+from app.dependencies.auth import CurrentUser, require_patient_access, require_patient_or_companion_access
 from app.schemas.patient import (
     AccountStatusResponse,
     AccountStatusUpdate,
@@ -29,7 +29,7 @@ async def _run_sync(func, *args):
 
 # Fetches the user's personal info
 @router.get("/profile", response_model=PatientProfile)
-async def get_my_profile(user: CurrentUser = Depends(require_patient_access),
+async def get_my_profile(user: CurrentUser = Depends(require_patient_or_companion_access),
 ) -> PatientProfile:
     profile = await _run_sync(get_patient_profile, user.uid)
     if not profile.email:
@@ -38,13 +38,13 @@ async def get_my_profile(user: CurrentUser = Depends(require_patient_access),
 
 # Saves changes to the user's personal info
 @router.patch("/profile", response_model=PatientProfile)
-async def update_my_profile( payload: PatientProfileUpdate,user: CurrentUser = Depends(require_patient_access),
+async def update_my_profile(payload: PatientProfileUpdate, user: CurrentUser = Depends(require_patient_or_companion_access),
 ) -> PatientProfile:
     return await _run_sync(update_patient_profile, user.uid, payload)
 
 
 @router.post("/profile/avatar", response_model=AvatarUploadResponse)
-async def upload_my_avatar(avatar: UploadFile = File(...),user: CurrentUser = Depends(require_patient_access),
+async def upload_my_avatar(avatar: UploadFile = File(...), user: CurrentUser = Depends(require_patient_or_companion_access),
 ) -> AvatarUploadResponse:
     file_content = await avatar.read()
     if not file_content:

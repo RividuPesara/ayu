@@ -216,7 +216,7 @@ def add_post_comment(post_id: str, uid: str, text: str):
 async def upload_image_to_cloudinary(file: UploadFile) -> str:
     settings = get_settings()
 
-    if not settings.cloudinary_cloud_name or not settings.cloudinary_upload_preset:
+    if not settings.cloudinary_cloud_name or not settings.cloudinary_api_key or not settings.cloudinary_api_secret:
         raise HTTPException(
             status_code=500,
             detail="Cloudinary environment variables are missing",

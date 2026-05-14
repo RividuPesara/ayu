@@ -1,7 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:mobile_app/homeScreen.dart' show WelcomeScreen;
+import 'package:mobile_app/Mood Journal/moodSelectorScreen.dart';
+import 'package:mobile_app/homeScreen.dart';
 
 class Quiz extends StatefulWidget {
   const Quiz({super.key});
@@ -387,42 +388,43 @@ class _QuizState extends State<Quiz> {
                   ),
                 ),
                 ElevatedButton(
-                  onPressed: _isSaving ? null : nextPage,
+                  onPressed: index == 5
+                      ? () => Navigator.pushAndRemoveUntil(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const MoodSelectorScreen(),
+                          ),
+                          (route) => false,
+                        )
+                      : nextPage,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xff4B3425),
+                    backgroundColor: index == 5
+                        ? const Color(0xff7B6BA8)
+                        : const Color(0xff4B3425),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(
                       vertical: 12,
                       horizontal: 32,
                     ),
                   ),
-                  child: _isSaving && index == 5
-                      ? const SizedBox(
-                          width: 28,
-                          height: 28,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 3,
-                          ),
-                        )
-                      : Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              index == 5 ? "Finish" : "Next",
-                              style: const TextStyle(
-                                fontSize: 25,
-                                color: Color(0xffF7F4F2),
-                              ),
-                            ),
-                            const SizedBox(width: 15),
-                            const Icon(
-                              Icons.arrow_forward,
-                              color: Colors.white,
-                              size: 35,
-                            ),
-                          ],
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        index == 5 ? "Finish" : "Next",
+                        style: const TextStyle(
+                          fontSize: 25,
+                          color: Color(0xffF7F4F2),
                         ),
+                      ),
+                      const SizedBox(width: 15),
+                      Icon(
+                        index == 5 ? Icons.check : Icons.arrow_forward,
+                        color: Colors.white,
+                        size: 35,
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
