@@ -599,13 +599,24 @@ class _DashboardState extends State<Dashboard> with RouteAware {
                           return SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
                             child: Row(
-                              children: articles.map((article) {
+                              children: articles.asMap().entries.map((entry) {
+                                final index = entry.key;
+                                final article = entry.value;
+
+                                final colors = [
+                                  Color(0xffFFCE5C),
+                                  Color(0xff9BB068),
+                                  Color(0xff7B6BA8),
+                                  Color(0xff5C7AA0),
+                                ];
+
                                 return Padding(
                                   padding: const EdgeInsets.only(right: 15),
                                   child: buildResourceCard(
                                     article.genre.isNotEmpty ? article.genre : "Article",
                                     article.title,
-                                    () => Navigator.push(
+                                    colors[index % colors.length],
+                                        () => Navigator.push(
                                       context,
                                       MaterialPageRoute(
                                         builder: (_) => ArticleRead(article: article),
@@ -974,7 +985,7 @@ class _DashboardState extends State<Dashboard> with RouteAware {
     );
   }
 
-  Widget buildResourceCard(String title, String subtitle, VoidCallback onTap) {
+  Widget buildResourceCard(String title, String subtitle, Color circleColor, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -988,7 +999,7 @@ class _DashboardState extends State<Dashboard> with RouteAware {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const CircleAvatar(radius: 35, backgroundColor: Colors.purple),
+            CircleAvatar(radius: 35, backgroundColor: circleColor),
 
             const SizedBox(height: 10),
 
