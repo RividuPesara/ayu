@@ -30,6 +30,7 @@ interface BackendAppointment {
   date?: string;
   zoom_meeting_id?: string;
   zoom_passcode?: string;
+  zoom_start_url?: string;
   clinical_notes?: string;
   intake_note?: string;
   prescription_url?: string;
@@ -48,6 +49,7 @@ function mapBackendAppointment(item: BackendAppointment): Appointment {
     date: item.date,
     zoomMeetingId: item.zoom_meeting_id,
     zoomPasscode: item.zoom_passcode,
+    zoomStartUrl: item.zoom_start_url,
     clinicalNotes: item.clinical_notes,
     intakeNote: item.intake_note,
     prescriptionUrl: item.prescription_url,
