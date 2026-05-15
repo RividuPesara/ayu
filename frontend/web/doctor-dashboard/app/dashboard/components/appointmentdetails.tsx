@@ -22,6 +22,7 @@ interface BackendAppointment {
   date?: string;
   zoom_meeting_id?: string;
   zoom_passcode?: string;
+  zoom_start_url?: string;
   clinical_notes?: string;
   intake_note?: string;
   prescription_url?: string;
@@ -46,6 +47,7 @@ function mapBackendAppointment(item: BackendAppointment): Appointment {
     date: item.date,
     zoomMeetingId: item.zoom_meeting_id,
     zoomPasscode: item.zoom_passcode,
+    zoomStartUrl: item.zoom_start_url,
     clinicalNotes: item.clinical_notes,
     intakeNote: item.intake_note,
     prescriptionUrl: item.prescription_url,
@@ -286,9 +288,9 @@ export default function AppointmentDetails({
                 ))}
               </div>
  
-              {/* Direct Zoom meeting link button */}
+              {/* Direct Zoom meeting link button uses start_url so doctor joins as host */}
               <a
-                href={`https://zoom.us/j/${appointment.zoomMeetingId?.replace(/\s/g, "")}?pwd=${appointment.zoomPasscode}`}
+                href={appointment.zoomStartUrl ?? `https://zoom.us/j/${appointment.zoomMeetingId?.replace(/\s/g, "")}?pwd=${appointment.zoomPasscode}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-[#7C3AED] text-white text-sm font-semibold hover:opacity-90 transition-opacity"

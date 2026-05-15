@@ -46,6 +46,7 @@ class Appointment(BaseModel):
     date: str | None = None
     zoom_meeting_id: str | None = None
     zoom_passcode: str | None = None
+    zoom_start_url: str | None = None
     clinical_notes: str | None = None
     intake_note: str | None = None
     prescription_url: str | None = None
