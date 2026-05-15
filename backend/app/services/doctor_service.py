@@ -319,6 +319,7 @@ def map_appointment(doc_id: str, data: dict[str, Any]) -> Appointment:
         date=to_date_key(data.get("date")),
         zoom_meeting_id=data.get("zoomMeetingId"),
         zoom_passcode=data.get("zoomPasscode"),
+        zoom_start_url=data.get("zoomStartUrl"),
         clinical_notes=data.get("clinicalNotes"),
         intake_note=data.get("intakeNote"),
         prescription_url=read_prescription_url(data.get("prescription")),

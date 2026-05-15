@@ -281,6 +281,7 @@ def book_appointment(
     meeting_id = str(meeting.get("id")) if meeting.get("id") is not None else None
     passcode = meeting.get("password")
     join_url = meeting.get("join_url")
+    start_url = meeting.get("start_url")
 
     appointment_payload: dict[str, Any] = {
         "doctorUid": payload.doctor_uid,
@@ -299,6 +300,7 @@ def book_appointment(
         "zoomMeetingId": meeting_id,
         "zoomPasscode": passcode,
         "zoomJoinUrl": join_url,
+        "zoomStartUrl": start_url,
         "createdAt": firestore.SERVER_TIMESTAMP,
         "updatedAt": firestore.SERVER_TIMESTAMP,
     }

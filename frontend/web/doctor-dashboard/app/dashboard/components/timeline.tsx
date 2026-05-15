@@ -11,6 +11,7 @@ export interface Appointment {
   date?: string;
   zoomMeetingId?: string;
   zoomPasscode?: string;
+  zoomStartUrl?: string;
   clinicalNotes?: string;
   intakeNote?: string;
   prescriptionUrl?: string;
