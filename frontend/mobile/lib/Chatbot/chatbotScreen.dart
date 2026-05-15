@@ -362,7 +362,7 @@ class _ChatbotState extends State<Chatbot> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(100),
                       ),
-                      fixedSize: const Size(88, 54),
+                      fixedSize: const Size(95, 54),
                     ),
                     child: const Text(
                       'Chat',
