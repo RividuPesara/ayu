@@ -34,3 +34,11 @@ class CompanionPrivacyResponse(BaseModel):
     todo_list: bool
     tracking: bool
     doctor_appointments: bool
+
+
+class PatientMoodStatusResponse(BaseModel):
+    current_status: str
+    emotion_message: str
+    has_crisis: bool
+    recent_entry_flagged: bool  # any entry in last 7 days had aiMood=="Suicidal" AND safetyFlag=="crisis"
+    last_active_date_key: str

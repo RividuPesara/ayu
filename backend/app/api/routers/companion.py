@@ -10,10 +10,12 @@ from app.schemas.companion import (
     CompanionPrivacyRequest,
     CompanionPrivacyResponse,
     CompanionStatusResponse,
+    PatientMoodStatusResponse,
 )
 from app.services.companion_service import (
     get_companion_privacy,
     get_companion_status,
+    get_patient_mood_status,
     save_companion_privacy,
     send_companion_invite,
     unlink_companion,
@@ -71,6 +73,13 @@ async def get_privacy(user: CurrentUser = Depends(require_patient_or_companion_a
     # Patient reads own settings . companion reads their patient's settings using service
     result = await _run_sync(get_companion_privacy, user.uid, user.role)
     return CompanionPrivacyResponse.model_validate(result)
+
+@router.get("/patient-mood-status", response_model=PatientMoodStatusResponse, status_code=status.HTTP_200_OK)
+async def patient_mood_status(user: CurrentUser = Depends(require_patient_or_companion_access),) -> PatientMoodStatusResponse:
+    # Companion fetches the patient's current mood status and crisis indicators
+    result = await _run_sync(get_patient_mood_status, user.uid)
+    return PatientMoodStatusResponse.model_validate(result)
+
 
 @router.delete("", status_code=status.HTTP_200_OK)
 async def delete_companion(
