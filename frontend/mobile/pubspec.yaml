@@ -40,6 +40,10 @@ dependencies:
   firebase_core: ^3.2.0
   firebase_auth: ^5.1.4
   cloud_firestore: ^5.4.0
+  firebase_messaging: ^15.0.0
+  flutter_local_notifications: ^17.0.0
+  timezone: ^0.9.4
+  flutter_timezone: ^2.0.0
   shared_preferences: ^2.2.3
   url_launcher: ^6.3.0
   intl: ^0.18.1
