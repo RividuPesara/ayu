@@ -8,6 +8,7 @@ import 'package:mobile_app/Login%20Section/signUpScreen.dart';
 import 'package:mobile_app/Login Section/forgotPasswordScreen.dart';
 import 'package:mobile_app/Mood Journal/moodSelectorScreen.dart';
 import 'package:mobile_app/companion-dashboard/compDashboard.dart';
+import 'package:mobile_app/Notification/device_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -70,6 +71,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // Companions skip MFA go straight to their dashboard
       if (result.nextStep == AuthNextStep.companionReady) {
+        final uid = FirebaseAuth.instance.currentUser?.uid;
+        if (uid != null) await DeviceService.instance.registerDevice(uid);
+        if (!mounted) return;
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (_) => const CompanionDashboard()),
@@ -90,11 +94,16 @@ class _LoginScreenState extends State<LoginScreen> {
         MaterialPageRoute(
           builder: (context) => OtpScreen(
             session: session,
-            onVerified: () => Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (_) => const MoodSelectorScreen()),
-              (route) => false,
-            ),
+            onVerified: () async {
+              final uid = FirebaseAuth.instance.currentUser?.uid;
+              if (uid != null) await DeviceService.instance.registerDevice(uid);
+              if (!mounted) return;
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const MoodSelectorScreen()),
+                (route) => false,
+              );
+            },
           ),
         ),
       );
