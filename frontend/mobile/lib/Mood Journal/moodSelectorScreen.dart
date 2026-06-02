@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:mobile_app/Mood Journal/mood_journal_service.dart';
+import 'package:mobile_app/Notification/local_notification_scheduler.dart';
 import 'package:mobile_app/dashboardScreen.dart';
 
 class MoodSelectorScreen extends StatefulWidget {
@@ -57,6 +58,8 @@ class _MoodSelectorScreenState extends State<MoodSelectorScreen> {
   void initState() {
     super.initState();
     _checkTodayPulseAndRoute();
+    // schedule the daily 8pm mood check-in reminder
+    LocalNotificationScheduler.instance.scheduleMoodCheckIn();
   }
 
   Future<void> _checkTodayPulseAndRoute() async {
@@ -150,6 +153,8 @@ class _MoodSelectorScreenState extends State<MoodSelectorScreen> {
       final repository = MoodJournalRepository.instance;
       final selectedMood = _pulseMoodKeys[selectedMoodIndex];
       repository.markPulseRecordedTodayLocally();
+      // cancel todays reminder and re-arm for tomorrow
+      unawaited(LocalNotificationScheduler.instance.onPulseRecorded());
 
       if (!mounted) {
         return;

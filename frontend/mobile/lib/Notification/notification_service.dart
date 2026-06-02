@@ -118,6 +118,7 @@ class NotificationService {
       fireAt: fireAt,
     );
 
+    // schedule the OS alarm, a receiver in the manifest catches it and posts
     final channelId = priority == 'high' ? 'ayu_crisis' : 'ayu_default';
     final notifId = dedupeKey.hashCode.abs();
 
@@ -134,7 +135,7 @@ class NotificationService {
           priority: Priority.high,
         ),
       ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode: AndroidScheduleMode.alarmClock,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
       payload: route,
@@ -174,8 +175,10 @@ class NotificationService {
           .limit(_fetchLimit);
 
       if (lastSyncMs != null) {
-        query = query.where('createdAt',
-            isGreaterThan: Timestamp.fromDate(lastSync));
+        query = query.where(
+          'createdAt',
+          isGreaterThan: Timestamp.fromDate(lastSync),
+        );
       }
 
       final snap = await query.get();

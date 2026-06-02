@@ -12,6 +12,7 @@ import '../Tracker/Widgets/missedView.dart';
 import '../Tracker/Widgets/selectedDateCard.dart';
 import '../Tracker/Widgets/takenView.dart';
 import '../Tracker/tracker_service.dart';
+import '../Notification/local_notification_scheduler.dart';
 import '../dashboard_cache.dart';
 import 'package:lottie/lottie.dart';
 import '../Chatbot/chatbotScreen.dart';
@@ -120,12 +121,36 @@ class _TrackerScreenState extends State<TrackerScreen> {
             _isLoading = false;
           });
         }
+        // reschedule reminders from latest medication list on every fresh fetch
+        _rescheduleMedicationReminders(items);
       } catch (_) {
         if (mounted) setState(() => _isLoading = false);
       }
     } else {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  // build MedicationItem list from schedule items and reschedule reminders
+  void _rescheduleMedicationReminders(List<ScheduleItem> items) {
+    final seen = <String>{};
+    final meds = <MedicationItem>[];
+    for (final item in items) {
+      if (seen.add(item.medicationId)) {
+        meds.add(MedicationItem(
+          medicationId: item.medicationId,
+          name: item.name,
+          type: item.type,
+          times: items
+              .where((i) => i.medicationId == item.medicationId)
+              .map((i) => i.scheduledTime)
+              .toList(),
+          repeatUntil: '',
+          startDate: '',
+        ));
+      }
+    }
+    LocalNotificationScheduler.instance.scheduleMedicationReminders(meds);
   }
 
   List<DateTime> get visibleDates => List.generate(
@@ -378,6 +403,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
 
     try {
       await deleteMedication(medicationId: medicationId);
+      await LocalNotificationScheduler.instance.cancelMedicationReminders(medicationId);
     } catch (error) {
       await repo.setScheduleForDate(dateKey, backupItems);
       if (mounted) {
@@ -1341,6 +1367,8 @@ class _TrackerScreenState extends State<TrackerScreen> {
                                     tempId,
                                     med,
                                   );
+                                  // schedule reminders for the newly created medication
+                                  LocalNotificationScheduler.instance.scheduleMedicationReminders([med]);
                                   if (dateKey == DashboardCache.adjustedDayKey()) {
                                     DashboardCache.instance.todayMeds =
                                         repo.scheduleFor(dateKey);
