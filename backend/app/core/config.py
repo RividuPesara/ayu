@@ -52,6 +52,8 @@ class Settings(BaseSettings):
 
     redis_url: str | None = None
 
+    job_runner_secret: str | None = None
+
     dev_mode: bool = False
     dev_patient_uid: str = "dev-rividu-pesara"
     dev_patient_email: str = "rivindupeshara11@gmail.com"
