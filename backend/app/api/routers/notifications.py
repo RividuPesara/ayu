@@ -9,6 +9,7 @@ from app.core.config import get_settings
 from app.core.firebase import get_firestore_client
 from app.dependencies.auth import CurrentUser, require_patient_or_companion_access
 from app.services.companion_service import cleanup_expired_invites
+from app.services.appointment_service import send_appointment_reminders
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +88,8 @@ def _verify_job_secret(x_job_secret: str | None = Header(default=None)) -> None:
 async def run_jobs(_: None = Depends(_verify_job_secret)) -> dict:
     # runs background maintenance jobs, called by external cron every 5 min
     invites_result = await _run_sync(cleanup_expired_invites)
+    reminders_result = await _run_sync(send_appointment_reminders)
     return {
         "invites_cleaned": invites_result.get("cleaned_up", 0),
-        "appointment_reminders_sent": 0,
+        "appointment_reminders_sent": reminders_result.get("sent", 0),
     }
