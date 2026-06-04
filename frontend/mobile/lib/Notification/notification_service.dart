@@ -73,6 +73,22 @@ class NotificationService {
     return cached;
   }
 
+  // real time stream of notifications from firestore newest first
+  Stream<List<NotificationModel>> streamNotifications(String uid) {
+    return FirebaseFirestore.instance
+        .collection('notifications')
+        .doc(uid)
+        .collection('items')
+        .orderBy('createdAt', descending: true)
+        .limit(_fetchLimit)
+        .snapshots()
+        .map((snap) {
+          final list = snap.docs.map(NotificationModel.fromFirestore).toList();
+          _saveCache(list);
+          return list;
+        });
+  }
+
   // marks a notification as read in firestore and in cache
   Future<void> markAsRead(String uid, String dedupeKey) async {
     await FirebaseFirestore.instance
@@ -86,6 +102,26 @@ class NotificationService {
     for (final n in cached) {
       if (n.dedupeKey == dedupeKey) n.isRead = true;
     }
+    await _saveCache(cached);
+  }
+
+  // marks all notifications as read in firestore and cache
+  Future<void> markAllAsRead(String uid) async {
+    final cached = await _loadCache();
+    final unread = cached.where((n) => !n.isRead).toList();
+    if (unread.isEmpty) return;
+
+    final batch = FirebaseFirestore.instance.batch();
+    for (final n in unread) {
+      final ref = FirebaseFirestore.instance
+          .collection('notifications')
+          .doc(uid)
+          .collection('items')
+          .doc(n.dedupeKey);
+      batch.update(ref, {'isRead': true});
+      n.isRead = true;
+    }
+    await batch.commit();
     await _saveCache(cached);
   }
 
@@ -105,6 +141,9 @@ class NotificationService {
     required String route,
     required DateTime fireAt,
     String priority = 'normal',
+    // pass DateTimeComponents.time for daily-recurring reminders (medication, mood)
+    // null means one shot (tasks, crisis)
+    DateTimeComponents? matchComponents,
   }) async {
     await saveNotification(
       uid: uid,
@@ -135,9 +174,12 @@ class NotificationService {
           priority: Priority.high,
         ),
       ),
-      androidScheduleMode: AndroidScheduleMode.alarmClock,
+      androidScheduleMode: matchComponents != null
+          ? AndroidScheduleMode.exactAllowWhileIdle
+          : AndroidScheduleMode.alarmClock,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
+      matchDateTimeComponents: matchComponents,
       payload: route,
     );
   }

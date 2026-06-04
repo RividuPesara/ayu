@@ -4,7 +4,8 @@ import 'package:mobile_app/Community/createPost.dart';
 import 'package:mobile_app/Community/community_service.dart';
 
 class CommunityScreen extends StatefulWidget {
-  const CommunityScreen({super.key});
+  final String? focusPostId;
+  const CommunityScreen({super.key, this.focusPostId});
 
   @override
   State<CommunityScreen> createState() => _CommunityScreenState();
@@ -19,13 +20,16 @@ class _CommunityScreenState extends State<CommunityScreen>
   late final Animation<double> _fadeAnimation;
   late final Animation<double> _scaleAnimation;
 
-  List<Map<String, dynamic>> posts = [];  // Posts data
-  bool isLoading = true;    // Loading state
+  final ScrollController _scrollController = ScrollController();
+  final Map<String, GlobalKey> _postKeys = {};
+
+  List<Map<String, dynamic>> posts = [];
+  bool isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(  // Initialize animation controller
+    _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 220),
     );
@@ -38,25 +42,43 @@ class _CommunityScreenState extends State<CommunityScreen>
     _scaleAnimation = Tween<double>(
       begin: 0.85,
       end: 1,
-    ).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
-    fetchPosts();   // Fetch posts when screen loads
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+    fetchPosts(); // Fetch posts when screen loads
   }
 
   Future<void> fetchPosts() async {
     try {
       setState(() => isLoading = true);
 
-      // Load either all posts or only user's posts
       final data = showYourPosts
           ? await CommunityApiService.getMyPosts()
           : await CommunityApiService.getPosts();
+
+      _postKeys.clear();
+      for (final post in data) {
+        final id = post['id']?.toString() ?? '';
+        if (id.isNotEmpty) _postKeys[id] = GlobalKey();
+      }
 
       setState(() {
         posts = data;
         isLoading = false;
       });
+
+      // scroll to the post that triggered the notification tap
+      final focusId = widget.focusPostId;
+      if (focusId != null && _postKeys.containsKey(focusId)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final key = _postKeys[focusId];
+          if (key?.currentContext != null) {
+            Scrollable.ensureVisible(
+              key!.currentContext!,
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.easeInOut,
+            );
+          }
+        });
+      }
     } catch (e) {
       setState(() => isLoading = false);
       debugPrint("Fetch posts error: $e");
@@ -66,12 +88,13 @@ class _CommunityScreenState extends State<CommunityScreen>
   @override
   void dispose() {
     _controller.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
   void toggleFab() {
-      setState(() => isFabOpen = !isFabOpen);
-      isFabOpen ? _controller.forward() : _controller.reverse();
+    setState(() => isFabOpen = !isFabOpen);
+    isFabOpen ? _controller.forward() : _controller.reverse();
   }
 
   void closeFab() {
@@ -145,8 +168,8 @@ class _CommunityScreenState extends State<CommunityScreen>
                           Expanded(
                             child: GestureDetector(
                               onTap: () {
-                                  setState(() => showYourPosts = false);
-                                  fetchPosts();
+                                setState(() => showYourPosts = false);
+                                fetchPosts();
                               },
                               child: Center(
                                 child: Text(
@@ -193,13 +216,17 @@ class _CommunityScreenState extends State<CommunityScreen>
                         Expanded(
                           child: Container(
                             height: 2,
-                            color: showYourPosts ? Colors.transparent : textDark,
+                            color: showYourPosts
+                                ? Colors.transparent
+                                : textDark,
                           ),
                         ),
                         Expanded(
                           child: Container(
                             height: 2,
-                            color: showYourPosts ? textDark : Colors.transparent,
+                            color: showYourPosts
+                                ? textDark
+                                : Colors.transparent,
                           ),
                         ),
                       ],
@@ -211,40 +238,42 @@ class _CommunityScreenState extends State<CommunityScreen>
                         ? const Center(child: CircularProgressIndicator())
                         : posts.isEmpty
                         ? const Center(
-                      child: Text(
-                        "No posts found",
-                        style: TextStyle(
-                          color: textDark,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    )
+                            child: Text(
+                              "No posts found",
+                              style: TextStyle(
+                                color: textDark,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          )
                         : RefreshIndicator(
-                      onRefresh: fetchPosts,
-                      child: ListView.builder(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                        ),
-                        itemCount: posts.length,
-                        itemBuilder: (context, index) {
-                          return PostCard(
-                            post: posts[index],
                             onRefresh: fetchPosts,
-                            showStatusBadge: showYourPosts,
-                          );
-                        },
-                      ),
-                    ),
+                            child: ListView.builder(
+                              controller: _scrollController,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                              ),
+                              itemCount: posts.length,
+                              itemBuilder: (context, index) {
+                                final postId =
+                                    posts[index]['id']?.toString() ?? '';
+                                return PostCard(
+                                  key: _postKeys[postId],
+                                  post: posts[index],
+                                  onRefresh: fetchPosts,
+                                  showStatusBadge: showYourPosts,
+                                );
+                              },
+                            ),
+                          ),
                   ),
                 ],
               ),
             ),
             if (isFabOpen)
               Positioned.fill(
-                child: Container(
-                  color: Colors.black.withOpacity(0.65),
-                ),
+                child: Container(color: Colors.black.withOpacity(0.65)),
               ),
 
             Positioned(
@@ -269,7 +298,9 @@ class _CommunityScreenState extends State<CommunityScreen>
                                 closeFab();
                                 await Navigator.push(
                                   context,
-                                  MaterialPageRoute(builder: (_) => const CreateImgPostScreen()),
+                                  MaterialPageRoute(
+                                    builder: (_) => const CreateImgPostScreen(),
+                                  ),
                                 );
                                 fetchPosts();
                               },
@@ -282,7 +313,9 @@ class _CommunityScreenState extends State<CommunityScreen>
                                 closeFab();
                                 await Navigator.push(
                                   context,
-                                  MaterialPageRoute(builder: (_) => const CreatePostScreen()),
+                                  MaterialPageRoute(
+                                    builder: (_) => const CreatePostScreen(),
+                                  ),
                                 );
                                 fetchPosts();
                               },
@@ -358,11 +391,7 @@ class _CommunityScreenState extends State<CommunityScreen>
               shape: BoxShape.circle,
               color: Colors.white,
             ),
-            child: Icon(
-              icon,
-              color: iconColor,
-              size: 28,
-            ),
+            child: Icon(icon, color: iconColor, size: 28),
           ),
         ),
       ],
@@ -416,14 +445,8 @@ class _PostCardState extends State<PostCard>
       duration: const Duration(milliseconds: 260),
     );
 
-    _likeScaleAnimation = Tween<double>(
-      begin: 0.7,
-      end: 1.25,
-    ).animate(
-      CurvedAnimation(
-        parent: _likeController,
-        curve: Curves.easeOutBack,
-      ),
+    _likeScaleAnimation = Tween<double>(begin: 0.7, end: 1.25).animate(
+      CurvedAnimation(parent: _likeController, curve: Curves.easeOutBack),
     );
   }
 
@@ -572,11 +595,7 @@ class _PostCardState extends State<PostCard>
               builder: (context, value, child) {
                 return Transform.scale(scale: value, child: child);
               },
-              child: const Icon(
-                Icons.favorite,
-                color: Colors.white,
-                size: 82,
-              ),
+              child: const Icon(Icons.favorite, color: Colors.white, size: 82),
             ),
           ),
         ],
@@ -654,10 +673,8 @@ class _PostCardState extends State<PostCard>
       await _loadComments();
 
       setState(() {
-        widget.post["commentCount"] =
-            (widget.post["commentCount"] ?? 0) + 1;
+        widget.post["commentCount"] = (widget.post["commentCount"] ?? 0) + 1;
       });
-
     } catch (e) {
       debugPrint("Add comment error: $e");
     }
@@ -685,9 +702,8 @@ class _PostCardState extends State<PostCard>
         children: [
           CircleAvatar(
             radius: 20,
-            backgroundImage:
-              avatar.isNotEmpty ? NetworkImage(avatar) : null,
-              child: avatar.isEmpty ? const Icon(Icons.person, size: 20) : null,
+            backgroundImage: avatar.isNotEmpty ? NetworkImage(avatar) : null,
+            child: avatar.isEmpty ? const Icon(Icons.person, size: 20) : null,
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -826,7 +842,7 @@ class _PostCardState extends State<PostCard>
                         child: Column(
                           children: [
                             ...comments.map(
-                                  (comment) => Padding(
+                              (comment) => Padding(
                                 padding: const EdgeInsets.only(bottom: 12),
                                 child: _buildCommentTile(comment),
                               ),
@@ -846,13 +862,17 @@ class _PostCardState extends State<PostCard>
 
                 // ✅ STATUS LABEL (TOP RIGHT)
                 if (widget.showStatusBadge &&
-                    (status == "approved" || status == "rejected" ||  status == "pending"))
+                    (status == "approved" ||
+                        status == "rejected" ||
+                        status == "pending"))
                   Positioned(
                     top: 0,
                     right: 0,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: status == "approved"
                             ? Colors.green
@@ -889,9 +909,8 @@ class _PostCardState extends State<PostCard>
       children: [
         CircleAvatar(
           radius: 17,
-          backgroundImage:
-            avatar.isNotEmpty ? NetworkImage(avatar) : null,
-            child: avatar.isEmpty ? const Icon(Icons.person, size: 17) : null,
+          backgroundImage: avatar.isNotEmpty ? NetworkImage(avatar) : null,
+          child: avatar.isEmpty ? const Icon(Icons.person, size: 17) : null,
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -943,10 +962,7 @@ class _PostCardState extends State<PostCard>
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        const CircleAvatar(
-          radius: 16,
-          child: Icon(Icons.person, size: 16),
-        ),
+        const CircleAvatar(radius: 16, child: Icon(Icons.person, size: 16)),
         const SizedBox(width: 10),
         Expanded(
           child: Container(
@@ -954,9 +970,7 @@ class _PostCardState extends State<PostCard>
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(22),
-              border: Border.all(
-                color: const Color(0xFFE3DDD8),
-              ),
+              border: Border.all(color: const Color(0xFFE3DDD8)),
             ),
             child: TextField(
               controller: _commentController,
@@ -975,17 +989,10 @@ class _PostCardState extends State<PostCard>
                 ),
                 suffixIcon: IconButton(
                   onPressed: _addComment,
-                  icon: const Icon(
-                    Icons.send_rounded,
-                    size: 18,
-                    color: purple,
-                  ),
+                  icon: const Icon(Icons.send_rounded, size: 18, color: purple),
                 ),
               ),
-              style: const TextStyle(
-                color: textDark,
-                fontSize: 13,
-              ),
+              style: const TextStyle(color: textDark, fontSize: 13),
             ),
           ),
         ),

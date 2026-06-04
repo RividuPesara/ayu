@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 
@@ -43,6 +44,7 @@ class LocalNotificationScheduler {
           type: 'medication',
           route: 'tracker',
           fireAt: fireAt,
+          matchComponents: DateTimeComponents.time,
         );
         scheduledTimes.add(time);
       }
@@ -102,15 +104,33 @@ class LocalNotificationScheduler {
       type: 'mood',
       route: 'mood_selector',
       fireAt: fireAt,
+      matchComponents: DateTimeComponents.time,
     );
   }
 
   // call when the daily pulse is recorded to suppress todays reminder
   // and re-arm for tomorrow
   Future<void> onPulseRecorded() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
     const dedupeKey = 'mood:daily-checkin';
     await NotificationService.instance.cancelLocal(dedupeKey);
-    await scheduleMoodCheckIn();
+
+    // always schedule for tomorrow since today was already recorded
+    final now = tz.TZDateTime.now(tz.local);
+    final tomorrow8pm = tz.TZDateTime(tz.local, now.year, now.month, now.day + 1, 20, 0);
+
+    await NotificationService.instance.scheduleLocal(
+      uid: uid,
+      dedupeKey: dedupeKey,
+      title: 'How are you feeling today?',
+      subtitle: 'Log your mood',
+      type: 'mood',
+      route: 'mood_selector',
+      fireAt: tomorrow8pm,
+      matchComponents: DateTimeComponents.time,
+    );
   }
 
   // task due reminders
