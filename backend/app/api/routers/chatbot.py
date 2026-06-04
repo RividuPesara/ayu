@@ -36,6 +36,7 @@ from app.services.chatbot_service import (
     update_session_stats,
     write_context_snapshot,
 )
+from app.services.journal_service import compute_and_store_mood_stats
 
 router = APIRouter(prefix="/chatbot", tags=["chatbot"])
 
@@ -300,11 +301,15 @@ async def end_session(session_id: str,user : CurrentUser = Depends(require_patie
     if not conversation_history:
         # skips processing for empty chats but marks them done to prevent retries
         await _run_sync(mark_session_summarized, session_id)
+        # refresh mood status so chat data is reflected even for empty sessions
+        await _run_sync(compute_and_store_mood_stats, user.uid)
         return {"status": "no_messages"}
 
     _MIN_MESSAGES_FOR_SUMMARY = 3
     if int(aggregates["patient_message_count"]) < _MIN_MESSAGES_FOR_SUMMARY:
         await _run_sync(mark_session_summarized, session_id)
+        # refresh mood status to pick up any emotion signals from the short session
+        await _run_sync(compute_and_store_mood_stats, user.uid)
         return {"status": "skipped_too_short"}
 
     # creates a brief snapshot of the user's state during this specific session
@@ -325,5 +330,10 @@ async def end_session(session_id: str,user : CurrentUser = Depends(require_patie
     if updated and updated != existing_summary:
         await _run_sync(update_long_term_summary, user.uid, updated)
         await _run_sync(mark_session_summarized, session_id)
+        # refresh mood status now that chat emotion data from this session is finalised
+        await _run_sync(compute_and_store_mood_stats, user.uid)
         return {"status": "summary_updated"}
+
+    # still refresh mood status even if summary did not change
+    await _run_sync(compute_and_store_mood_stats, user.uid)
     return {"status": "summary_failed"}
