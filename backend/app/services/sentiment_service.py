@@ -2,6 +2,8 @@ import logging
 import os
 import re
 
+from app.services.language_service import normalize_to_english
+
 import ftfy
 import joblib
 import nltk
@@ -106,6 +108,18 @@ KEYWORD_CRISIS = {
     'suicide note', 'plan to end', 'wont be here tomorrow',
     'final message', 'kill me', 'wish i was dead',
     'shouldnt exist', 'disappear forever', 'cease to exist',
+}
+
+# Sinhala crisis keywords this is scanned on the original text before translation
+KEYWORD_CRISIS_SINHALA = {
+    'මරණය', 'මැරෙනවා', 'මැරිලා', 'මැරෙන්න', 'ජීවිතේ අවසන්', 'ජීවත් වෙන්න බෑ', 
+    'ජීවිතය නැති කරගන්නවා', 'සියදිවි නසාගන්නවා', 'දිවි නසාගන්නවා', 'ගෙල වැළලා', 
+    'දිවි තොර කරගන්නවා', 'මම ඉන්නේ නෑ', 'හැමෝටම හොඳයි මම නැතිනම්', 'සමුගන්නවා',
+    'යන්න යනවා', 'අන්තිම ලිපිය', 'අන්තිම පණිවිඩය', 'මරණ පරීක්ෂණය',
+    'විෂ බොනවා', 'වස බොනවා', 'වස පෙති', 'පෙති බොනවා', 'බෙහෙත් බොනවා',
+    'කෝච්චියට පනිනවා', 'දුම්රියට පැනලා', 'ගඟට පනිනවා', 'වැවට පනිනවා', 
+    'ගලෙන් පැනලා', 'උඩින් පනිනවා', 'එල්ලෙනවා', 'ලණුවක්', 'ගිනි තියාගන්නවා', 
+    'කපාගන්නවා', 'අත කපාගන්නවා', 'තුවාල කරගන්නවා', 'ලේ ගලවනවා'
 }
 
 # threshold for suicidal confidence from model
@@ -295,11 +309,18 @@ def predict_label(text: str, clean: str | None = None) -> dict:
 
 def analyze_safety(user_text: str) -> dict:
     # detect crisis using keyword and model; lemmatize once and reuse across predict_label and has_medical_vocabulary
-    lower = user_text.lower()
-    keyword_hit = any(kw in lower for kw in KEYWORD_CRISIS)
 
-    clean = lemmatize_text(remove_patterns(fix_encoding(user_text)))
-    model_detail = predict_label(user_text, clean=clean)
+    # scan original Sinhala text for crisis phrases before any translation
+    sinhala_keyword_hit = any(kw in user_text for kw in KEYWORD_CRISIS_SINHALA)
+
+    # translate to English if needed but english input is returned as it is
+    english_text, detected_lang = normalize_to_english(user_text)
+
+    lower = english_text.lower()
+    keyword_hit = sinhala_keyword_hit or any(kw in lower for kw in KEYWORD_CRISIS)
+
+    clean = lemmatize_text(remove_patterns(fix_encoding(english_text)))
+    model_detail = predict_label(english_text, clean=clean)
     model_label = model_detail['final_label']
     suicidal_score = model_detail['scores'].get('Suicidal', 0)
 
@@ -318,6 +339,8 @@ def analyze_safety(user_text: str) -> dict:
 
     return {
         'user_message': user_text,
+        'detected_lang': detected_lang,
+        'english_text': english_text,
         'emotion_label': model_label,
         'safety_flag': safety_flag,
         'triggered_by': triggered_by,

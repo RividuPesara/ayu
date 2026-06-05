@@ -28,4 +28,5 @@ fastembed
 chromadb
 google-api-python-client
 ollama
+deep-translator
 

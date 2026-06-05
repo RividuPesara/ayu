@@ -238,6 +238,7 @@ async def stream_message(
     uid = user.uid
     prompt = ctx["prompt"]
     is_crisis = ctx["is_crisis"]
+    lang = ctx["lang"]
 
     async def event_generator():
         # sends metadata immediately so the UI can update while the model thinks
@@ -247,7 +248,7 @@ async def stream_message(
         loop = asyncio.get_running_loop()
 
         # starts the background generation task to pipe text tokens to the client
-        gen = chatbot_engine.stream_gemini_response(prompt, is_crisis=is_crisis)
+        gen = chatbot_engine.stream_gemini_response(prompt, is_crisis=is_crisis, lang=lang)
         while True:
             chunk = await loop.run_in_executor(None, next, gen, None)
             if chunk is None:

@@ -59,6 +59,7 @@ If the user says "hi" or starts small talk, respond only to what they just said.
 The memory is only for silent context — to adjust your tone and give accurate medical advice — NOT to bring up past events."""
 
 CRISIS_HARDCODED_PREFIX = "I'm here with you"
+CRISIS_HARDCODED_PREFIX_SI = "මම ඔයා ළඟ ඉන්නවා"
 
 CRISIS_FALLBACK_TEMPLATES = [
     "I'm here with you right now. If you're in danger, call 1990. Are you safe?",
@@ -66,21 +67,38 @@ CRISIS_FALLBACK_TEMPLATES = [
     "I'm with you. If you're thinking of hurting yourself, call 1990 now. Is someone near you?",
 ]
 
+CRISIS_FALLBACK_TEMPLATES_SI = [
+    "මම ඔයා එක්ක ඉන්නවා. ඔයා මොකක් හරි අනතුරක නම් ඉන්නේ, දැන්ම 1990 ට කෝල් එකක් ගන්න. ඔයා සනීපෙන්ද ඉන්නේ?",
+    "මම ඔයා එක්ක ඉන්නවා. ඔයාට දැන්ම උදව්වක් ඕනෙ නම් 1990 ට කතා කරන්න. ඔයා පරිස්සමෙන් නේද ඉන්නේ?",
+    "මම ඔයා එක්ක ඉන්නවා. ඔයාට ඔයාටම හානියක් කරගන්න හිතෙනවා නම්, අනේ දැන්ම 1990 ට කතා කරන්න. ඔයා ළඟ කවුරුහරි ඉන්නවාද?",
+]
+
 GENERAL_RATE_LIMIT_FALLBACK = (
     "I'm sorry, I'm a bit overwhelmed with requests right now. "
     "Could you try sending your message again in a minute? I'm still here for you."
 )
-
+GENERAL_RATE_LIMIT_FALLBACK_SI = (
+    "මට එකපාරටම මැසේජ් ගොඩක් එනවා. "
+    "පොඩ්ඩක් වෙලා ගිහින් ආයෙත් මැසේජ් එකක් දාන්න පුළුවන්ද? "
+    "මම ඔයා එක්කමයි ඉන්නේ."
+)
 GENERAL_CONFIGURATION_FALLBACK = (
     "I'm having a temporary configuration issue right now. "
     "Please try again shortly while we fix it."
+)
+GENERAL_CONFIGURATION_FALLBACK_SI = (
+    "පොඩි සිස්ටම් ප්‍රශ්නයක් ආවා. "
+    "පොඩ්ඩක් වෙලා ගිහින් ආයෙත් ට්‍රයි එකක් දෙන්නකෝ."
 )
 
 GENERAL_SERVICE_FALLBACK = (
     "I'm sorry, something went wrong while generating my response. "
     "Could you try again in a moment?"
 )
-
+GENERAL_SERVICE_FALLBACK_SI = (
+    "අයියෝ, මගේ රිප්ලයි එක එවන්න පොඩි අවුලක් වුණා. "
+    "පොඩ්ඩක් ඉඳලා ආයෙත් ට්‍රයි එකක් දීලා බලන්නකෝ."
+)
 # Excluded from lexical keyword matching
 DEFAULT_STOP_WORDS = {
     "where", "is", "the", "a", "an", "of", "to", "in", "for", "on", "at",
@@ -426,17 +444,18 @@ def _classify_gemini_error(exc: Exception) -> str:
     return "unknown"
 
 
-def _fallback_text_for_error(error_type: str, is_crisis: bool) -> str:
+def _fallback_text_for_error(error_type: str, is_crisis: bool, lang: str = "en") -> str:
+    si = lang == "si"
     if is_crisis:
-        return random.choice(CRISIS_FALLBACK_TEMPLATES)
+        return random.choice(CRISIS_FALLBACK_TEMPLATES_SI if si else CRISIS_FALLBACK_TEMPLATES)
 
     if error_type == "quota":
-        return GENERAL_RATE_LIMIT_FALLBACK
+        return GENERAL_RATE_LIMIT_FALLBACK_SI if si else GENERAL_RATE_LIMIT_FALLBACK
 
     if error_type == "credentials":
-        return GENERAL_CONFIGURATION_FALLBACK
+        return GENERAL_CONFIGURATION_FALLBACK_SI if si else GENERAL_CONFIGURATION_FALLBACK
 
-    return GENERAL_SERVICE_FALLBACK
+    return GENERAL_SERVICE_FALLBACK_SI if si else GENERAL_SERVICE_FALLBACK
 
 
 def _generate_with_gemini(user_prompt: str, is_crisis: bool = False) -> str:
@@ -569,6 +588,12 @@ def _generate_text_raw(prompt: str) -> str:
         response = _llm.invoke(prompt)
         content = getattr(response, "content", None) or getattr(response, "text", None)
         return str(content).strip() if content else ""
+
+
+def _lang_instruction(lang: str) -> str:
+    if lang == "si":
+        return "IMPORTANT: The user wrote in Sinhala. Reply in Sinhala only."
+    return ""
 
 
 def _format_history_for_prompt(history: list[dict], max_turns: int = 5) -> str:
@@ -742,8 +767,9 @@ Rules:
 def _handle_crisis_response(
     persona_packet: dict,
     conversation_history: list[dict],
-    user_summary : str,
-    long_term_summary : str = "",
+    user_summary: str,
+    long_term_summary: str = "",
+    lang: str = "en",
 ) -> str:
     """
     The response for a crisis message is assembled as:
@@ -752,20 +778,23 @@ def _handle_crisis_response(
     """
     history_context = _format_history_for_prompt(conversation_history, max_turns=4)
     memory_block = _build_memory_block(long_term_summary)
+    prefix = CRISIS_HARDCODED_PREFIX_SI if lang == "si" else CRISIS_HARDCODED_PREFIX
+    lang_instruction = _lang_instruction(lang)
 
     prompt = f"""CRISIS SITUATION — someone may be in danger.
+{lang_instruction}
 
-The message stream has already started with: "{CRISIS_HARDCODED_PREFIX}"
+The message stream has already started with: "{prefix}"
 
-Your job is to write ONLY the continuation — the text that comes directly after "{CRISIS_HARDCODED_PREFIX}".
+Your job is to write ONLY the continuation — the text that comes directly after "{prefix}".
 
 HOW TO CONTINUE:
-- Start with a comma or conjunction so it reads as one natural sentence, e.g. ", and I hear you." or " — what you're feeling sounds incredibly heavy."
+- Start with a comma or conjunction so it reads as one natural sentence.
 - After that first connecting phrase, acknowledge what they specifically said in your own warm words. Do NOT be generic.
 - Then gently ask one simple question — are they safe, is anyone with them, or what's happening right now.
 - If there is immediate danger, mention calling 1990 once, naturally — not as a robotic instruction.
 - Keep it short, warm, human. Like a close friend who just heard something that scared them.
-- Do NOT repeat "{CRISIS_HARDCODED_PREFIX}". Do NOT start with "I'm here".
+- Do NOT repeat "{prefix}". Do NOT start with "I'm here" or "මම ඔයා ළඟ ඉන්නවා".
 
 {memory_block}
 
@@ -777,24 +806,27 @@ Their emotion: {persona_packet['sentiment_label']}
 """
 
     continuation = _invoke_llm(prompt, is_crisis=True).strip()
-    return f"{CRISIS_HARDCODED_PREFIX}{continuation}"
+    return f"{prefix}{continuation}"
 
 
 def _handle_knowledge_based_response(
     persona_packet: dict,
     conversation_history: list[dict],
-    user_summary : str,
-    long_term_summary : str = "",
+    user_summary: str,
+    long_term_summary: str = "",
+    lang: str = "en",
 ) -> str:
-    history_context= _format_history_for_prompt(conversation_history, max_turns=4)
+    history_context = _format_history_for_prompt(conversation_history, max_turns=4)
     knowledge_context = (
         persona_packet["knowledge_context"]
         if persona_packet["knowledge_found"]
         else "No specific information found in knowledge base."
     )
     memory_block = _build_memory_block(long_term_summary)
+    lang_instruction = _lang_instruction(lang)
 
     prompt = f"""Someone is asking about cancer resources or info in Sri Lanka.
+{lang_instruction}
 
 CRITICAL: Only answer using the knowledge context below. If the answer is not in the context, say "I don't have that specific info, but you can call Apeksha Hospital to ask" or suggest they ask at the hospital directly.
 
@@ -820,14 +852,16 @@ def _handle_general_support(
     persona_packet: dict,
     conversation_history: list[dict],
     user_summary: str,
-    long_term_summary : str = "",
+    long_term_summary: str = "",
+    lang: str = "en",
 ) -> str:
     history_context = _format_history_for_prompt(conversation_history, max_turns=5)
     summary_words = len(long_term_summary.split()) if long_term_summary else 0
     memory_block = _build_memory_block(long_term_summary) if summary_words >= 30 else ""
+    lang_instruction = _lang_instruction(lang)
 
     # Only ask a follow up question 40% of the time to avoid it feeling repetitive
-    ask_question         = random.random() < 0.4
+    ask_question = random.random() < 0.4
     question_instruction = (
         "Maybe ask a gentle follow-up question if it feels natural."
         if ask_question
@@ -835,6 +869,7 @@ def _handle_general_support(
     )
 
     prompt = f"""Someone is talking to you about their cancer experience or feelings.
+{lang_instruction}
 
 Recent conversation:
 {history_context}
@@ -862,6 +897,7 @@ def process_user_message(
     # Main chatbot pipeline where it checks safety, gets info if needed and generates a response
     safety_report = analyze_safety(user_message)
     _clean = safety_report.get("_clean")
+    lang = safety_report.get("detected_lang", "en")
 
     if safety_report["safety_flag"] == "crisis":
         knowledge_context = {
@@ -884,7 +920,8 @@ def process_user_message(
             "skip_reason": "no_medical_vocabulary",
         }
     else:
-        retrieved = _retrieve_knowledge(user_message, top_n=1)
+        english_text = safety_report.get("english_text", user_message)
+        retrieved = _retrieve_knowledge(english_text, top_n=1)
         knowledge_context = {
             **retrieved,
             "retrieval_skipped": False,
@@ -896,17 +933,17 @@ def process_user_message(
 
     if persona_packet["safety_flag"] == "crisis":
         reply = _handle_crisis_response(
-            persona_packet, conversation_history, user_summary, long_term_summary
+            persona_packet, conversation_history, user_summary, long_term_summary, lang=lang
         )
         path_taken = "crisis"
     elif persona_packet["knowledge_found"]:
         reply = _handle_knowledge_based_response(
-            persona_packet, conversation_history, user_summary, long_term_summary
+            persona_packet, conversation_history, user_summary, long_term_summary, lang=lang
         )
         path_taken = "knowledge_based"
     else:
-        reply= _handle_general_support(
-            persona_packet, conversation_history, user_summary, long_term_summary
+        reply = _handle_general_support(
+            persona_packet, conversation_history, user_summary, long_term_summary, lang=lang
         )
         path_taken = "general_support"
 
@@ -924,9 +961,11 @@ def process_user_message(
 #  Builds prompts for different response types
 def _build_prompt_for_handler(handler_type: str,persona_packet: dict,conversation_history: list[dict],user_summary: str,
 long_term_summary: str = "",
+lang: str = "en",
 ) -> str:
     turns = 4 if handler_type in ("crisis", "knowledge") else 5
     history_context = _format_history_for_prompt(conversation_history, max_turns=turns)
+    lang_instruction = _lang_instruction(lang)
     if handler_type == "general":
         summary_words = len(long_term_summary.split()) if long_term_summary else 0
         memory_block = _build_memory_block(long_term_summary) if summary_words >= 30 else ""
@@ -934,19 +973,21 @@ long_term_summary: str = "",
         memory_block = _build_memory_block(long_term_summary)
 
     if handler_type == "crisis":
+        prefix = CRISIS_HARDCODED_PREFIX_SI if lang == "si" else CRISIS_HARDCODED_PREFIX
         return f"""CRISIS SITUATION — someone may be in danger.
+{lang_instruction}
 
-The message stream has already started with: "{CRISIS_HARDCODED_PREFIX}"
+The message stream has already started with: "{prefix}"
 
-Your job is to write ONLY the continuation — the text that comes directly after "{CRISIS_HARDCODED_PREFIX}".
+Your job is to write ONLY the continuation — the text that comes directly after "{prefix}".
 
 HOW TO CONTINUE:
-- Start with a comma or conjunction so it reads as one natural sentence, e.g. ", and I hear you." or " — what you're feeling sounds incredibly heavy."
+- Start with a comma or conjunction so it reads as one natural sentence.
 - After that first connecting phrase, acknowledge what they specifically said in your own warm words. Do NOT be generic.
 - Then gently ask one simple question — are they safe, is anyone with them, or what's happening right now.
 - If there is immediate danger, mention calling 1990 once, naturally — not as a robotic instruction.
 - Keep it short, warm, human. Like a close friend who just heard something that scared them.
-- Do NOT repeat "{CRISIS_HARDCODED_PREFIX}". Do NOT start with "I'm here".
+- Do NOT repeat "{prefix}". Do NOT start with "I'm here" or "මම ඔයා ළඟ ඉන්නවා".
 
 {memory_block}
 
@@ -964,6 +1005,7 @@ Their emotion: {persona_packet['sentiment_label']}
             else "No specific information found in knowledge base."
         )
         return f"""Someone is asking about cancer resources or info in Sri Lanka.
+{lang_instruction}
 
 CRITICAL: Only answer using the knowledge context below. If the answer is not in the context, say "I don't have that specific info, but you can call Apeksha Hospital to ask" or suggest they ask at the hospital directly.
 
@@ -989,6 +1031,7 @@ Answer naturally based on the provided knowledge. DO NOT make up hospital detail
         else "Just listen and validate, no question needed this time."
     )
     return f"""Someone is talking to you about their cancer experience or feelings.
+{lang_instruction}
 
 Recent conversation:
 {history_context}
@@ -1015,6 +1058,7 @@ def prepare_streaming_context(
     # Runs safety check, retrieval, and prompt building and returns data needed for streaming without calling Gemini
     safety_report = analyze_safety(user_message)
     _clean = safety_report.get("_clean")
+    lang = safety_report.get("detected_lang", "en")
 
     if safety_report["safety_flag"] == "crisis":
         knowledge_context = {
@@ -1037,7 +1081,8 @@ def prepare_streaming_context(
             "skip_reason": "no_medical_vocabulary",
         }
     else:
-        retrieved = _retrieve_knowledge(user_message, top_n=1)
+        english_text = safety_report.get("english_text", user_message)
+        retrieved = _retrieve_knowledge(english_text, top_n=1)
         knowledge_context = {**retrieved, "retrieval_skipped": False, "skip_reason": None}
 
     persona_packet = _formulate_prompt(safety_report, knowledge_context)
@@ -1055,13 +1100,14 @@ def prepare_streaming_context(
 
     prompt = _build_prompt_for_handler(
         handler_type, persona_packet, conversation_history,
-        user_summary, long_term_summary,
+        user_summary, long_term_summary, lang=lang,
     )
 
     return {
         "prompt" : prompt,
         "handler_type": handler_type,
         "path_taken": path_taken,
+        "lang": lang,
         "sentiment": safety_report["emotion_label"],
         "safety_flag": safety_report["safety_flag"],
         "triggered_by": safety_report["triggered_by"],
@@ -1071,8 +1117,8 @@ def prepare_streaming_context(
     }
 
 
-def stream_gemini_response(prompt: str, is_crisis: bool = False):
+def stream_gemini_response(prompt: str, is_crisis: bool = False, lang: str = "en"):
     # Streams Gemini response in small chunks as it generates
     if is_crisis:
-        yield CRISIS_HARDCODED_PREFIX
+        yield CRISIS_HARDCODED_PREFIX_SI if lang == "si" else CRISIS_HARDCODED_PREFIX
     yield from _stream_llm(prompt, is_crisis=is_crisis)
