@@ -13,6 +13,7 @@ from app.core.firebase import get_firestore_client
 from app.core.redis_client import get_redis
 from app.schemas.journal import JournalEntryResponse, MoodHistoryItem
 from app.services.sentiment_service import analyze_safety
+from app.services.notification_service import send_push
 
 _PROCESSING_KEY_PREFIX = "ayu:journal:processing:"
 _PROCESSING_TTL = 90  # covers worstcase analysis time
@@ -559,7 +560,11 @@ def compute_and_store_mood_stats(uid: str) -> dict[str, Any]:
     }
 
     db = get_firestore_client()
-    db.collection(USERS_COLLECTION).document(uid).set(
+    user_ref = db.collection(USERS_COLLECTION).document(uid)
+    user_doc = user_ref.get()
+    prev_has_crisis = bool(((user_doc.to_dict() or {}).get("moodStats") or {}).get("hasCrisis", False))
+
+    user_ref.set(
         {
             "moodStats": mood_stats,
             "currentStatus": composite_status,
@@ -568,7 +573,50 @@ def compute_and_store_mood_stats(uid: str) -> dict[str, Any]:
         merge=True,
     )
 
+    # fire crisis alert only on a false to true transition
+    if has_crisis and not prev_has_crisis:
+        _maybe_send_crisis_alert(uid, db, mood_stats)
+
     return mood_stats
+
+
+def _maybe_send_crisis_alert(uid: str, db, mood_stats: dict[str, Any]) -> None:
+    try:
+        user_data = (db.collection(USERS_COLLECTION).document(uid).get().to_dict()) or {}
+        patient_profile = user_data.get("patientProfile") or {}
+        companion = patient_profile.get("companion") or {}
+        companion_uid = companion.get("uid")
+        companion_status = companion.get("status")
+        privacy = patient_profile.get("companionPrivacy") or {}
+
+        # only send if companion is active and mood journal sharing is on
+        if not companion_uid:
+            return
+        if companion_status != "active":
+            return
+        if not privacy.get("moodJournal", True):
+            return
+
+        patient_name = str(user_data.get("fullName") or "Your patient")
+        today_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        dedupe_key = f"crisis:{uid}:{today_key}"
+
+        send_push(
+            uid=companion_uid,
+            title="Support needed",
+            body=f"{patient_name} may need your support right now",
+            notif_type="companion",
+            route="mood_status",
+            dedupe_key=dedupe_key,
+            priority="high",
+        )
+
+        # store lastCrisisAlertAt so the cooldown check works next time
+        db.collection(USERS_COLLECTION).document(uid).update({
+            "moodStats.lastCrisisAlertAt": firestore.SERVER_TIMESTAMP,
+        })
+    except Exception:
+        logger.exception("Failed to send crisis alert for uid=%s", uid)
 
 
 def _build_mood_stats_api_payload(mood_stats: dict[str, Any], recent_history: list[dict[str, Any]],analysis_pending: bool = False,) -> dict[str, Any]:

@@ -1,6 +1,8 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'Todo List/task_service.dart';
+import 'Notification/local_notification_scheduler.dart';
 import 'dashboard_cache.dart';
 
 void main() {
@@ -101,10 +103,14 @@ class _ToDoListState extends State<ToDoList> {
     repo.optimisticallyToggle(dateKey, task.taskId);
     setState(() => _tasks = repo.tasksFor(dateKey));
 
-    toggleTaskApi(task.taskId).catchError((_) {
+    toggleTaskApi(task.taskId).then((updated) {
+      // if task is now done cancel its reminder
+      if (updated.isDone) {
+        LocalNotificationScheduler.instance.cancelTaskReminder(task.taskId);
+      }
+    }).catchError((_) {
       repo.revertToggle(dateKey, task.taskId);
       if (mounted) setState(() => _tasks = repo.tasksFor(dateKey));
-      return task;
     });
   }
 
@@ -335,6 +341,17 @@ class _ToDoListState extends State<ToDoList> {
                                 if (mounted) {
                                   setState(
                                     () => _tasks = repo.tasksFor(dateKey),
+                                  );
+                                }
+                                // schedule a reminder 15 min before due time
+                                final uid = FirebaseAuth.instance.currentUser?.uid;
+                                if (uid != null) {
+                                  LocalNotificationScheduler.instance.scheduleTaskReminder(
+                                    uid: uid,
+                                    taskId: real.taskId,
+                                    title: real.title,
+                                    dateKey: real.dateKey,
+                                    time: real.time,
                                   );
                                 }
                               })

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lottie/lottie.dart';
 import 'package:mobile_app/Login Section/loginScreen.dart';
+import 'package:mobile_app/Notification/device_service.dart';
 import 'package:mobile_app/patient_service.dart';
 import 'dashboard_cache.dart';
 import 'Tracker/tracker_service.dart';
@@ -104,6 +105,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _logout() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) await DeviceService.instance.unregisterDevice(uid);
     DashboardCache.instance.invalidate();
     await Future.wait([
       TrackerRepository.instance.clearPersisted(),
