@@ -1,62 +1,138 @@
+import 'dart:async';
+
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+
 import 'notification_helper.dart';
-import '../Mood Journal/pastJournalEntries.dart';
+import 'notification_model.dart';
+import 'notification_navigator.dart';
+import 'notification_service.dart';
 
 class Notifications extends StatefulWidget {
   const Notifications({super.key});
 
   @override
-  State<Notifications> createState() =>
-      _NotificationsState();
+  State<Notifications> createState() => _NotificationsState();
 }
 
-class _NotificationsState
-    extends State<Notifications> {
+class _NotificationsState extends State<Notifications> {
+  List<NotificationModel> _notifications = [];
+  bool _loading = true;
+  StreamSubscription<List<NotificationModel>>? _sub;
 
-  List<AppNotification> notifications = [
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
 
-    AppNotification(
-      title: "Journal Incomplete!",
-      subtitle: "It's Reflection Time!",
-      date: DateTime.now().subtract(Duration(hours: 3)),
-      isRead: false,
-      page: PastJournalEntriesScreen(),
-      icon: Icons.book,
-      color: Color(0xff8E7CFF),
-    ),
-  ];
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
 
-  int get unreadCount =>
-      notifications.where((n) => !n.isRead).length;
+  Future<void> _init() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      setState(() => _loading = false);
+      return;
+    }
 
-  Map<String, List<AppNotification>> groupNotifications() {
-    Map<String, List<AppNotification>> grouped = {};
-    for (var notification in notifications) {
-      String group =
-      getNotificationGroup(notification.date);
-      if (!grouped.containsKey(group)) {
-        grouped[group] = [];
+    // show cache immediately while the stream connects
+    final cached = await NotificationService.instance.fetchNotifications(uid);
+    if (mounted) {
+      setState(() {
+        _notifications = cached;
+        _loading = false;
+      });
+    }
+
+    // then keep in sync via real-time stream
+    _sub = NotificationService.instance.streamNotifications(uid).listen((list) {
+      if (mounted) setState(() => _notifications = list);
+    });
+  }
+
+  int get _unreadCount => _notifications.where((n) => !n.isRead).length;
+
+  Future<void> _markAllAsRead() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    setState(() {
+      for (final n in _notifications) {
+        n.isRead = true;
       }
-      grouped[group]!.add(notification);
+    });
+    await NotificationService.instance.markAllAsRead(uid);
+  }
+
+  Map<String, List<NotificationModel>> _grouped() {
+    final grouped = <String, List<NotificationModel>>{};
+    for (final n in _notifications) {
+      final key = getNotificationGroup(n.createdAt);
+      grouped.putIfAbsent(key, () => []).add(n);
     }
     return grouped;
   }
 
+  Future<void> _onTap(NotificationModel n) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null && !n.isRead) {
+      await NotificationService.instance.markAsRead(uid, n.dedupeKey);
+      setState(() => n.isRead = true);
+    }
+    if (!mounted) return;
+    _navigateTo(n.route);
+  }
+
+  void _navigateTo(String route) {
+    final screen = screenForRoute(route);
+    if (screen == null) {
+      Navigator.pop(context);
+      return;
+    }
+    Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+  }
+
+  // icon and colour per notification type
+  IconData _iconFor(String type) {
+    switch (type) {
+      case 'medication': return Icons.medication;
+      case 'mood': return Icons.mood;
+      case 'task': return Icons.check_circle_outline;
+      case 'companion': return Icons.favorite;
+      case 'appointment': return Icons.calendar_today;
+      case 'community': return Icons.people;
+      default: return Icons.notifications;
+    }
+  }
+
+  Color _colorFor(String type, String priority) {
+    if (priority == 'high') return const Color(0xffE53935);
+    switch (type) {
+      case 'medication': return const Color(0xff4CAF50);
+      case 'mood': return const Color(0xff8E7CFF);
+      case 'task': return const Color(0xff2196F3);
+      case 'companion': return const Color(0xffE91E63);
+      case 'appointment': return const Color(0xffFF9800);
+      case 'community': return const Color(0xff009688);
+      default: return const Color(0xff9E9E9E);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-
-    final grouped = groupNotifications();
+    final grouped = _grouped();
 
     return Scaffold(
-      backgroundColor: Color(0xffF7F4F2),
+      backgroundColor: const Color(0xffF7F4F2),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
-            crossAxisAlignment:
-            CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Back Button
               GestureDetector(
                 onTap: () => Navigator.pop(context),
                 child: Container(
@@ -66,10 +142,7 @@ class _NotificationsState
                     color: Color(0xffF7F4F2),
                     shape: BoxShape.circle,
                     border: Border.fromBorderSide(
-                      BorderSide(
-                        color: Color(0xff4B3425),
-                        width: 2.0
-                      ),
+                      BorderSide(color: Color(0xff4B3425), width: 2.0),
                     ),
                   ),
                   child: const Icon(
@@ -80,13 +153,11 @@ class _NotificationsState
                 ),
               ),
 
-              SizedBox(height: 40),
+              const SizedBox(height: 40),
 
-              // Title
               Row(
                 children: [
-
-                  Text(
+                  const Text(
                     "Notifications",
                     style: TextStyle(
                       fontSize: 35,
@@ -94,61 +165,78 @@ class _NotificationsState
                       color: Color(0xff4B3425),
                     ),
                   ),
-
-                  SizedBox(width: 10),
-
-                  Container(
-                    padding: EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Color(0xffFFD2C2),
-                      borderRadius:
-                      BorderRadius.circular(30),
-                    ),
-                    child: Text(
-                      "+$unreadCount",
-                      style: TextStyle(
-                        color: Color(0xffFE631B),
-                        fontWeight: FontWeight.bold,
+                  const SizedBox(width: 10),
+                  if (_unreadCount > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xffFFD2C2),
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: Text(
+                        "+$_unreadCount",
+                        style: const TextStyle(
+                          color: Color(0xffFE631B),
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                  )
+                  const Spacer(),
+                  if (_unreadCount > 0)
+                    GestureDetector(
+                      onTap: _markAllAsRead,
+                      child: const Text(
+                        "Mark all read",
+                        style: TextStyle(
+                          color: Color(0xff4B3425),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
                 ],
               ),
 
-              SizedBox(height: 33),
+              const SizedBox(height: 33),
 
-              Expanded(
-                child: ListView(
-                  children: grouped.entries.map((entry) {
-                    return Column(
-                      crossAxisAlignment:
-                      CrossAxisAlignment.start,
-                      children: [
-                        // Group Title
-                        Padding(
-                          padding:
-                          const EdgeInsets.only(bottom: 10),
-                          child: Text(
-                            entry.key,
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xff4B3425),
-                              fontSize: 20,
+              if (_loading)
+                const Expanded(
+                  child: Center(child: CircularProgressIndicator(color: Color(0xff4B3425))),
+                )
+              else if (_notifications.isEmpty)
+                const Expanded(
+                  child: Center(
+                    child: Text(
+                      "No notifications yet",
+                      style: TextStyle(color: Color(0xff706A66), fontSize: 16),
+                    ),
+                  ),
+                )
+              else
+                Expanded(
+                  child: ListView(
+                    children: grouped.entries.map((entry) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: Text(
+                              entry.key,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xff4B3425),
+                                fontSize: 20,
+                              ),
                             ),
                           ),
-                        ),
-                        ...entry.value.map(
-                          (notification) => notificationCard(notification),
-                        ),
-
-                        SizedBox(height: 20),
-                      ],
-                    );
-                  }).toList(),
+                          ...entry.value.map((n) => _notificationCard(n)),
+                          const SizedBox(height: 20),
+                        ],
+                      );
+                    }).toList(),
+                  ),
                 ),
-              )
             ],
           ),
         ),
@@ -156,24 +244,12 @@ class _NotificationsState
     );
   }
 
-  Widget notificationCard(
-      AppNotification notification) {
+  Widget _notificationCard(NotificationModel n) {
     return GestureDetector(
-      onTap: () {
-        setState(() {
-          notification.isRead = true;
-        });
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) =>
-            notification.page,
-          ),
-        );
-      },
+      onTap: () => _onTap(n),
       child: Container(
-        margin: EdgeInsets.only(bottom: 12),
-        padding: EdgeInsets.all(16),
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(30),
@@ -183,38 +259,32 @@ class _NotificationsState
             Container(
               width: 70,
               height: 70,
-              padding: EdgeInsets.all(12),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: notification.color,
+                color: _colorFor(n.type, n.priority),
                 borderRadius: BorderRadius.circular(25),
               ),
-              child: Icon(
-                notification.icon,
-                color: Colors.white,
-              ),
+              child: Icon(_iconFor(n.type), color: Colors.white),
             ),
 
-            SizedBox(width: 15),
+            const SizedBox(width: 15),
 
             Expanded(
               child: Column(
-                crossAxisAlignment:
-                CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    notification.title,
-                    style: TextStyle(
+                    n.title,
+                    style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       color: Color(0xff4B3425),
                       fontSize: 18,
                     ),
                   ),
-
-                  SizedBox(height: 4),
-
+                  const SizedBox(height: 4),
                   Text(
-                    notification.subtitle,
-                    style: TextStyle(
+                    n.subtitle,
+                    style: const TextStyle(
                       color: Color(0xff706A66),
                       fontSize: 15,
                     ),
@@ -223,15 +293,15 @@ class _NotificationsState
               ),
             ),
 
-            if (!notification.isRead)
+            if (!n.isRead)
               Container(
                 width: 10,
                 height: 10,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   color: Colors.orange,
                   shape: BoxShape.circle,
                 ),
-              )
+              ),
           ],
         ),
       ),

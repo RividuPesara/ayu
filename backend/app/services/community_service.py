@@ -1,3 +1,4 @@
+import logging
 from app.core.firebase import get_firestore_client
 from firebase_admin import firestore
 from datetime import datetime, timezone
@@ -7,6 +8,9 @@ import cloudinary
 import cloudinary.uploader
 from fastapi import UploadFile, HTTPException, status
 from app.core.config import get_settings
+from app.services.notification_service import send_push
+
+logger = logging.getLogger(__name__)
 
 db = get_firestore_client()
 
@@ -209,6 +213,24 @@ def add_post_comment(post_id: str, uid: str, text: str):
     post_ref.update({
         "commentCount": firestore.Increment(1),
     })
+
+    # notify the post author skip if they replied to their own post
+    post_data = post_doc.to_dict() or {}
+    author_uid = post_data.get("authorId")
+    if author_uid and author_uid != uid:
+        try:
+            commenter_name = user["authorName"]
+            dedupe_key = f"community:{post_id}:{comment_ref.id}"
+            send_push(
+                uid=author_uid,
+                title="New reply",
+                body=f"{commenter_name} replied to your post",
+                notif_type="community",
+                route=f"post:{post_id}",
+                dedupe_key=dedupe_key,
+            )
+        except Exception:
+            logger.exception("Failed to send community reply notification post_id=%s", post_id)
 
     return comment_ref.id
 

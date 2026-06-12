@@ -6,6 +6,7 @@ import '../editProfile.dart';
 import '../Article/articleScreen.dart';
 import '../Tracker/Widgets/bottomNavIcons.dart';
 import 'companion_service.dart';
+import '../Mood Journal/moodStatusScreen.dart';
 import '../Mood Journal/pastJournalEntries.dart';
 import '../Tracker/trackerScreen.dart';
 import '../Connect Doctor/mySessions.dart';
@@ -107,7 +108,7 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
         'image': 'assets/dashboard/mood_journal.png',
         'color': const Color(0xffFFCE5C),
         'icon': Icons.favorite_outline,
-        'screen': const PastJournalEntriesScreen(isReadOnly: true),
+        'screen': const MoodStatusScreen(isReadOnly: true),
       });
     }
     if (_privacy.tracking) {

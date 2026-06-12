@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 USERS_COLLECTION = "users"
 COMPANION_INVITES_COLLECTION = "companionInvites"
+JOURNALS_COLLECTION = "journals"
 INVITE_EXPIRY_DAYS = 7
 
 
@@ -405,3 +406,59 @@ def cleanup_expired_invites() -> dict:
 
     logger.info("Cleaned up %d expired companion invites", count)
     return {"cleaned_up": count}
+
+
+def get_patient_mood_status(companion_uid: str) -> dict:
+    # fetch the patient's stored mood stats and check for recent flagged entries
+    db = get_firestore_client()
+
+    companion_doc = db.collection(USERS_COLLECTION).document(companion_uid).get()
+    companion_data = companion_doc.to_dict() or {}
+
+    patient_uid = companion_data.get("patientUid")
+    if not patient_uid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No linked patient found.",
+        )
+
+    # check that the patient has mood journal sharing enabled
+    patient_doc = db.collection(USERS_COLLECTION).document(patient_uid).get()
+    patient_data = patient_doc.to_dict() or {}
+    privacy = (patient_data.get("patientProfile") or {}).get("companionPrivacy") or {}
+    if not privacy.get("moodJournal", True):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Patient has not shared their mood journal.",
+        )
+
+    # read stored mood stats computed by the journal service
+    mood_stats = patient_data.get("moodStats") or {}
+    current_status = str(mood_stats.get("currentStatus", "Mainly Neutral"))
+    emotion_message = str(mood_stats.get("emotionMessage", ""))
+    has_crisis = bool(mood_stats.get("hasCrisis", False))
+    last_active_date_key = str(mood_stats.get("lastActiveDateKey", ""))
+
+    # check if any journal entry in the last 7 days was flagged with aiMood Suicidal
+    cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+    journal_snapshots = (
+        db.collection(JOURNALS_COLLECTION)
+        .where("userId", "==", patient_uid)
+        .where("entryDate", ">=", cutoff)
+        .stream()
+    )
+
+    # require both aiMood and safetyFlag to agree to reduce false alarms
+    recent_entry_flagged = any(
+        str((snap.to_dict() or {}).get("aiMood", "")).strip() == "Suicidal"
+        and str((snap.to_dict() or {}).get("safetyFlag", "")).strip() == "crisis"
+        for snap in journal_snapshots
+    )
+
+    return {
+        "current_status": current_status,
+        "emotion_message": emotion_message,
+        "has_crisis": has_crisis,
+        "recent_entry_flagged": recent_entry_flagged,
+        "last_active_date_key": last_active_date_key,
+    }

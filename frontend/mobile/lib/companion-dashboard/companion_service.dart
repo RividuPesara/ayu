@@ -117,4 +117,41 @@ class CompanionDashboardService {
     } catch (_) {}
     return const CompanionPrivacy();
   }
+
+  Future<PatientMoodStatus?> fetchPatientMoodStatus() async {
+    try {
+      final res = await _backend.get('/companion/patient-mood-status');
+      if (res.statusCode == 200) {
+        return PatientMoodStatus.fromJson(
+            jsonDecode(res.body) as Map<String, dynamic>);
+      }
+    } catch (_) {}
+    return null;
+  }
+}
+
+class PatientMoodStatus {
+  final String currentStatus;
+  final String emotionMessage;
+  final bool hasCrisis;
+  final bool recentEntryFlagged;
+  final String lastActiveDateKey;
+
+  const PatientMoodStatus({
+    required this.currentStatus,
+    required this.emotionMessage,
+    required this.hasCrisis,
+    required this.recentEntryFlagged,
+    required this.lastActiveDateKey,
+  });
+
+  factory PatientMoodStatus.fromJson(Map<String, dynamic> json) {
+    return PatientMoodStatus(
+      currentStatus: json['current_status'] as String? ?? 'Mainly Neutral',
+      emotionMessage: json['emotion_message'] as String? ?? '',
+      hasCrisis: json['has_crisis'] as bool? ?? false,
+      recentEntryFlagged: json['recent_entry_flagged'] as bool? ?? false,
+      lastActiveDateKey: json['last_active_date_key'] as String? ?? '',
+    );
+  }
 }

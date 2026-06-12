@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta, tzinfo
 from typing import Any
 
@@ -7,6 +8,8 @@ from google.cloud.firestore_v1.base_query import FieldFilter
 
 from app.core.config import get_settings
 from app.core.firebase import get_firestore_client
+
+logger = logging.getLogger(__name__)
 from app.schemas.appointments import (
     AppointmentSlotDate,
     AppointmentSlotTime,
@@ -332,3 +335,62 @@ def book_appointment(
         zoom_passcode=passcode,
         zoom_join_url=join_url,
     )
+
+
+def send_appointment_reminders() -> dict:
+    # finds upcoming appointments in the next hour and sends a reminder if not already sent
+    from app.services.notification_service import send_push
+
+    timezone_info = resolve_dashboard_timezone()
+    now = datetime.now(timezone_info)
+    window_end = now + timedelta(hours=1)
+
+    db = get_firestore_client()
+
+    # query upcoming appointments and filter to today and tomorrow date keys to avoid full scan
+    today_key = now.date().isoformat()
+    tomorrow_key = (now.date() + timedelta(days=1)).isoformat()
+
+    docs = (
+        db.collection(APPOINTMENTS_COLLECTION)
+        .where(filter=FieldFilter("status", "==", "upcoming"))
+        .where(filter=FieldFilter("date", "in", [today_key, tomorrow_key]))
+        .stream()
+    )
+
+    sent = 0
+    for doc in docs:
+        data = doc.to_dict() or {}
+        patient_uid = data.get("patientUid")
+        doctor_name = data.get("doctorName") or "your doctor"
+        date_val = data.get("date")
+        time_val = data.get("time")
+
+        if not patient_uid or not date_val or not time_val:
+            continue
+
+        appointment_dt = build_appointment_datetime(date_val, time_val, timezone_info)
+        if appointment_dt is None:
+            continue
+
+        # only remind if within the next hour
+        if not (now <= appointment_dt <= window_end):
+            continue
+
+        dedupe_key = f"appointment:{doc.id}:T-1h"
+
+        try:
+            send_push(
+                uid=patient_uid,
+                title="Upcoming appointment",
+                body=f"Your appointment with Dr {doctor_name} is in 1 hour",
+                notif_type="appointment",
+                route="appointments",
+                dedupe_key=dedupe_key,
+            )
+            sent += 1
+        except Exception:
+            logger.exception("Failed to send appointment reminder appointment_id=%s", doc.id)
+
+    logger.info("Appointment reminders sent: %d", sent)
+    return {"sent": sent}

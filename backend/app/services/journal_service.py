@@ -1,5 +1,5 @@
 import logging
-from collections import defaultdict
+import math
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -13,6 +13,7 @@ from app.core.firebase import get_firestore_client
 from app.core.redis_client import get_redis
 from app.schemas.journal import JournalEntryResponse, MoodHistoryItem
 from app.services.sentiment_service import analyze_safety
+from app.services.notification_service import send_push
 
 _PROCESSING_KEY_PREFIX = "ayu:journal:processing:"
 _PROCESSING_TTL = 90  # covers worstcase analysis time
@@ -26,6 +27,20 @@ USERS_COLLECTION = "users"
 
 _CANONICAL_MOODS = {"Normal", "Anxiety", "Stress", "Depression", "Suicidal"}
 _LOW_MOOD_KEYS = {"Anxiety", "Stress", "Depression"}
+
+_MOOD_RISK: dict[str, float] = {
+    "Normal": 0.0,
+    "Anxiety": 1.0,
+    "Stress": 1.0,
+    "Depression": 2.0,
+    "Suicidal": 3.0,
+}
+_DECAY_LAMBDA = 0.3
+_SOURCE_WEIGHT_AI_MOOD = 1.5
+_SOURCE_WEIGHT_USER_MOOD = 1.0
+_SOURCE_WEIGHT_CHAT = 0.8
+_SCORE_FRAGILE = 1.5
+_SCORE_LOW = 0.7
 
 
 def _get_user_timezone() -> ZoneInfo:
@@ -294,17 +309,20 @@ def _get_user_day_counters(uid: str) -> dict[str, Any]:
     }
 
 
+_CRISIS_SCORE_THRESHOLD = 2.0
+
+
 def _collect_today_sources(uid: str) -> dict[str, Any]:
-    # Collect source availability and safety flags for today's status
+    # compute a today-only weighted score to determine crisis state without time decay
     db = get_firestore_client()
 
     date_key = _current_local_date_key()
     start_utc, end_utc = _day_bounds_utc(date_key)
 
     pulse_doc_id = f"{uid}_{date_key}"
-    pulse_snapshot = db.collection(DAILY_PULSES_COLLECTION).document(pulse_doc_id).get()
-    pulse_recorded_today = pulse_snapshot.exists
-    # Check for crisis flags in today's journal entries
+    pulse_recorded_today = db.collection(DAILY_PULSES_COLLECTION).document(pulse_doc_id).get().exists
+
+    # Score today's journal entries using same risk values — no decay since all are from today
     journal_snapshots = (
         db.collection(JOURNALS_COLLECTION)
         .where(filter=FieldFilter("userId", "==", uid))
@@ -314,15 +332,25 @@ def _collect_today_sources(uid: str) -> dict[str, Any]:
         .stream()
     )
 
-    journal_crisis = False
     has_journal_today = False
+    numerator = 0.0
+    denominator = 0.0
 
     for snapshot in journal_snapshots:
         has_journal_today = True
         data = snapshot.to_dict() or {}
-        if str(data.get("safetyFlag", "non_crisis")).lower() == "crisis":
-            journal_crisis = True
-    # Check for active crisis triggers in chat sessions
+
+        user_mood = _normalize_mood(str(data.get("userMood", "Normal")), strict=False)
+        numerator += _MOOD_RISK.get(user_mood, 0.0) * _SOURCE_WEIGHT_USER_MOOD
+        denominator += _SOURCE_WEIGHT_USER_MOOD
+
+        ai_mood_raw = str(data.get("aiMood", "pending")).strip()
+        if ai_mood_raw not in ("pending", ""):
+            ai_mood = _normalize_mood(ai_mood_raw, strict=False)
+            numerator += _MOOD_RISK.get(ai_mood, 0.0) * _SOURCE_WEIGHT_AI_MOOD
+            denominator += _SOURCE_WEIGHT_AI_MOOD
+
+    # Score today's chat sessions
     session_snapshots = (
         db.collection(SESSIONS_COLLECTION)
         .where(filter=FieldFilter("userId", "==", uid))
@@ -332,7 +360,6 @@ def _collect_today_sources(uid: str) -> dict[str, Any]:
         .stream()
     )
 
-    chat_crisis = False
     has_chat_today = False
     for snapshot in session_snapshots:
         data = snapshot.to_dict() or {}
@@ -340,9 +367,22 @@ def _collect_today_sources(uid: str) -> dict[str, Any]:
             continue
 
         has_chat_today = True
+        emotion_counts = data.get("emotionCounts") or {}
+        if not isinstance(emotion_counts, dict):
+            continue
 
-        if int(data.get("crisisCount", 0)) > 0:
-            chat_crisis = True
+        for mood, count in emotion_counts.items():
+            normalized = _normalize_mood(str(mood), strict=False)
+            try:
+                count_int = int(count)
+            except (TypeError, ValueError):
+                continue
+            if count_int > 0:
+                w = _SOURCE_WEIGHT_CHAT * count_int
+                numerator += _MOOD_RISK.get(normalized, 0.0) * w
+                denominator += w
+
+    today_score = numerator / denominator if denominator > 0.0 else 0.0
 
     active_sources: list[str] = []
     if pulse_recorded_today:
@@ -355,42 +395,131 @@ def _collect_today_sources(uid: str) -> dict[str, Any]:
     return {
         "active_sources": active_sources,
         "pulse_recorded_today": pulse_recorded_today,
-        "journal_crisis": journal_crisis,
-        "chat_crisis": chat_crisis,
+        "today_score": today_score,
     }
 
 
-def _dominant_emotion_from_recent(uid: str, limit: int = 5) -> str:
-    # find the most frequent mood across recent history
-    entries = list_journal_entries(uid, limit=limit, descending=True)
-    if not entries:
-        return "Normal"
+def _collect_chat_emotion_data(uid: str, days: int = 7) -> list[dict[str, Any]]:
+    # gather emotion counts from active chat sessions within the given window for weighted scoring
+    db = get_firestore_client()
+    now = datetime.now(tz=timezone.utc)
+    cutoff = now - timedelta(days=days)
 
-    counts: dict[str, int] = defaultdict(int)
+    session_snapshots = (
+        db.collection(SESSIONS_COLLECTION)
+        .where(filter=FieldFilter("userId", "==", uid))
+        .where(filter=FieldFilter("lastMessageAt", ">=", cutoff))
+        .order_by("lastMessageAt", direction=firestore.Query.DESCENDING)
+        .stream()
+    )
+
+    results: list[dict[str, Any]] = []
+    for snap in session_snapshots:
+        data = snap.to_dict() or {}
+        if str(data.get("status", "active")).lower() != "active":
+            continue
+
+        last_msg = _parse_timestamp(data.get("lastMessageAt"))
+        if last_msg is None:
+            continue
+
+        days_ago = max(0.0, (now - last_msg).total_seconds() / 86400)
+        emotion_counts = data.get("emotionCounts") or {}
+        if not isinstance(emotion_counts, dict):
+            continue
+
+        for mood, count in emotion_counts.items():
+            normalized = _normalize_mood(str(mood), strict=False)
+            try:
+                count_int = int(count)
+            except (TypeError, ValueError):
+                continue
+            if count_int > 0:
+                results.append({"mood": normalized, "count": count_int, "days_ago": days_ago})
+
+    return results
+
+
+def _score_from_journal_entries(entries: list, now: datetime) -> tuple[float, float]:
+    # shared scoring logic for both 7-day window and fallback entries
+    numerator = 0.0
+    denominator = 0.0
+
     for entry in entries:
-        mood = _normalize_mood(entry.user_mood, strict=False)
-        counts[mood] += 1
+        # accept both Firestore snapshot dicts and JournalEntryResponse objects
+        if isinstance(entry, dict):
+            data = entry
+            entry_date = _parse_timestamp(data.get("entryDate"))
+            user_mood_raw = str(data.get("userMood", "Normal"))
+            ai_mood_raw = str(data.get("aiMood", "pending")).strip()
+        else:
+            entry_date = entry.entry_date
+            user_mood_raw = entry.user_mood
+            ai_mood_raw = entry.ai_mood.strip() if entry.ai_mood else "pending"
 
-    if not counts:
-        return "Normal"
+        days_ago = max(0.0, (now - entry_date).total_seconds() / 86400) if entry_date else 0.0
+        decay = math.exp(-_DECAY_LAMBDA * days_ago)
 
-    return max(counts, key=counts.get)
+        user_mood = _normalize_mood(user_mood_raw, strict=False)
+        w_user = _SOURCE_WEIGHT_USER_MOOD * decay
+        numerator += _MOOD_RISK.get(user_mood, 0.0) * w_user
+        denominator += w_user
+
+        if ai_mood_raw not in ("pending", ""):
+            ai_mood = _normalize_mood(ai_mood_raw, strict=False)
+            w_ai = _SOURCE_WEIGHT_AI_MOOD * decay
+            numerator += _MOOD_RISK.get(ai_mood, 0.0) * w_ai
+            denominator += w_ai
+
+    return numerator, denominator
 
 
-def _dominant_emotion_display(mood_key: str) -> str:
-    # Map dominant mood into a display label without crisis override
-    if mood_key == "Suicidal":
+def _compute_weighted_score(uid: str, days: int = 7) -> float:
+    # combine journal and chat signals with exponential time decay into a single 0–3 score
+    db = get_firestore_client()
+    now = datetime.now(tz=timezone.utc)
+    cutoff = now - timedelta(days=days)
+
+    journal_snapshots = list(
+        db.collection(JOURNALS_COLLECTION)
+        .where(filter=FieldFilter("userId", "==", uid))
+        .where(filter=FieldFilter("entryDate", ">=", cutoff))
+        .order_by("entryDate", direction=firestore.Query.DESCENDING)
+        .stream()
+    )
+
+    entries = [snap.to_dict() or {} for snap in journal_snapshots]
+    numerator, denominator = _score_from_journal_entries(entries, now)
+
+    # add chat emotion counts weighted by source reliability and recency
+    for item in _collect_chat_emotion_data(uid, days=days):
+        decay = math.exp(-_DECAY_LAMBDA * item["days_ago"])
+        w_chat = _SOURCE_WEIGHT_CHAT * decay * item["count"]
+        numerator += _MOOD_RISK.get(item["mood"], 0.0) * w_chat
+        denominator += w_chat
+
+    # fallback to last 3 entries regardless of date if 7-day window is empty
+    if denominator == 0.0:
+        fallback_entries = list_journal_entries(uid, limit=3, descending=True)
+        numerator, denominator = _score_from_journal_entries(fallback_entries, now)
+
+    return numerator / denominator if denominator > 0.0 else 0.0
+
+
+def _score_to_status(score: float) -> str:
+    # map weighted score to one of three status labels
+    if score >= _SCORE_FRAGILE:
         return "Fragile"
-    if mood_key in _LOW_MOOD_KEYS:
+    if score >= _SCORE_LOW:
         return "Mainly Low"
     return "Mainly Neutral"
 
 
-def _dominant_emotion_message(label: str) -> str:
-    # Contextual supportive messaging based on current mood state
-    if label == "Fragile":
-        return "Maybe reach out to someone you trust,you’re not alone"
-    if label == "Mainly Low":
+def _score_to_message(status: str) -> str:
+    # return a supportive message tailored to the current status label
+    if status == "Fragile":
+        return "Maybe reach out to someone you trust, you’re not alone"
+    if status == "Mainly Low":
         return "Take it easy today and give yourself a few breaks."
     return "You’re doing okay, keep checking in with yourself"
 
@@ -400,14 +529,13 @@ def compute_and_store_mood_stats(uid: str) -> dict[str, Any]:
     today_sources = _collect_today_sources(uid)
     active_sources = list(today_sources.get("active_sources", []))
 
-    has_crisis = bool(today_sources.get("chat_crisis", False)) or bool(
-        today_sources.get("journal_crisis", False)
-    )
+    today_score = float(today_sources.get("today_score", 0.0))
+    has_crisis = today_score >= _CRISIS_SCORE_THRESHOLD
     pulse_recorded_today = bool(today_sources.get("pulse_recorded_today", False))
 
-    dominant_key = _dominant_emotion_from_recent(uid)
-    dominant_emotion = _dominant_emotion_display(dominant_key)
-    emotion_message = _dominant_emotion_message(dominant_emotion)
+    score = _compute_weighted_score(uid)
+    dominant_emotion = _score_to_status(score)
+    emotion_message = _score_to_message(dominant_emotion)
 
     counters = _get_user_day_counters(uid)
     active_days_count = _safe_int(counters.get("active_days_count"), default=0)
@@ -432,7 +560,11 @@ def compute_and_store_mood_stats(uid: str) -> dict[str, Any]:
     }
 
     db = get_firestore_client()
-    db.collection(USERS_COLLECTION).document(uid).set(
+    user_ref = db.collection(USERS_COLLECTION).document(uid)
+    user_doc = user_ref.get()
+    prev_has_crisis = bool(((user_doc.to_dict() or {}).get("moodStats") or {}).get("hasCrisis", False))
+
+    user_ref.set(
         {
             "moodStats": mood_stats,
             "currentStatus": composite_status,
@@ -441,7 +573,50 @@ def compute_and_store_mood_stats(uid: str) -> dict[str, Any]:
         merge=True,
     )
 
+    # fire crisis alert only on a false to true transition
+    if has_crisis and not prev_has_crisis:
+        _maybe_send_crisis_alert(uid, db, mood_stats)
+
     return mood_stats
+
+
+def _maybe_send_crisis_alert(uid: str, db, mood_stats: dict[str, Any]) -> None:
+    try:
+        user_data = (db.collection(USERS_COLLECTION).document(uid).get().to_dict()) or {}
+        patient_profile = user_data.get("patientProfile") or {}
+        companion = patient_profile.get("companion") or {}
+        companion_uid = companion.get("uid")
+        companion_status = companion.get("status")
+        privacy = patient_profile.get("companionPrivacy") or {}
+
+        # only send if companion is active and mood journal sharing is on
+        if not companion_uid:
+            return
+        if companion_status != "active":
+            return
+        if not privacy.get("moodJournal", True):
+            return
+
+        patient_name = str(user_data.get("fullName") or "Your patient")
+        today_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        dedupe_key = f"crisis:{uid}:{today_key}"
+
+        send_push(
+            uid=companion_uid,
+            title="Support needed",
+            body=f"{patient_name} may need your support right now",
+            notif_type="companion",
+            route="mood_status",
+            dedupe_key=dedupe_key,
+            priority="high",
+        )
+
+        # store lastCrisisAlertAt so the cooldown check works next time
+        db.collection(USERS_COLLECTION).document(uid).update({
+            "moodStats.lastCrisisAlertAt": firestore.SERVER_TIMESTAMP,
+        })
+    except Exception:
+        logger.exception("Failed to send crisis alert for uid=%s", uid)
 
 
 def _build_mood_stats_api_payload(mood_stats: dict[str, Any], recent_history: list[dict[str, Any]],analysis_pending: bool = False,) -> dict[str, Any]:
