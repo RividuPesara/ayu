@@ -11,6 +11,8 @@ x-backend: &backend-defaults
     - ./data:/data
   networks:
     - app-network
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
   restart: unless-stopped
   depends_on:
     redis:

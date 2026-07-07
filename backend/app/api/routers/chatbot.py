@@ -9,10 +9,12 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, s
 from fastapi.responses import StreamingResponse
 
 from app.core import chatbot_engine
+from app.core.langfuse_client import record_score
 from app.dependencies.auth import CurrentUser, require_patient_access
 from app.schemas.chatbot import (
     ChatResponse,
     CreateSessionRequest,
+    MessageFeedbackRequest,
     MessageResponse,
     SendMessageRequest,
     SessionResponse,
@@ -21,6 +23,7 @@ from app.services.chatbot_service import (
     archive_all_sessions,
     archive_session,
     create_session,
+    get_chatbot_message_trace_id,
     get_conversation_history,
     get_long_term_summary,
     get_session,
@@ -91,6 +94,7 @@ async def get_chat_sessions(user: CurrentUser = Depends(require_patient_access),
                     existing_summary,
                     conv_history,
                     user_summary,
+                    user.uid,
                 )
                 if updated and updated != existing_summary:
                     await _run_sync(update_long_term_summary, user.uid, updated)
@@ -151,6 +155,8 @@ async def send_message(session_id: str, payload: SendMessageRequest, background_
         crisis_count,
         total_messages,
         long_term_summary,
+        session_id,
+        user.uid,
     )
 
     # Build the analysis dict to persist alongside the patient message
@@ -165,7 +171,9 @@ async def send_message(session_id: str, payload: SendMessageRequest, background_
     message_id = await _run_sync(
         save_patient_message, session_id, user.uid, payload.content, analysis
     )
-    await _run_sync(save_chatbot_message, session_id, user.uid, result["response"])
+    reply_message_id = await _run_sync(
+        save_chatbot_message, session_id, user.uid, result["response"], result.get("trace_id")
+    )
     # stats update and cache invalidation don't affect the next request's correctness
     background_tasks.add_task(_run_sync, update_session_stats, session_id, result["sentiment"], result["safety_flag"])
     background_tasks.add_task(_run_sync, invalidate_conversation_history, session_id)
@@ -178,6 +186,7 @@ async def send_message(session_id: str, payload: SendMessageRequest, background_
         sources = result.get("sources", []),
         session_id = session_id,
         message_id = message_id,
+        reply_message_id = reply_message_id,
     )
 
 
@@ -238,32 +247,57 @@ async def stream_message(
     uid = user.uid
     prompt = ctx["prompt"]
     is_crisis = ctx["is_crisis"]
+    safety_report = {
+        "suicidal_confidence": ctx["suicidal_confidence"],
+        "emotion_label": ctx["sentiment"],
+        "safety_flag": ctx["safety_flag"],
+    }
+
+    hardcoded_override = ctx.get("hardcoded_override")
 
     async def event_generator():
         # sends metadata immediately so the UI can update while the model thinks
         yield f"data: {meta_payload}\n\n"
 
-        full_response_parts: list[str] = []
-        loop = asyncio.get_running_loop()
-
-        # starts the background generation task to pipe text tokens to the client
-        gen = chatbot_engine.stream_gemini_response(prompt, is_crisis=is_crisis)
-        while True:
-            chunk = await loop.run_in_executor(None, next, gen, None)
-            if chunk is None:
-                break
-            full_response_parts.append(chunk)
-            token_data = json.dumps({"event": "token", "text": chunk})
+        if hardcoded_override:
+            # Near certain crisis so skip the LLM and send the fixed template as one chunk
+            full_response = hardcoded_override
+            token_data = json.dumps({"event": "token", "text": full_response})
             yield f"data: {token_data}\n\n"
+            trace_id = await _run_sync(
+                chatbot_engine.record_hardcoded_crisis_override,
+                session_id, uid, payload.content, full_response,
+            )
+            await _run_sync(chatbot_engine._record_safety_scores, trace_id, safety_report)
+        else:
+            full_response_parts: list[str] = []
+            loop = asyncio.get_running_loop()
+            trace_holder: dict = {}
 
-        full_response = "".join(full_response_parts)
+            # starts the background generation task to pipe text tokens to the client
+            gen = chatbot_engine.stream_gemini_response(
+                prompt, is_crisis=is_crisis, session_id=session_id, uid=uid, path_taken=ctx["path_taken"],
+                safety_report=safety_report, trace_holder=trace_holder,
+            )
+            while True:
+                chunk = await loop.run_in_executor(None, next, gen, None)
+                if chunk is None:
+                    break
+                full_response_parts.append(chunk)
+                token_data = json.dumps({"event": "token", "text": chunk})
+                yield f"data: {token_data}\n\n"
+
+            full_response = "".join(full_response_parts)
+            trace_id = trace_holder.get("trace_id")
 
         # stores the complete bot answer and updates session metrics and remove the history cache
-        await _run_sync(save_chatbot_message, session_id, uid, full_response)
+        reply_message_id = await _run_sync(
+            save_chatbot_message, session_id, uid, full_response, trace_id
+        )
         await _run_sync(update_session_stats, session_id, ctx["sentiment"], ctx["safety_flag"])
         await _run_sync(invalidate_conversation_history, session_id)
         # signals the end of the stream to the frontend
-        done_data = json.dumps({"event": "done"})
+        done_data = json.dumps({"event": "done", "reply_message_id": reply_message_id})
         yield f"data: {done_data}\n\n"
 
     return StreamingResponse(
@@ -271,6 +305,23 @@ async def stream_message(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# Record thumbs feedback on an Ayu reply as a Langfuse score
+@router.post("/messages/{message_id}/feedback", status_code=status.HTTP_200_OK)
+async def submit_message_feedback(
+    message_id: str,
+    payload: MessageFeedbackRequest,
+    user: CurrentUser = Depends(require_patient_access),
+) -> dict[str, str]:
+    trace_id = await _run_sync(get_chatbot_message_trace_id, message_id, user.uid)
+    if not trace_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No tracing data available for this message.",
+        )
+    await _run_sync(record_score, trace_id, "user_feedback", float(payload.rating), "NUMERIC", None)
+    return {"status": "recorded"}
 
 
 # Fetch the full message history for a session
@@ -324,6 +375,7 @@ async def end_session(session_id: str,user : CurrentUser = Depends(require_patie
         existing_summary,
         conversation_history,
         user_summary,
+        user.uid,
     )
 
     # only saves if the summary actually changed to ensure data integrity

@@ -17,6 +17,7 @@ nltk
 numpy
 pandas
 scipy
+langchain
 langchain-google-genai
 langchain-community
 langchain-chroma
@@ -28,4 +29,5 @@ fastembed
 chromadb
 google-api-python-client
 ollama
+langfuse
 
