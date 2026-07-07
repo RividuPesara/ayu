@@ -1,6 +1,7 @@
 import json
 import logging
 import time
+from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable
 
@@ -10,8 +11,11 @@ from firebase_admin import firestore
 from google.cloud.firestore_v1 import FieldFilter
 from googleapiclient.discovery import build
 
+from langfuse import propagate_attributes
+
 from app.core.config import get_settings
 from app.core.firebase import get_firestore_client
+from app.core.langfuse_client import get_langchain_handler, get_langfuse_client
 from app.core.redis_client import get_redis
 from app.schemas.video import VideoRecommendation
 
@@ -416,7 +420,9 @@ def _generate_queries_with_gemini(prompt: str) -> list[str]:
             temperature=0.3,
             max_output_tokens=512,
         )
-        response = llm.invoke(prompt)
+        handler = get_langchain_handler()
+        config = {"callbacks": [handler]} if handler else None
+        response = llm.invoke(prompt, config=config) if config else llm.invoke(prompt)
         raw = getattr(response, "content", None) or getattr(response, "text", None) or ""
         raw = str(raw).strip()
     except Exception as exc:
@@ -491,11 +497,28 @@ def _generate_queries_with_ollama(
     client = _create_ollama_client()
     prompt = _build_prompt(tags, dominant_emotion, recommendation_mode, interaction_scores)
 
-    try:
-        response = client.chat(
-            model=settings.ollama_model,
-            messages=[{"role": "user", "content": prompt}],
+    lf_client = get_langfuse_client()
+    obs_cm = (
+        lf_client.start_as_current_observation(
+            name="ollama-video-queries", as_type="generation", model=settings.ollama_model, input=prompt,
         )
+        if lf_client is not None
+        else nullcontext()
+    )
+
+    try:
+        with obs_cm as generation:
+            response = client.chat(
+                model=settings.ollama_model,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            if generation is not None:
+                raw_content = ""
+                if hasattr(response, "message") and hasattr(response.message, "content"):
+                    raw_content = response.message.content
+                elif isinstance(response, dict):
+                    raw_content = str(response.get("message", {}).get("content", ""))
+                generation.update(output=raw_content)
     except Exception as exc:
         status_code = getattr(exc, "status_code", None)
         logger.warning("Ollama chat failed (status=%s): %s", status_code, exc)
@@ -526,14 +549,16 @@ def generate_search_queries(
     dominant_emotion: str,
     recommendation_mode: str,
     interaction_scores: dict[str, int],
+    uid: str | None = None,
 ) -> list[str]:
     settings = get_settings()
     prompt = _build_prompt(tags, dominant_emotion, recommendation_mode, interaction_scores)
 
-    if settings.video_provider.lower() == "gemini":
-        queries = _generate_queries_with_gemini(prompt)
-    else:
-        queries = _generate_queries_with_ollama(tags, dominant_emotion, recommendation_mode, interaction_scores)
+    with propagate_attributes(user_id=uid, tags=["video_recommendation", recommendation_mode]):
+        if settings.video_provider.lower() == "gemini":
+            queries = _generate_queries_with_gemini(prompt)
+        else:
+            queries = _generate_queries_with_ollama(tags, dominant_emotion, recommendation_mode, interaction_scores)
 
     if len(queries) < DEFAULT_QUERY_COUNT:
         raise HTTPException(
@@ -871,7 +896,7 @@ def get_video_recommendations(uid: str, refresh: bool = False, max_per_query: in
 
     try:
         try:
-            queries = generate_search_queries(merged_tags, dominant_emotion, recommendation_mode, interaction_scores)
+            queries = generate_search_queries(merged_tags, dominant_emotion, recommendation_mode, interaction_scores, uid=uid)
         except HTTPException as exc:
             stale = firestore_cached or _load_cached(uid)
             if stale is not None:

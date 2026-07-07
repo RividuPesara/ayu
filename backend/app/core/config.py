@@ -54,6 +54,10 @@ class Settings(BaseSettings):
 
     job_runner_secret: str | None = None
 
+    langfuse_public_key: str | None = None
+    langfuse_secret_key: str | None = None
+    langfuse_host: str = "http://localhost:3000"
+
     dev_mode: bool = False
     dev_patient_uid: str = "dev-rividu-pesara"
     dev_patient_email: str = "rivindupeshara11@gmail.com"
@@ -122,6 +126,10 @@ def validate_startup_config() -> None:
         warnings.append("Zoom credentials incomplete appointment video calls will not work")
     if not settings.cloudinary_url:
         warnings.append("CLOUDINARY_URL is not set profile photo uploads will not work")
+    if bool(settings.langfuse_public_key) != bool(settings.langfuse_secret_key):
+        warnings.append("Only one of LANGFUSE_PUBLIC_KEY/LANGFUSE_SECRET_KEY is set; Langfuse tracing will stay disabled")
+    if not settings.langfuse_public_key or not settings.langfuse_secret_key:
+        warnings.append("LANGFUSE_PUBLIC_KEY/LANGFUSE_SECRET_KEY not set; LLM call tracing is disabled")
 
     for w in warnings:
         logger.warning("[config] %s", w)

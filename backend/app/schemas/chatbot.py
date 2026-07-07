@@ -55,3 +55,9 @@ class ChatResponse(BaseModel):
     sources: list[str] = []
     session_id: str
     message_id: str
+    reply_message_id: str | None = None
+
+
+class MessageFeedbackRequest(BaseModel):
+    # Thumbs feedback on a specific Ayu reply recorded as a Langfuse score
+    rating: int = Field(ge=-1, le=1)

@@ -431,19 +431,36 @@ def save_patient_message(session_id: str,uid: str,content : str,
     return ref.id
 
 
-def save_chatbot_message(session_id: str, uid: str, content: str) -> str:
+def save_chatbot_message(session_id: str, uid: str, content: str, trace_id: str | None = None) -> str:
     #Save Ayu's response message and returns the new doc id
     db= get_firestore_client()
     ref = db.collection(MESSAGES_COLLECTION).document()
 
-    ref.set({
+    data: dict[str, Any] = {
         "sessionId": session_id,
         "userId": uid,
         "role" : "chatbot",
         "content": content,
         "timestamp": firestore.SERVER_TIMESTAMP,
-    })
+    }
+    if trace_id:
+        data["langfuseTraceId"] = trace_id
+
+    ref.set(data)
     return ref.id
+
+
+def get_chatbot_message_trace_id(message_id: str, uid: str) -> str | None:
+    db = get_firestore_client()
+    snapshot = db.collection(MESSAGES_COLLECTION).document(message_id).get()
+
+    if not snapshot.exists:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found.")
+    data = snapshot.to_dict() or {}
+    if data.get("userId") != uid or data.get("role") != "chatbot":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found.")
+    trace_id = data.get("langfuseTraceId")
+    return str(trace_id) if trace_id else None
 
 
 def update_session_stats(session_id: str, emotion_label: str, safety_flag: str) -> None:

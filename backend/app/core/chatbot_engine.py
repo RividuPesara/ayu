@@ -5,6 +5,7 @@ import random
 import re
 import time
 from collections import Counter
+from contextlib import nullcontext
 from filelock import FileLock
 import ollama as _ollama_lib
 from langchain_chroma import Chroma
@@ -12,7 +13,9 @@ from langchain_core.documents import Document
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_community.embeddings import FastEmbedEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langfuse import propagate_attributes
 
+from app.core.langfuse_client import get_current_trace_id, get_langchain_handler, get_langfuse_client, record_score
 from app.core.redis_client import get_redis
 from app.services.sentiment_service import (analyze_safety, has_medical_vocabulary,)
 
@@ -22,6 +25,8 @@ _CHROMA_LOCK_TIMEOUT = 300
 logger = logging.getLogger(__name__)
 
 # Ayu system prompt
+_SYSTEM_PROMPT_NAME = "ayu-chatbot-system-prompt"
+
 SYSTEM_PROMPT = """You are Ayu, someone who genuinely cares about people going through cancer treatment in Sri Lanka.
 
 Think of yourself as a supportive friend who happens to know a lot about cancer care in Sri Lanka. You listen, you understand, and you share what you know when it helps.
@@ -65,6 +70,9 @@ CRISIS_FALLBACK_TEMPLATES = [
     "I'm here. If you need help right now, call 1990. Can you tell me if you're somewhere safe?",
     "I'm with you. If you're thinking of hurting yourself, call 1990 now. Is someone near you?",
 ]
+
+# Above this confidence skip the LLM and reply with a human reviewed crisis template verbatim
+HARDCODED_SAFETY_THRESHOLD = 0.9
 
 GENERAL_RATE_LIMIT_FALLBACK = (
     "I'm sorry, I'm a bit overwhelmed with requests right now. "
@@ -439,17 +447,46 @@ def _fallback_text_for_error(error_type: str, is_crisis: bool) -> str:
     return GENERAL_SERVICE_FALLBACK
 
 
-def _generate_with_gemini(user_prompt: str, is_crisis: bool = False) -> str:
+def _langchain_handler_and_config(prompt_obj=None) -> tuple[object | None, dict | None]:
+    handler = get_langchain_handler()
+    if handler is None:
+        return None, None
+    config: dict = {"callbacks": [handler]}
+    if prompt_obj is not None:
+        config["metadata"] = {"prompt_name": prompt_obj.name, "prompt_version": prompt_obj.version}
+    return handler, config
+
+
+def _get_system_prompt() -> tuple[str, object | None]:
+    client = get_langfuse_client()
+    if client is None:
+        return SYSTEM_PROMPT, None
     try:
-        full_prompt = f"\n{SYSTEM_PROMPT}\n\nFollow the system instructions above strictly.\n\n{user_prompt}"
-        response = _llm.invoke(full_prompt)
+        prompt = client.get_prompt(
+            _SYSTEM_PROMPT_NAME, label="production", type="text",
+            fallback=SYSTEM_PROMPT, cache_ttl_seconds=300,
+        )
+        return prompt.prompt, prompt
+    except Exception:
+        logger.warning("Failed to fetch managed system prompt; using local fallback", exc_info=True)
+        return SYSTEM_PROMPT, None
+
+
+def _generate_with_gemini(user_prompt: str, is_crisis: bool = False) -> tuple[str, str | None]:
+    handler = None
+    try:
+        system_prompt, prompt_obj = _get_system_prompt()
+        full_prompt = f"\n{system_prompt}\n\nFollow the system instructions above strictly.\n\n{user_prompt}"
+        handler, config = _langchain_handler_and_config(prompt_obj)
+        response = _llm.invoke(full_prompt, config=config) if config else _llm.invoke(full_prompt)
+        trace_id = handler.last_trace_id if handler else None
         content  = getattr(response, "content", None)
         if isinstance(content, str) and content.strip():
-            return content.strip()
+            return content.strip(), trace_id
         text = getattr(response, "text", None)
         if isinstance(text, str) and text.strip():
-            return text.strip()
-        return str(response)
+            return text.strip(), trace_id
+        return str(response), trace_id
     except Exception as exc:
         error_type = _classify_gemini_error(exc)
         compact = _compact_error(exc)
@@ -467,17 +504,23 @@ def _generate_with_gemini(user_prompt: str, is_crisis: bool = False) -> str:
         else:
             logger.exception("Unexpected Gemini error; returning fallback response.")
 
-        return _fallback_text_for_error(error_type, is_crisis)
+        trace_id = handler.last_trace_id if handler else None
+        return _fallback_text_for_error(error_type, is_crisis), trace_id
 
 
 def _stream_with_gemini(user_prompt: str, is_crisis: bool = False):
-    # Streams response from Gemini token by token
+    # Streams response from Gemini token by token and returns the trace id when the generator finishes
+    handler = None
     try:
-        full_prompt = f"\n{SYSTEM_PROMPT}\n\nFollow the system instructions above strictly.\n\n{user_prompt}"
-        for chunk in _llm.stream(full_prompt):
+        system_prompt, prompt_obj = _get_system_prompt()
+        full_prompt = f"\n{system_prompt}\n\nFollow the system instructions above strictly.\n\n{user_prompt}"
+        handler, config = _langchain_handler_and_config(prompt_obj)
+        stream = _llm.stream(full_prompt, config=config) if config else _llm.stream(full_prompt)
+        for chunk in stream:
             text = getattr(chunk, "content", None) or getattr(chunk, "text", None)
             if text:
                 yield str(text)
+        return handler.last_trace_id if handler else None
     except Exception as exc:
         error_type = _classify_gemini_error(exc)
         compact = _compact_error(exc)
@@ -496,51 +539,81 @@ def _stream_with_gemini(user_prompt: str, is_crisis: bool = False):
             logger.exception("Unexpected Gemini streaming error; returning fallback token.")
 
         yield _fallback_text_for_error(error_type, is_crisis)
+        return handler.last_trace_id if handler else None
 
 
-def _generate_with_ollama(user_prompt: str, is_crisis: bool = False) -> str:
-    try:
-        full_prompt = f"{SYSTEM_PROMPT}\n\n{user_prompt}"
-        response = _ollama_client.chat(
-            model=_ollama_model,
-            messages=[{"role": "user", "content": full_prompt}],
-        )
-        raw = ""
-        if hasattr(response, "message") and hasattr(response.message, "content"):
-            raw = response.message.content
-        elif isinstance(response, dict):
-            raw = str(response.get("message", {}).get("content", ""))
-        raw = raw.strip()
-        if not raw:
-            logger.warning("Ollama returned empty response for model %s", _ollama_model)
-            return _fallback_text_for_error("unknown", is_crisis)
-        return raw
-    except Exception as exc:
-        logger.warning("Ollama chat failed: %s", exc)
-        return _fallback_text_for_error("unknown", is_crisis)
+def _ollama_generation_span(name: str, user_prompt: str):
+    # Manual Langfuse generation span since the raw Ollama client has no automatic tracing
+    client = get_langfuse_client()
+    if client is None:
+        return nullcontext()
+    return client.start_as_current_observation(
+        name=name, as_type="generation", model=_ollama_model, input=user_prompt,
+    )
+
+
+def _generate_with_ollama(user_prompt: str, is_crisis: bool = False) -> tuple[str, str | None]:
+    with _ollama_generation_span("ollama-chat", user_prompt) as generation:
+        try:
+            full_prompt = f"{_get_system_prompt()[0]}\n\n{user_prompt}"
+            response = _ollama_client.chat(
+                model=_ollama_model,
+                messages=[{"role": "user", "content": full_prompt}],
+            )
+            raw = ""
+            if hasattr(response, "message") and hasattr(response.message, "content"):
+                raw = response.message.content
+            elif isinstance(response, dict):
+                raw = str(response.get("message", {}).get("content", ""))
+            raw = raw.strip()
+            if not raw:
+                logger.warning("Ollama returned empty response for model %s", _ollama_model)
+                result = _fallback_text_for_error("unknown", is_crisis)
+            else:
+                result = raw
+            if generation is not None:
+                generation.update(output=result)
+            # capture the trace id while the span is still open
+            return result, get_current_trace_id()
+        except Exception as exc:
+            logger.warning("Ollama chat failed: %s", exc)
+            result = _fallback_text_for_error("unknown", is_crisis)
+            if generation is not None:
+                generation.update(output=result, level="ERROR", status_message=str(exc))
+            return result, get_current_trace_id()
 
 
 def _stream_with_ollama(user_prompt: str, is_crisis: bool = False):
-    try:
-        full_prompt = f"{SYSTEM_PROMPT}\n\n{user_prompt}"
-        for chunk in _ollama_client.chat(
-            model=_ollama_model,
-            messages=[{"role": "user", "content": full_prompt}],
-            stream=True,
-        ):
-            text = ""
-            if hasattr(chunk, "message") and hasattr(chunk.message, "content"):
-                text = chunk.message.content
-            elif isinstance(chunk, dict):
-                text = str(chunk.get("message", {}).get("content", ""))
-            if text:
-                yield text
-    except Exception as exc:
-        logger.warning("Ollama stream failed: %s", exc)
-        yield _fallback_text_for_error("unknown", is_crisis)
+    with _ollama_generation_span("ollama-chat-stream", user_prompt) as generation:
+        collected: list[str] = []
+        try:
+            full_prompt = f"{_get_system_prompt()[0]}\n\n{user_prompt}"
+            for chunk in _ollama_client.chat(
+                model=_ollama_model,
+                messages=[{"role": "user", "content": full_prompt}],
+                stream=True,
+            ):
+                text = ""
+                if hasattr(chunk, "message") and hasattr(chunk.message, "content"):
+                    text = chunk.message.content
+                elif isinstance(chunk, dict):
+                    text = str(chunk.get("message", {}).get("content", ""))
+                if text:
+                    collected.append(text)
+                    yield text
+            if generation is not None:
+                generation.update(output="".join(collected))
+            return get_current_trace_id()
+        except Exception as exc:
+            logger.warning("Ollama stream failed: %s", exc)
+            fallback = _fallback_text_for_error("unknown", is_crisis)
+            if generation is not None:
+                generation.update(output=fallback, level="ERROR", status_message=str(exc))
+            yield fallback
+            return get_current_trace_id()
 
 
-def _invoke_llm(user_prompt: str, is_crisis: bool = False) -> str:
+def _invoke_llm(user_prompt: str, is_crisis: bool = False) -> tuple[str, str | None]:
     if _chatbot_provider == "ollama":
         return _generate_with_ollama(user_prompt, is_crisis)
     return _generate_with_gemini(user_prompt, is_crisis)
@@ -548,25 +621,32 @@ def _invoke_llm(user_prompt: str, is_crisis: bool = False) -> str:
 
 def _stream_llm(user_prompt: str, is_crisis: bool = False):
     if _chatbot_provider == "ollama":
-        yield from _stream_with_ollama(user_prompt, is_crisis)
+        trace_id = yield from _stream_with_ollama(user_prompt, is_crisis)
     else:
-        yield from _stream_with_gemini(user_prompt, is_crisis)
+        trace_id = yield from _stream_with_gemini(user_prompt, is_crisis)
+    return trace_id
 
 
 def _generate_text_raw(prompt: str) -> str:
     # LLM invocation without the chatbot system prompt mainly used for memory summarisation
     if _chatbot_provider == "ollama":
-        response = _ollama_client.chat(
-            model=_ollama_model,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        if hasattr(response, "message") and hasattr(response.message, "content"):
-            return str(response.message.content).strip()
-        if isinstance(response, dict):
-            return str(response.get("message", {}).get("content", "")).strip()
-        return ""
+        with _ollama_generation_span("ollama-memory-summary", prompt) as generation:
+            response = _ollama_client.chat(
+                model=_ollama_model,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            if hasattr(response, "message") and hasattr(response.message, "content"):
+                result = str(response.message.content).strip()
+            elif isinstance(response, dict):
+                result = str(response.get("message", {}).get("content", "")).strip()
+            else:
+                result = ""
+            if generation is not None:
+                generation.update(output=result)
+            return result
     else:
-        response = _llm.invoke(prompt)
+        _, config = _langchain_handler_and_config()
+        response = _llm.invoke(prompt, config=config) if config else _llm.invoke(prompt)
         content = getattr(response, "content", None) or getattr(response, "text", None)
         return str(content).strip() if content else ""
 
@@ -675,7 +755,8 @@ What to DROP when over the word limit (lowest priority first):
 """
 
 
-def generate_long_term_summary(existing_summary: str,conversation_history: list[dict],user_summary: str,) -> str:
+def generate_long_term_summary(existing_summary: str,conversation_history: list[dict],user_summary: str,uid: str | None = None,
+) -> str:
     # Updates the long-term summary using the latest conversation while keeping it under the word limit
     if not _llm and not _ollama_client:
         return existing_summary
@@ -708,7 +789,8 @@ Rules:
 """
 
     try:
-        result = _generate_text_raw(prompt)
+        with propagate_attributes(user_id=uid, tags=["memory_summary"]):
+            result = _generate_text_raw(prompt)
         return result if result else existing_summary
     except Exception as exc:
         error_type = _classify_gemini_error(exc) if _chatbot_provider != "ollama" else "unknown"
@@ -738,18 +820,69 @@ Rules:
         return existing_summary
 
 
+def _invoke_llm_traced(
+    prompt: str, is_crisis: bool, session_id: str | None, uid: str | None, tag: str,
+) -> tuple[str, str | None]:
+    # Runs the LLM call inside one Langfuse trace so safety scores and feedback can attach to it later
+    with propagate_attributes(session_id=session_id, user_id=uid, tags=[tag]):
+        reply, trace_id = _invoke_llm(prompt, is_crisis=is_crisis)
+    return reply, trace_id
+
+
+def _record_safety_scores(trace_id: str | None, safety_report: dict) -> None:
+    # Attach the sentiment model risk signals to the trace so crisis conversations can be filtered in Langfuse
+    if not trace_id:
+        return
+    record_score(
+        trace_id, "suicidal_confidence", float(safety_report.get("suicidal_confidence", 0.0)),
+        data_type="NUMERIC",
+    )
+    record_score(trace_id, "sentiment", str(safety_report.get("emotion_label", "")), data_type="CATEGORICAL")
+    record_score(
+        trace_id, "safety_flag",
+        1.0 if str(safety_report.get("safety_flag", "")).lower() == "crisis" else 0.0,
+        data_type="BOOLEAN",
+    )
+
+
+def record_hardcoded_crisis_override(
+    session_id: str | None, uid: str | None, user_message: str, reply: str,
+) -> str | None:
+    # Traces hardcoded crisis replies as a lightweight span so they still appear in Langfuse for safety review
+    client = get_langfuse_client()
+    if client is None:
+        return None
+    trace_id = None
+    with propagate_attributes(session_id=session_id, user_id=uid, tags=["crisis", "hardcoded_safety_override"]):
+        with client.start_as_current_observation(
+            name="crisis-hardcoded-override", as_type="span", input=user_message, output=reply,
+        ):
+            trace_id = get_current_trace_id()
+    return trace_id
+
+
 # Response handlers
 def _handle_crisis_response(
     persona_packet: dict,
     conversation_history: list[dict],
     user_summary : str,
     long_term_summary : str = "",
-) -> str:
+    session_id: str | None = None,
+    uid: str | None = None,
+    suicidal_confidence: float = 0.0,
+) -> tuple[str, str | None]:
     """
     The response for a crisis message is assembled as:
         CRISIS_HARDCODED_PREFIX + " " + Gemini continuation
     so the user sees one single, natural-sounding message.
+
+    Above HARDCODED_SAFETY_THRESHOLD, this instead returns a fixed template verbatim with no LLM call.
     """
+    if suicidal_confidence >= HARDCODED_SAFETY_THRESHOLD:
+        reply = random.choice(CRISIS_FALLBACK_TEMPLATES)
+        trace_id = record_hardcoded_crisis_override(session_id, uid, persona_packet["user_message"], reply)
+        return reply, trace_id
+
     history_context = _format_history_for_prompt(conversation_history, max_turns=4)
     memory_block = _build_memory_block(long_term_summary)
 
@@ -776,8 +909,8 @@ What they just said: {persona_packet['user_message']}
 Their emotion: {persona_packet['sentiment_label']}
 """
 
-    continuation = _invoke_llm(prompt, is_crisis=True).strip()
-    return f"{CRISIS_HARDCODED_PREFIX}{continuation}"
+    continuation, trace_id = _invoke_llm_traced(prompt, True, session_id, uid, "crisis")
+    return f"{CRISIS_HARDCODED_PREFIX}{continuation.strip()}", trace_id
 
 
 def _handle_knowledge_based_response(
@@ -785,7 +918,9 @@ def _handle_knowledge_based_response(
     conversation_history: list[dict],
     user_summary : str,
     long_term_summary : str = "",
-) -> str:
+    session_id: str | None = None,
+    uid: str | None = None,
+) -> tuple[str, str | None]:
     history_context= _format_history_for_prompt(conversation_history, max_turns=4)
     knowledge_context = (
         persona_packet["knowledge_context"]
@@ -813,7 +948,7 @@ Their question: {persona_packet['user_message']}
 Answer naturally based on the provided knowledge. DO NOT make up hospital details, costs, phone numbers, or procedures that are not in the knowledge context above.
 """
 
-    return _invoke_llm(prompt, is_crisis=False)
+    return _invoke_llm_traced(prompt, False, session_id, uid, "knowledge_based")
 
 
 def _handle_general_support(
@@ -821,7 +956,9 @@ def _handle_general_support(
     conversation_history: list[dict],
     user_summary: str,
     long_term_summary : str = "",
-) -> str:
+    session_id: str | None = None,
+    uid: str | None = None,
+) -> tuple[str, str | None]:
     history_context = _format_history_for_prompt(conversation_history, max_turns=5)
     summary_words = len(long_term_summary.split()) if long_term_summary else 0
     memory_block = _build_memory_block(long_term_summary) if summary_words >= 30 else ""
@@ -849,7 +986,7 @@ Respond like a real caring person. {question_instruction}
 Keep it short unless they asked for detailed info.
 """
 
-    return _invoke_llm(prompt, is_crisis=False)
+    return _invoke_llm_traced(prompt, False, session_id, uid, "general_support")
 
 def process_user_message(
     user_message : str,
@@ -858,6 +995,8 @@ def process_user_message(
     crisis_count: int,
     total_messages: int,
     long_term_summary : str = "",
+    session_id: str | None = None,
+    uid: str | None = None,
 ) -> dict:
     # Main chatbot pipeline where it checks safety, gets info if needed and generates a response
     safety_report = analyze_safety(user_message)
@@ -895,20 +1034,25 @@ def process_user_message(
     user_summary = _generate_user_summary(user_emotions, crisis_count, total_messages)
 
     if persona_packet["safety_flag"] == "crisis":
-        reply = _handle_crisis_response(
-            persona_packet, conversation_history, user_summary, long_term_summary
+        reply, trace_id = _handle_crisis_response(
+            persona_packet, conversation_history, user_summary, long_term_summary,
+            session_id=session_id, uid=uid, suicidal_confidence=safety_report["suicidal_confidence"],
         )
         path_taken = "crisis"
     elif persona_packet["knowledge_found"]:
-        reply = _handle_knowledge_based_response(
-            persona_packet, conversation_history, user_summary, long_term_summary
+        reply, trace_id = _handle_knowledge_based_response(
+            persona_packet, conversation_history, user_summary, long_term_summary,
+            session_id=session_id, uid=uid,
         )
         path_taken = "knowledge_based"
     else:
-        reply= _handle_general_support(
-            persona_packet, conversation_history, user_summary, long_term_summary
+        reply, trace_id = _handle_general_support(
+            persona_packet, conversation_history, user_summary, long_term_summary,
+            session_id=session_id, uid=uid,
         )
         path_taken = "general_support"
+
+    _record_safety_scores(trace_id, safety_report)
 
     return {
         "response" : reply,
@@ -918,6 +1062,7 @@ def process_user_message(
         "suicidal_confidence": safety_report["suicidal_confidence"],
         "path_taken" : path_taken,
         "sources": persona_packet.get("sources", []),
+        "trace_id": trace_id,
     }
 
 
@@ -1058,6 +1203,11 @@ def prepare_streaming_context(
         user_summary, long_term_summary,
     )
 
+    # Use a fixed template above the same confidence ceiling as the non streaming path
+    hardcoded_override = None
+    if handler_type == "crisis" and safety_report["suicidal_confidence"] >= HARDCODED_SAFETY_THRESHOLD:
+        hardcoded_override = random.choice(CRISIS_FALLBACK_TEMPLATES)
+
     return {
         "prompt" : prompt,
         "handler_type": handler_type,
@@ -1068,11 +1218,27 @@ def prepare_streaming_context(
         "suicidal_confidence": safety_report["suicidal_confidence"],
         "sources": persona_packet.get("sources", []),
         "is_crisis": safety_report["safety_flag"] == "crisis",
+        "hardcoded_override": hardcoded_override,
     }
 
 
-def stream_gemini_response(prompt: str, is_crisis: bool = False):
+def stream_gemini_response(
+    prompt: str,
+    is_crisis: bool = False,
+    session_id: str | None = None,
+    uid: str | None = None,
+    path_taken: str | None = None,
+    safety_report: dict | None = None,
+    trace_holder: dict | None = None,
+):
     # Streams Gemini response in small chunks as it generates
     if is_crisis:
         yield CRISIS_HARDCODED_PREFIX
-    yield from _stream_llm(prompt, is_crisis=is_crisis)
+    tags = [path_taken] if path_taken else None
+    with propagate_attributes(session_id=session_id, user_id=uid, tags=tags):
+        trace_id = yield from _stream_llm(prompt, is_crisis=is_crisis)
+    if trace_id:
+        if trace_holder is not None:
+            trace_holder["trace_id"] = trace_id
+        if safety_report:
+            _record_safety_scores(trace_id, safety_report)
