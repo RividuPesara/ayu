@@ -11,67 +11,67 @@ class DashboardCache {
 
   String fullName = '';
   String? avatarUrl;
-  String quote = '';
+  String quoteKey = '';
   List<ScheduleItem> todayMeds = [];
   List<TaskItem> todayTasks = [];
   bool isReady = false;
 
   Completer<void>? _completer;
 
-  static const _quotes = <String, List<String>>{
+  static const _quoteKeys = <String, List<String>>{
     'Christian': [
-      'With God, all things are possible.',
-      'Be still and know that I am God.',
-      'Fear not, for I am with you.',
-      'Joy comes in the morning.',
-      'I can do all things through Christ.',
-      'Cast your worries on Him; He cares.',
-      'The Lord is my shepherd.',
+      'quote.christian.0',
+      'quote.christian.1',
+      'quote.christian.2',
+      'quote.christian.3',
+      'quote.christian.4',
+      'quote.christian.5',
+      'quote.christian.6',
     ],
     'Muslim': [
-      'With hardship comes ease.',
-      'Allah does not burden beyond capacity.',
-      'In His remembrance, hearts find rest.',
-      'Be patient. Allah is with the patient.',
-      'Speak good, or remain silent.',
-      'Trust in Allah and take action.',
-      'Every difficulty holds a hidden mercy.',
+      'quote.muslim.0',
+      'quote.muslim.1',
+      'quote.muslim.2',
+      'quote.muslim.3',
+      'quote.muslim.4',
+      'quote.muslim.5',
+      'quote.muslim.6',
     ],
     'Buddhist': [
-      'The mind is everything. What you think, you become.',
-      'Let go of what has passed.',
-      'Every morning we are born again.',
-      'Peace begins with a single breath.',
-      'Compassion is the root of all healing.',
-      'You yourself must strive.',
-      'Small deeds done are better than great ones planned.',
+      'quote.buddhist.0',
+      'quote.buddhist.1',
+      'quote.buddhist.2',
+      'quote.buddhist.3',
+      'quote.buddhist.4',
+      'quote.buddhist.5',
+      'quote.buddhist.6',
     ],
     'Hindu': [
-      'Do your duty and leave the rest to God.',
-      'Act without attachment to the outcome.',
-      'Where there is righteousness, there is victory.',
-      'The self is never truly lost.',
-      'Courage is your greatest virtue.',
-      'Let your actions reflect your values.',
-      'You are what your deep desire is.',
+      'quote.hindu.0',
+      'quote.hindu.1',
+      'quote.hindu.2',
+      'quote.hindu.3',
+      'quote.hindu.4',
+      'quote.hindu.5',
+      'quote.hindu.6',
     ],
     'Other': [
-      'You are stronger than you think.',
-      "Healing takes time, and that's okay.",
-      'One day at a time.',
-      'Small steps still move you forward.',
-      'You are not alone in this.',
-      "Breathe. You've got this.",
-      'This too shall pass.',
+      'quote.other.0',
+      'quote.other.1',
+      'quote.other.2',
+      'quote.other.3',
+      'quote.other.4',
+      'quote.other.5',
+      'quote.other.6',
     ],
     'Prefer not to say': [
-      'You are stronger than you think.',
-      "Healing takes time, and that's okay.",
-      'One day at a time.',
-      'Small steps still move you forward.',
-      'You are not alone in this.',
-      "Breathe. You've got this.",
-      'This too shall pass.',
+      'quote.other.0',
+      'quote.other.1',
+      'quote.other.2',
+      'quote.other.3',
+      'quote.other.4',
+      'quote.other.5',
+      'quote.other.6',
     ],
   };
 
@@ -86,7 +86,7 @@ class DashboardCache {
   }
 
   static String _pickQuote(String? religion) {
-    final list = _quotes[religion] ?? _quotes['Other']!;
+    final list = _quoteKeys[religion] ?? _quoteKeys['Other']!;
     final now = DateTime.now();
     final d = now.hour < 5 ? now.subtract(const Duration(days: 1)) : now;
     final dayOfYear = d.difference(DateTime(d.year, 1, 1)).inDays;
@@ -149,7 +149,7 @@ class DashboardCache {
     isReady = false;
     fullName = '';
     avatarUrl = null;
-    quote = '';
+    quoteKey = '';
     todayMeds = [];
     todayTasks = [];
   }
@@ -188,12 +188,12 @@ class DashboardCache {
         fullName = data?['fullName'] as String? ?? '';
         final avatar = data?['avatar'] as String?;
         avatarUrl = (avatar != null && avatar.isNotEmpty) ? avatar : null;
-        quote = _pickQuote(data?['religion'] as String?);
+        quoteKey = _pickQuote(data?['religion'] as String?);
       } catch (_) {
-        if (quote.isEmpty) quote = _pickQuote(null);
+        if (quoteKey.isEmpty) quoteKey = _pickQuote(null);
       }
     } else {
-      quote = _pickQuote(null);
+      quoteKey = _pickQuote(null);
     }
   }
 

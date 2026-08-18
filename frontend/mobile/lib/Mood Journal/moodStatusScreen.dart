@@ -5,6 +5,8 @@ import 'package:mobile_app/Mood Journal/journalEntryScreen.dart';
 import 'package:mobile_app/Mood Journal/mood_journal_service.dart';
 import 'package:mobile_app/Mood Journal/pastJournalEntries.dart';
 import 'package:mobile_app/companion-dashboard/companion_service.dart';
+import 'package:mobile_app/core/theme/app_typography.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class MoodStatusScreen extends StatefulWidget {
   const MoodStatusScreen({super.key, this.isReadOnly = false});
@@ -111,11 +113,11 @@ class _MoodStatusScreenState extends State<MoodStatusScreen> {
     final stats = _stats;
     final String statusText = _displayStatus.toUpperCase();
     final String detailText = widget.isReadOnly && (_hasCrisis || _recentEntryFlagged)
-        ? 'This person may need your support today.'
+        ? context.t('moodStatus.needSupport')
         : stats?.emotionMessage ??
           (_cachedEmotionMessage.isNotEmpty
               ? _cachedEmotionMessage
-              : 'Keep journaling to build a mood pattern.');
+              : context.t('moodStatus.keepJournaling'));
     final history = _cachedRecentHistory.isNotEmpty
         ? _cachedRecentHistory
         : (stats?.recentHistory ?? const <MoodHistoryItem>[]);
@@ -188,8 +190,8 @@ class _MoodStatusScreenState extends State<MoodStatusScreen> {
                           ),
                         ),
                         const SizedBox(width: 10),
-                        const Text(
-                          'Mood Journal',
+                        Text(
+                          context.t('moodSel.title'),
                           style: TextStyle(
                             fontSize: 23,
                             fontWeight: FontWeight.w700,
@@ -214,6 +216,7 @@ class _MoodStatusScreenState extends State<MoodStatusScreen> {
                           style: const TextStyle(
                             fontSize: 32,
                             fontFamily: 'Urbanist',
+                            fontFamilyFallback: AppTypography.familyFallback,
                             fontWeight: FontWeight.w900,
                             letterSpacing: 2,
                             color: Colors.black87,
@@ -291,8 +294,8 @@ class _MoodStatusScreenState extends State<MoodStatusScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'Recent Journals',
+                        Text(
+                          context.t('moodStatus.recentJournals'),
                           style: TextStyle(
                             fontSize: 21,
                             fontWeight: FontWeight.w800,
@@ -323,8 +326,8 @@ class _MoodStatusScreenState extends State<MoodStatusScreen> {
                               unawaited(_loadStatus());
                             }
                           },
-                          child: const Text(
-                            'View All',
+                          child: Text(
+                            context.t('moodStatus.viewAll'),
                             style: TextStyle(
                               fontSize: 21,
                               fontWeight: FontWeight.w800,
@@ -357,14 +360,14 @@ class _MoodStatusScreenState extends State<MoodStatusScreen> {
 
     if (_error != null && history.isEmpty) {
       return Center(
-        child: TextButton(onPressed: _loadStatus, child: const Text('Retry')),
+        child: TextButton(onPressed: _loadStatus, child: Text(context.t('common.retry'))),
       );
     }
 
     if (history.isEmpty) {
-      return const Center(
+      return Center(
         child: Text(
-          'No history yet. Add your first journal entry.',
+          context.t('moodStatus.noHistory'),
           style: TextStyle(
             color: Color(0xFF4B3326),
             fontSize: 16,
@@ -521,7 +524,7 @@ class MoodHistoryCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Mood: $mood',
+                  context.t('moodStatus.moodLabel', {'mood': mood}),
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,

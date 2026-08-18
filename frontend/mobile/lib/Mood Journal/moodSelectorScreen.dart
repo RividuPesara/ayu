@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:mobile_app/Mood Journal/mood_journal_service.dart';
 import 'package:mobile_app/Notification/local_notification_scheduler.dart';
 import 'package:mobile_app/dashboardScreen.dart';
+import 'package:mobile_app/core/theme/app_typography.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class MoodSelectorScreen extends StatefulWidget {
   const MoodSelectorScreen({super.key});
@@ -26,30 +28,30 @@ class _MoodSelectorScreenState extends State<MoodSelectorScreen> {
     'Normal',
   ];
 
-  final List<_MoodData> moods = const [
+  List<_MoodData> _buildMoods(BuildContext context) => [
     _MoodData(
-      labelTop: 'VERY LOW',
-      description: 'I feel very low.',
+      labelTop: context.t('mood.veryLow'),
+      description: context.t('mood.veryLowDesc'),
       faceType: MoodFaceType.verySad,
     ),
     _MoodData(
-      labelTop: 'LOW',
-      description: 'I feel sad.',
+      labelTop: context.t('mood.low'),
+      description: context.t('mood.lowDesc'),
       faceType: MoodFaceType.sad,
     ),
     _MoodData(
-      labelTop: 'NORMAL',
-      description: 'I Feel Neutral.',
+      labelTop: context.t('mood.normal'),
+      description: context.t('mood.normalDesc'),
       faceType: MoodFaceType.neutral,
     ),
     _MoodData(
-      labelTop: 'GOOD',
-      description: 'I feel happy.',
+      labelTop: context.t('mood.good'),
+      description: context.t('mood.goodDesc'),
       faceType: MoodFaceType.happy,
     ),
     _MoodData(
-      labelTop: 'GREAT',
-      description: 'I feel amazing.',
+      labelTop: context.t('mood.great'),
+      description: context.t('mood.greatDesc'),
       faceType: MoodFaceType.veryHappy,
     ),
   ];
@@ -189,6 +191,7 @@ class _MoodSelectorScreenState extends State<MoodSelectorScreen> {
       );
     }
 
+    final moods = _buildMoods(context);
     final mood = moods[selectedMoodIndex];
 
     return Scaffold(
@@ -222,8 +225,8 @@ class _MoodSelectorScreenState extends State<MoodSelectorScreen> {
                   ),
                   child: Row(
                     children: [
-                      const Text(
-                        'Mood Journal',
+                      Text(
+                        context.t('moodSel.title'),
                         style: TextStyle(
                           fontSize: 25,
                           fontWeight: FontWeight.w600,
@@ -244,15 +247,16 @@ class _MoodSelectorScreenState extends State<MoodSelectorScreen> {
                   ),
                 ),
                 SizedBox(height: screenHeight * 0.05),
-                const Padding(
+                Padding(
                   padding: EdgeInsets.symmetric(horizontal: 32),
                   child: Text(
-                    'How would you\ndescribe your mood?',
+                    context.t('moodSel.heading'),
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 34,
                       height: 1.25,
                       fontFamily: 'Urbanist',
+                      fontFamilyFallback: AppTypography.familyFallback,
                       fontWeight: FontWeight.w700,
                       color: Color(0xFF5A4032),
                     ),
@@ -311,8 +315,8 @@ class _MoodSelectorScreenState extends State<MoodSelectorScreen> {
                           color: Colors.white,
                         ),
                       )
-                          : const Text(
-                        'Let’s Check In',
+                          : Text(
+                        context.t('moodSel.checkIn'),
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,

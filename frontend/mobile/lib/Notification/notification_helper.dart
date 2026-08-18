@@ -1,4 +1,5 @@
 import 'package:intl/intl.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 String getNotificationGroup(DateTime date) {
   final now = DateTime.now();
@@ -6,7 +7,7 @@ String getNotificationGroup(DateTime date) {
 
   // Earlier This Day
   if (now.day == date.day && now.month == date.month && now.year == date.year) {
-    return "Earlier This Day";
+    return AppLocalizations.tr('notif.earlierToday');
   }
 
   // Same Week
@@ -16,12 +17,12 @@ String getNotificationGroup(DateTime date) {
 
   // Last Week
   if (difference.inDays < 14) {
-    return "Last Week";
+    return AppLocalizations.tr('notif.lastWeek');
   }
 
   // This Month
   if (now.month == date.month && now.year == date.year) {
-    return "This Month";
+    return AppLocalizations.tr('notif.thisMonth');
   }
 
   // Month

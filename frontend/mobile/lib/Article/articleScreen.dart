@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'articleRead.dart';
 import 'article_service.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class ArticleScreen extends StatefulWidget {
   const ArticleScreen({super.key});
@@ -11,7 +12,8 @@ class ArticleScreen extends StatefulWidget {
 
 class _ArticleScreenState extends State<ArticleScreen> {
   TextEditingController searchController = TextEditingController();
-  String selectedCategory = "All";
+  // Filter value, matched against ArticleModel.genre from the backend.
+  String selectedCategory = 'All';
   late Future<List<ArticleModel>> _articlesFuture;
 
   @override
@@ -25,7 +27,7 @@ class _ArticleScreenState extends State<ArticleScreen> {
       final matchesSearch =
           a.title.toLowerCase().contains(searchController.text.toLowerCase());
       final matchesCategory =
-          selectedCategory == "All" || a.genre == selectedCategory;
+          selectedCategory == 'All' || a.genre == selectedCategory;
       return matchesSearch && matchesCategory;
     }).toList();
   }
@@ -107,8 +109,8 @@ class _ArticleScreenState extends State<ArticleScreen> {
                     ),
                   ),
                   const SizedBox(height: 15),
-                  const Text(
-                    "Our Articles",
+                  Text(
+                    context.t('article.ourArticles'),
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 37,
@@ -127,13 +129,13 @@ class _ArticleScreenState extends State<ArticleScreen> {
                     child: TextField(
                       controller: searchController,
                       onChanged: (value) => setState(() {}),
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         suffixIcon: Icon(
                           Icons.search,
                           color: Color(0xff4B3425),
                         ),
                         border: InputBorder.none,
-                        hintText: "Search our 1242 articles",
+                        hintText: context.t('article.searchHint'),
                         hintStyle: TextStyle(
                           color: Color(0xff706A66),
                           fontSize: 19,
@@ -154,8 +156,8 @@ class _ArticleScreenState extends State<ArticleScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    "Suggested Topics",
+                  Text(
+                    context.t('article.suggestedTopics'),
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w600,
@@ -165,11 +167,11 @@ class _ArticleScreenState extends State<ArticleScreen> {
                   GestureDetector(
                     onTap: () {
                       setState(() {
-                        selectedCategory = "All";
+                        selectedCategory = 'All';
                       });
                     },
                     child: Text(
-                      "See All",
+                      context.t('common.seeAll'),
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
@@ -189,16 +191,16 @@ class _ArticleScreenState extends State<ArticleScreen> {
                 mainAxisAlignment: MainAxisAlignment.start,
                 children: [
                   categoryItem(
-                      Icons.spa, "Stress", Color(0xff926448), "Stress", 32, 22, Color(0xff6D6661)),
+                      Icons.spa, context.t('article.topicStress'), Color(0xff926448), 'Stress', 32, 22, Color(0xff6D6661)),
                   const SizedBox(width: 15),
                   categoryItem(
-                      Icons.favorite, "Health", Color(0xffFA834C), "Health", 32, 22, Color(0xff6D6661)),
+                      Icons.favorite, context.t('article.topicHealth'), Color(0xffFA834C), 'Health', 32, 22, Color(0xff6D6661)),
                   const SizedBox(width: 15),
                   categoryItem(
-                      Icons.star, "Status", Color(0xffFBCD5C), "Status", 32, 22, Color(0xff6D6661)),
+                      Icons.star, context.t('article.topicStatus'), Color(0xffFBCD5C), 'Status', 32, 22, Color(0xff6D6661)),
                   const SizedBox(width: 15),
                   categoryItem(
-                      Icons.school, "Edu", Color(0xffBCA290), "Edu", 32, 22, Color(0xff6D6661)),
+                      Icons.school, context.t('article.topicEdu'), Color(0xffBCA290), 'Edu', 32, 22, Color(0xff6D6661)),
                 ],
               ),
             ),
@@ -206,10 +208,10 @@ class _ArticleScreenState extends State<ArticleScreen> {
             const SizedBox(height: 25),
 
             // All Articles
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(horizontal: 20),
               child: Text(
-                "All Articles",
+                context.t('article.allArticles'),
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w600,
@@ -230,18 +232,18 @@ class _ArticleScreenState extends State<ArticleScreen> {
                   );
                 }
                 if (snapshot.hasError || !snapshot.hasData) {
-                  return const Padding(
+                  return Padding(
                     padding: EdgeInsets.all(40),
-                    child: Center(child: Text("Failed to load articles.")),
+                    child: Center(child: Text(context.t('article.errLoad'))),
                   );
                 }
 
                 final articles = _filtered(snapshot.data!);
 
                 if (articles.isEmpty) {
-                  return const Padding(
+                  return Padding(
                     padding: EdgeInsets.all(40),
-                    child: Center(child: Text("No articles found.")),
+                    child: Center(child: Text(context.t('article.none'))),
                   );
                 }
 

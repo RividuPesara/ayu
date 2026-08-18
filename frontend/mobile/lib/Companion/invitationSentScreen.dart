@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_app/Companion/sharingPrivacyScreen.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class InvitationSentScreen extends StatelessWidget {
   final String email;
@@ -38,8 +39,8 @@ class InvitationSentScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  const Text(
-                    'Companion',
+                  Text(
+                    context.t('comp.title'),
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w600,
@@ -90,8 +91,8 @@ class InvitationSentScreen extends StatelessWidget {
                       color: const Color(0xFFF6C791),
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: const Text(
-                      'SENT',
+                    child: Text(
+                      context.t('compSent.sent'),
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w800,
@@ -129,8 +130,8 @@ class InvitationSentScreen extends StatelessWidget {
 
             const SizedBox(height: 44),
 
-            const Text(
-              'Invitation Sent!',
+            Text(
+              context.t('compSent.title'),
               style: TextStyle(
                 fontSize: 34,
                 fontWeight: FontWeight.w800,
@@ -153,7 +154,7 @@ class InvitationSentScreen extends StatelessWidget {
                     color: Color(0xFF5C4B43),
                   ),
                   children: [
-                    const TextSpan(text: "We've sent a magic link to\n"),
+                    TextSpan(text: context.t('compSent.body1')),
                     TextSpan(
                       text: email,
                       style: const TextStyle(
@@ -161,9 +162,9 @@ class InvitationSentScreen extends StatelessWidget {
                         fontWeight: FontWeight.w900,
                       ),
                     ),
-                    const TextSpan(
+                    TextSpan(
                       text:
-                          ". Once they\naccept, you'll be connected in the\nSanctuary.",
+                          context.t('compSent.body2'),
                     ),
                   ],
                 ),
@@ -206,8 +207,8 @@ class InvitationSentScreen extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'PENDING PARTNER',
+                          Text(
+                            context.t('compSent.pending'),
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w900,
@@ -236,8 +237,8 @@ class InvitationSentScreen extends StatelessWidget {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(18),
                       ),
-                      child: const Text(
-                        'AWAITING',
+                      child: Text(
+                        context.t('comp.awaiting'),
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w900,
@@ -274,8 +275,8 @@ class InvitationSentScreen extends StatelessWidget {
                       ),
                     );
                   },
-                  child: const Text(
-                    'Continue →',
+                  child: Text(
+                    context.t('compSent.continue'),
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w800,

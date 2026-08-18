@@ -19,6 +19,7 @@ import 'Todo List/task_service.dart';
 import 'Companion/companionInviteScreen.dart';
 import 'Donation/donationEntryScreen.dart';
 import 'videoRecommendations.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class Dashboard extends StatefulWidget {
   const Dashboard({super.key});
@@ -32,7 +33,7 @@ class _DashboardState extends State<Dashboard> with RouteAware {
   int _selectedIndex = 0;
 
   bool _isLoading = true;
-  String _quote = '';
+  String _quoteKey = '';
   String _fullName = '';
   String? _avatarUrl;
   bool _avatarLoadError = false;
@@ -44,7 +45,7 @@ class _DashboardState extends State<Dashboard> with RouteAware {
     final cache = DashboardCache.instance;
     _fullName = cache.fullName;
     _avatarUrl = cache.avatarUrl;
-    _quote = cache.quote;
+    _quoteKey = cache.quoteKey;
     _todayMeds = List.from(cache.todayMeds);
     _todayTasks = List.from(cache.todayTasks);
     _isLoading = false;
@@ -141,7 +142,7 @@ class _DashboardState extends State<Dashboard> with RouteAware {
   void _initNeedCards() {
     needCards = [
     {
-      "title": "Chatbot",
+      "titleKey": "dash.card.chatbot",
       "image": "assets/dashboard/chatbot.png",
       "color": Color(0xff926247),
       "icon": Icons.favorite_outline,
@@ -153,7 +154,7 @@ class _DashboardState extends State<Dashboard> with RouteAware {
       },
     },
     {
-      "title": "Mood\nJournal",
+      "titleKey": "dash.card.moodJournal",
       "image": "assets/dashboard/mood_journal.png",
       "color": Color(0xffFFCE5C),
       "icon": Icons.favorite_outline,
@@ -167,7 +168,7 @@ class _DashboardState extends State<Dashboard> with RouteAware {
       },
     },
     {
-      "title": "To-Do List",
+      "titleKey": "dash.card.todo",
       "image": "assets/dashboard/to_do_list.png",
       "color": Color(0xffFFDB8F),
       "icon": Icons.description_outlined,
@@ -179,7 +180,7 @@ class _DashboardState extends State<Dashboard> with RouteAware {
       },
     },
     {
-      "title": "Tracking\nSystem",
+      "titleKey": "dash.card.tracking",
       "image": "assets/dashboard/tracking_system.png",
       "color": Color(0xffB4C48D),
       "icon": Icons.favorite_outline,
@@ -191,7 +192,7 @@ class _DashboardState extends State<Dashboard> with RouteAware {
       },
     },
     {
-      "title": "Connect\nCompanion",
+      "titleKey": "dash.card.companion",
       "image": "assets/dashboard/connect_companion.png",
       "color": Color(0xff9BB068),
       "icon": Icons.people_outline,
@@ -205,7 +206,7 @@ class _DashboardState extends State<Dashboard> with RouteAware {
       },
     },
     {
-      "title": "Donation\nRequest",
+      "titleKey": "dash.card.donation",
       "image": "assets/dashboard/donation_request.png",
       "color": Color(0xff7D944D),
       "icon": Icons.volunteer_activism_outlined,
@@ -219,7 +220,7 @@ class _DashboardState extends State<Dashboard> with RouteAware {
       },
     },
     {
-      "title": "Video\nRecommend",
+      "titleKey": "dash.card.video",
       "image": "assets/dashboard/mood_journal.png",
       "color": Color(0xff5C7AA0),
       "icon": Icons.play_circle_outline,
@@ -233,7 +234,7 @@ class _DashboardState extends State<Dashboard> with RouteAware {
       },
     },
     {
-      "title": "Community\nGroup Chat",
+      "titleKey": "dash.card.community",
       "image": "assets/dashboard/community_chat.png",
       "color": Color(0xff7B6BA8),
       "icon": Icons.mood_bad_outlined,
@@ -245,7 +246,7 @@ class _DashboardState extends State<Dashboard> with RouteAware {
       },
     },
     {
-      "title": "Connect With\na Doctor",
+      "titleKey": "dash.card.doctor",
       "image": "assets/dashboard/connect_doctor.png",
       "color": Color(0xffCBC2FF),
       "icon": Icons.mood_bad_outlined,
@@ -359,8 +360,10 @@ class _DashboardState extends State<Dashboard> with RouteAware {
 
                           Text(
                             _fullName.isEmpty
-                                ? 'Hi there!'
-                                : 'Hi there, ${_fullName.split(' ').first}!',
+                                ? context.t('dash.greetingAnon')
+                                : context.t('dash.greetingNamed', {
+                                    'name': _fullName.split(' ').first,
+                                  }),
                             style: const TextStyle(
                               fontSize: 35,
                               color: Color(0xff4B3425),
@@ -391,7 +394,7 @@ class _DashboardState extends State<Dashboard> with RouteAware {
                                 ),
                                 SizedBox(width: 5),
                                 Text(
-                                  "Quote of the day",
+                                  context.t('dash.quoteOfDay'),
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontSize: 16,
@@ -404,7 +407,9 @@ class _DashboardState extends State<Dashboard> with RouteAware {
                             SizedBox(height: 3),
 
                             Text(
-                              _quote.isEmpty ? 'Loading...' : _quote,
+                              _quoteKey.isEmpty
+                                  ? context.t('common.loading')
+                                  : context.t(_quoteKey),
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
@@ -418,8 +423,8 @@ class _DashboardState extends State<Dashboard> with RouteAware {
                       const SizedBox(height: 25),
 
                       // Everything you need
-                      const Text(
-                        "Everything You Need",
+                      Text(
+                        context.t('dash.everythingYouNeed'),
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 20,
@@ -447,7 +452,7 @@ class _DashboardState extends State<Dashboard> with RouteAware {
                             return Padding(
                               padding: const EdgeInsets.only(right: 10),
                               child: buildNeedCard(
-                                item["title"],
+                                context.t(item["titleKey"] as String),
                                 item["image"],
                                 item["color"],
                                 item["icon"],
@@ -485,8 +490,8 @@ class _DashboardState extends State<Dashboard> with RouteAware {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            "Your Plans For Today",
+                          Text(
+                            context.t('dash.plansForToday'),
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
@@ -500,8 +505,8 @@ class _DashboardState extends State<Dashboard> with RouteAware {
                                 builder: (_) => const TrackerScreen(),
                               ),
                             ),
-                            child: const Text(
-                              "See All",
+                            child: Text(
+                              context.t('common.seeAll'),
                               style: TextStyle(
                                 fontSize: 15,
                                 color: Color(0xff936949),
@@ -534,10 +539,10 @@ class _DashboardState extends State<Dashboard> with RouteAware {
                               .where((t) => !t.isDone && t.time.compareTo(nowStr) >= 0)
                               .toList();
                           if (visibleMeds.isEmpty && visibleTasks.isEmpty) {
-                            return const Padding(
+                            return Padding(
                               padding: EdgeInsets.symmetric(vertical: 8),
                               child: Text(
-                                'No plans for today.',
+                                context.t('dash.noPlans'),
                                 style: TextStyle(color: Color(0xff9B8A7E)),
                               ),
                             );
@@ -557,8 +562,8 @@ class _DashboardState extends State<Dashboard> with RouteAware {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            "Mindful Resources",
+                          Text(
+                            context.t('dash.mindfulResources'),
                             style: TextStyle(
                               fontWeight: FontWeight.w600,
                               fontSize: 20,
@@ -575,8 +580,8 @@ class _DashboardState extends State<Dashboard> with RouteAware {
                                 ),
                               );
                             },
-                            child: const Text(
-                              "See All",
+                            child: Text(
+                              context.t('common.seeAll'),
                               style: TextStyle(
                                 fontSize: 15,
                                 color: Color(0xff936949),

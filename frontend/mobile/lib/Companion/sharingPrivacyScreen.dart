@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_app/Companion/companion_service.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class CompanionPrivacyScreen extends StatefulWidget {
   const CompanionPrivacyScreen({super.key});
@@ -58,7 +59,7 @@ class _CompanionPrivacyScreenState extends State<CompanionPrivacyScreen> {
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Privacy settings saved.')),
+        SnackBar(content: Text(context.t('privacy.saved'))),
       );
       Navigator.pop(context);
     } catch (e) {
@@ -110,8 +111,8 @@ class _CompanionPrivacyScreenState extends State<CompanionPrivacyScreen> {
                                 ),
                               ),
                               const SizedBox(width: 12),
-                              const Text(
-                                'Companion',
+                              Text(
+                                context.t('comp.title'),
                                 style: TextStyle(
                                   color: Color(0xFF4B3425),
                                   fontSize: 24,
@@ -130,11 +131,11 @@ class _CompanionPrivacyScreenState extends State<CompanionPrivacyScreen> {
                               color: brown,
                               borderRadius: BorderRadius.circular(22),
                             ),
-                            child: const Column(
+                            child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Your Space, Your\nTerms',
+                                  context.t('privacy.title'),
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontSize: 38,
@@ -144,7 +145,7 @@ class _CompanionPrivacyScreenState extends State<CompanionPrivacyScreen> {
                                 ),
                                 SizedBox(height: 18),
                                 Text(
-                                  'Control how much of your journey you share\nCompanion.',
+                                  context.t('privacy.subtitle'),
                                   style: TextStyle(
                                     color: Color(0xFF9C8A7D),
                                     fontSize: 19,
@@ -160,33 +161,33 @@ class _CompanionPrivacyScreenState extends State<CompanionPrivacyScreen> {
 
                           privacyTile(
                             icon: Icons.sentiment_satisfied_alt,
-                            title: 'Mood Journal',
-                            subtitle: 'Allow companion to see your\nmood entries',
+                            title: context.t('privacy.moodJournal'),
+                            subtitle: context.t('privacy.moodDesc'),
                             value: moodJournal,
                             onChanged: (v) => setState(() => moodJournal = v),
                           ),
 
                           privacyTile(
                             icon: Icons.checklist,
-                            title: 'To-Do List',
-                            subtitle: 'Share your daily tasks and\npriorities',
+                            title: context.t('privacy.todo'),
+                            subtitle: context.t('privacy.todoDesc'),
                             value: todoList,
                             onChanged: (v) => setState(() => todoList = v),
                           ),
 
                           privacyTile(
                             icon: Icons.bar_chart,
-                            title: 'Tracking',
-                            subtitle: 'Enable health and activity\nmetric sharing',
+                            title: context.t('privacy.tracking'),
+                            subtitle: context.t('privacy.trackingDesc'),
                             value: tracking,
                             onChanged: (v) => setState(() => tracking = v),
                           ),
 
                           privacyTile(
                             icon: Icons.calendar_today,
-                            title: 'Doctor Appointments',
+                            title: context.t('privacy.doctorAppts'),
                             subtitle:
-                                'Let your companion see\nupcoming doctor appointments',
+                                context.t('privacy.doctorDesc'),
                             value: dailyPlans,
                             onChanged: (v) => setState(() => dailyPlans = v),
                           ),
@@ -221,8 +222,8 @@ class _CompanionPrivacyScreenState extends State<CompanionPrivacyScreen> {
                                   strokeWidth: 2.5,
                                 ),
                               )
-                            : const Text(
-                                'Save',
+                            : Text(
+                                context.t('common.save'),
                                 style: TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.w700,

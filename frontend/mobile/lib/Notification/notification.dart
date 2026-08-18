@@ -7,6 +7,7 @@ import 'notification_helper.dart';
 import 'notification_model.dart';
 import 'notification_navigator.dart';
 import 'notification_service.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class Notifications extends StatefulWidget {
   const Notifications({super.key});
@@ -157,8 +158,8 @@ class _NotificationsState extends State<Notifications> {
 
               Row(
                 children: [
-                  const Text(
-                    "Notifications",
+                  Text(
+                    context.t('notif.title'),
                     style: TextStyle(
                       fontSize: 35,
                       fontWeight: FontWeight.bold,
@@ -185,8 +186,8 @@ class _NotificationsState extends State<Notifications> {
                   if (_unreadCount > 0)
                     GestureDetector(
                       onTap: _markAllAsRead,
-                      child: const Text(
-                        "Mark all read",
+                      child: Text(
+                        context.t('notif.markAllRead'),
                         style: TextStyle(
                           color: Color(0xff4B3425),
                           fontSize: 13,
@@ -204,10 +205,10 @@ class _NotificationsState extends State<Notifications> {
                   child: Center(child: CircularProgressIndicator(color: Color(0xff4B3425))),
                 )
               else if (_notifications.isEmpty)
-                const Expanded(
+                Expanded(
                   child: Center(
                     child: Text(
-                      "No notifications yet",
+                      context.t('notif.none'),
                       style: TextStyle(color: Color(0xff706A66), fontSize: 16),
                     ),
                   ),

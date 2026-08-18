@@ -1,10 +1,11 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_app/core/auth/auth_service.dart';
 import 'package:mobile_app/Login%20Section/emailVerificationScreen.dart';
 import 'package:mobile_app/Login%20Section/loginScreen.dart';
 import 'package:mobile_app/Login%20Section/otpScreen.dart';
+import 'package:mobile_app/core/theme/app_typography.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -44,15 +45,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
     // Checks if the user left any required fields empty
     if (firstName.isEmpty || lastName.isEmpty) {
-      _showMessage('Please enter your first and last name.');
+      _showMessage(context.t('signUp.errName'));
       return;
     }
     if (phone.isEmpty) {
-      _showMessage('Please enter your mobile number.');
+      _showMessage(context.t('signUp.errMobile'));
       return;
     }
     if (email.isEmpty || password.isEmpty) {
-      _showMessage('Please enter email and password.');
+      _showMessage(context.t('signUp.errEmailPass'));
       return;
     }
 
@@ -84,7 +85,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       // Navigates to the OTP screen if secondary verification is required
       final session = result.otpSession;
       if (session == null) {
-        _showMessage('Unable to start OTP verification.');
+        _showMessage(context.t('login.errOtpStart'));
         return;
       }
 
@@ -158,34 +159,34 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    buildLabel("First Name"),
+                    buildLabel(context.t('signUp.firstName')),
                     buildTextField(
-                      "Enter your First Name...",
+                      context.t('signUp.firstNameHint'),
                       controller: _firstNameController,
                     ),
 
                     const SizedBox(height: 16),
 
-                    buildLabel("Last Name"),
+                    buildLabel(context.t('signUp.lastName')),
                     buildTextField(
-                      "Enter your Last Name...",
+                      context.t('signUp.lastNameHint'),
                       controller: _lastNameController,
                     ),
 
                     const SizedBox(height: 16),
 
-                    buildLabel("Mobile Number"),
+                    buildLabel(context.t('signUp.mobile')),
                     buildTextField(
-                      "Enter your Mobile Number...",
+                      context.t('signUp.mobileHint'),
                       controller: _phoneController,
                       keyboardType: TextInputType.phone,
                     ),
 
                     const SizedBox(height: 16),
 
-                    buildLabel("Email Address"),
+                    buildLabel(context.t('login.emailLabel')),
                     buildTextField(
-                      "Enter your email...",
+                      context.t('signUp.emailHint'),
                       controller: _emailController,
                       icon: Icons.email_outlined,
                       keyboardType: TextInputType.emailAddress,
@@ -193,7 +194,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
                     const SizedBox(height: 16),
 
-                    buildLabel("Password"),
+                    buildLabel(context.t('login.passwordLabel')),
                     buildPasswordField(),
 
                     const SizedBox(height: 20),
@@ -203,18 +204,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       child: RichText(
                         textAlign: TextAlign.center,
                         text: TextSpan(
-                          style: GoogleFonts.urbanist(
+                          style: urbanist(
                             fontSize: 15,
                             color: const Color(0xFF4B4544),
                             fontWeight: FontWeight.normal,
                           ),
                           children: [
-                            const TextSpan(
-                              text: "By continuing, you agree to\n",
+                            TextSpan(
+                              text: context.t('signUp.legalPrefix'),
                             ),
                             TextSpan(
-                              text: "Terms of Use",
-                              style: GoogleFonts.urbanist(
+                              text: context.t('signUp.termsOfUse'),
+                              style: urbanist(
                                 fontSize: 15,
                                 fontWeight: FontWeight.bold,
                                 color: const Color(0xFF4B4544),
@@ -226,10 +227,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                   debugPrint("Terms of Use clicked");
                                 },
                             ),
-                            const TextSpan(text: " and "),
+                            TextSpan(text: context.t('signUp.and')),
                             TextSpan(
-                              text: "Privacy Policy",
-                              style: GoogleFonts.urbanist(
+                              text: context.t('signUp.privacyPolicy'),
+                              style: urbanist(
                                 fontSize: 15,
                                 fontWeight: FontWeight.bold,
                                 color: const Color(0xFF4B4544),
@@ -262,8 +263,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           ),
                         ),
                         child: Text(
-                          "Sign Up",
-                          style: GoogleFonts.urbanist(
+                          context.t('signUp.submit'),
+                          style: urbanist(
                             fontSize: 21,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
@@ -277,8 +278,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text(
-                          "Already have an account? ",
+                        Text(
+                          context.t('signUp.haveAccount'),
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                         GestureDetector(
@@ -291,8 +292,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             );
                           },
                           child: Text(
-                            "Log In",
-                            style: GoogleFonts.urbanist(
+                            context.t('signUp.logIn'),
+                            style: urbanist(
                               color: const Color(0xFF7152FF),
                               fontWeight: FontWeight.bold,
                             ),
@@ -314,7 +315,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Widget buildLabel(String text) {
     return Text(
       text,
-      style: GoogleFonts.urbanist(
+      style: urbanist(
         fontSize: 14,
         fontWeight: FontWeight.bold,
         color: const Color(0xFF4B3425),
@@ -381,7 +382,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
           obscureText: isPasswordHidden,
           decoration: InputDecoration(
             prefixIcon: const Icon(Icons.lock_outline),
-            hintText: "Enter your password...",
+            hintText: context.t('login.passwordHint'),
             filled: true,
             fillColor: Colors.white,
             suffixIcon: IconButton(

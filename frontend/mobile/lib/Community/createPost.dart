@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_app/Community/community_service.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class CreatePostScreen extends StatefulWidget {
   const CreatePostScreen({super.key});
@@ -48,8 +49,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Failed to create post"),
+        SnackBar(
+          content: Text(context.t('community.createFailed')),
         ),
       );
     } finally {
@@ -90,8 +91,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       padding: EdgeInsets.zero,
                       minimumSize: const Size(60, 36),
                     ),
-                    child: const Text(
-                      "Cancel",
+                    child: Text(
+                      context.t('common.cancel'),
                       style: TextStyle(
                         color: purple,
                         fontSize: 19,
@@ -131,8 +132,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                           color: Colors.white,
                         ),
                       )
-                      : const Text(
-                        "Post",
+                      : Text(
+                        context.t('community.post'),
                         style: TextStyle(
                           fontSize: 19,
                           color: Colors.white,
@@ -175,8 +176,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                         autofocus: true,
                         maxLines: null,
                         keyboardType: TextInputType.multiline,
-                        decoration: const InputDecoration(
-                          hintText: "What’s happening?",
+                        decoration: InputDecoration(
+                          hintText: context.t('community.whatsHappening'),
                           hintStyle: TextStyle(
                             color: hintColor,
                             fontSize: 25,

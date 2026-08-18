@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_app/video_recommendations_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class DailyRecommendationsScreen extends StatefulWidget {
   const DailyRecommendationsScreen({super.key});
@@ -129,8 +130,8 @@ class _DailyRecommendationsScreenState
                     ),
                   ),
                   const SizedBox(width: 10),
-                  const Text(
-                    'Daily Recommendations',
+                  Text(
+                    context.t('video.title'),
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w700,
@@ -153,8 +154,8 @@ class _DailyRecommendationsScreenState
                   if (snapshot.hasError) {
                     return _buildMessageList(
                       context,
-                      'Could not load recommendations.',
-                      'Pull down to retry.',
+                      context.t('video.errLoad'),
+                      context.t('video.pullRetry'),
                     );
                   }
 
@@ -163,8 +164,8 @@ class _DailyRecommendationsScreenState
                   if (data.isEmpty) {
                     return _buildMessageList(
                       context,
-                      'No videos yet.',
-                      'Pull down to refresh.',
+                      context.t('video.none'),
+                      context.t('video.pullRefresh'),
                     );
                   }
 
@@ -246,16 +247,22 @@ class _DailyRecommendationsScreenState
     }
 
     if (count >= 1000000000) {
-      return '${(count / 1000000000).toStringAsFixed(1)}B views';
+      return context.t('video.viewsB', {
+        'count': (count / 1000000000).toStringAsFixed(1),
+      });
     }
     if (count >= 1000000) {
-      return '${(count / 1000000).toStringAsFixed(1)}M views';
+      return context.t('video.viewsM', {
+        'count': (count / 1000000).toStringAsFixed(1),
+      });
     }
     if (count >= 1000) {
-      return '${(count / 1000).toStringAsFixed(1)}K views';
+      return context.t('video.viewsK', {
+        'count': (count / 1000).toStringAsFixed(1),
+      });
     }
 
-    return '$count views';
+    return context.t('video.views', {'count': '$count'});
   }
 
   String _formatDate(DateTime? date) {
@@ -277,20 +284,24 @@ class _DailyRecommendationsScreenState
   Future<void> _openVideo(VideoRecommendation video) async {
     final uri = Uri.tryParse(video.url);
     if (uri == null) {
-      _showSnack('Invalid video link.');
+      _showSnack(context.t('video.errInvalid'));
       return;
     }
+
+    // Resolved before the awaits below: context is not safe across async gaps.
+    final recordFailedMessage = context.t('video.errRecord');
+    final openFailedMessage = context.t('video.errOpen');
 
     final tags = video.tags;
     try {
       await trackVideoInteraction(videoId: video.videoId, tags: tags);
     } catch (_) {
-      _showSnack('Could not record this view.');
+      _showSnack(recordFailedMessage);
     }
 
     final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!ok) {
-      _showSnack('Could not open YouTube.');
+      _showSnack(openFailedMessage);
     }
   }
 

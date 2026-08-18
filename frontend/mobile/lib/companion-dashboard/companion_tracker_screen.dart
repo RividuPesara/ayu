@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../Tracker/tracker_service.dart';
 import '../dashboard_cache.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class CompanionTrackerScreen extends StatefulWidget {
   const CompanionTrackerScreen({super.key});
@@ -32,8 +33,8 @@ class _CompanionTrackerScreenState extends State<CompanionTrackerScreen> {
       final msg = e.toString();
       setState(() {
         _error = msg.contains('403')
-            ? 'The patient has restricted access to their tracker.'
-            : 'Could not load medication schedule.';
+            ? context.t('compTrack.restricted')
+            : context.t('compTrack.errLoad');
         _isLoading = false;
       });
     }
@@ -78,11 +79,11 @@ class _CompanionTrackerScreenState extends State<CompanionTrackerScreen> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  const Column(
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Medication Tracker',
+                        context.t('compTrack.title'),
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 20,
@@ -90,7 +91,7 @@ class _CompanionTrackerScreenState extends State<CompanionTrackerScreen> {
                         ),
                       ),
                       Text(
-                        'Read only · Today',
+                        context.t('compTodo.readOnly'),
                         style: TextStyle(color: Colors.white70, fontSize: 12),
                       ),
                     ],
@@ -132,15 +133,19 @@ class _CompanionTrackerScreenState extends State<CompanionTrackerScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Today\'s Progress',
+                  Text(
+                    context.t('compTrack.progress'),
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: Color(0xFF4B3425),
                     ),
                   ),
                   Text(
-                    '${(visible.isEmpty ? 0 : visible.where((m) => m.status == 'taken').length)}/${visible.length} taken',
+                    context.t('compTrack.takenRatio', {
+                      'taken':
+                          '${visible.isEmpty ? 0 : visible.where((m) => m.status == 'taken').length}',
+                      'total': '${visible.length}',
+                    }),
                     style: const TextStyle(
                         color: Color(0xFF9B8A7E), fontSize: 13),
                   ),
@@ -161,7 +166,7 @@ class _CompanionTrackerScreenState extends State<CompanionTrackerScreen> {
         const SizedBox(height: 16),
 
         if (visible.isEmpty)
-          _buildMessage('No medications scheduled for today.')
+          _buildMessage(context.t('compTrack.none'))
         else
           ...visible.map((item) => _buildMedCard(item)),
       ],

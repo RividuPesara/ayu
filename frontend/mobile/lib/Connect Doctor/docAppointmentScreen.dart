@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_app/Connect%20Doctor/detailDoctorScreen.dart';
 import 'package:mobile_app/Connect Doctor/mySessions.dart';
 import 'package:mobile_app/Connect%20Doctor/doctor_service.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class DoctorAppointmentScreen extends StatefulWidget {
   const DoctorAppointmentScreen({super.key});
@@ -11,7 +12,8 @@ class DoctorAppointmentScreen extends StatefulWidget {
 }
 
 class _DoctorAppointmentScreenState extends State<DoctorAppointmentScreen> {
-  String selectedCategory = "All";
+  // Filter value, matched against Doctor.specialty from the backend.
+  String selectedCategory = 'All';
   final DoctorService _doctorService = DoctorService();
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = "";
@@ -52,7 +54,7 @@ class _DoctorAppointmentScreenState extends State<DoctorAppointmentScreen> {
     final query = _searchQuery.trim().toLowerCase();
     return _doctors.where((doctor) {
       final matchesCategory =
-          selectedCategory == "All" || doctor.specialty == selectedCategory;
+          selectedCategory == 'All' || doctor.specialty == selectedCategory;
       if (!matchesCategory) return false;
       if (query.isEmpty) return true;
       final name = doctor.fullName.toLowerCase();
@@ -102,8 +104,8 @@ class _DoctorAppointmentScreenState extends State<DoctorAppointmentScreen> {
                     ),
                   ),
                 ),
-                const Text(
-                  "Doctor Appointment",
+                Text(
+                  context.t('doc.appointment'),
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 34,
@@ -128,8 +130,8 @@ class _DoctorAppointmentScreenState extends State<DoctorAppointmentScreen> {
                               _searchQuery = value;
                             });
                           },
-                          decoration: const InputDecoration(
-                            hintText: "Search a Doctor...",
+                          decoration: InputDecoration(
+                            hintText: context.t('doc.searchHint'),
                             border: InputBorder.none,
                             hintStyle: TextStyle(
                               color: Color(0xFF8C8C8C),
@@ -152,8 +154,8 @@ class _DoctorAppointmentScreenState extends State<DoctorAppointmentScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    "Categories",
+                  Text(
+                    context.t('doc.categories'),
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w700,
@@ -167,39 +169,39 @@ class _DoctorAppointmentScreenState extends State<DoctorAppointmentScreen> {
                       GestureDetector(
                         onTap: () {
                           setState(() {
-                            selectedCategory = "Oncologist";
+                            selectedCategory = 'Oncologist';
                           });
                         },
                         child: _buildCategoryItem(
                           color: const Color(0xFF9C8CFF),
                           icon: Icons.hourglass_empty,
-                          label: "Oncologist",
+                          label: context.t('doc.catOncologist'),
                         ),
                       ),
                       const SizedBox(width: 18),
                       GestureDetector(
                         onTap: () {
                           setState(() {
-                            selectedCategory = "Psychologist";
+                            selectedCategory = 'Psychologist';
                           });
                         },
                         child: _buildCategoryItem(
                           color: const Color(0xFFFF914D),
                           icon: Icons.medical_services_outlined,
-                          label: "Psychologist",
+                          label: context.t('doc.catPsychologist'),
                         ),
                       ),
                       const SizedBox(width: 18),
                       GestureDetector(
                         onTap: () {
                           setState(() {
-                            selectedCategory = "Counsellor";
+                            selectedCategory = 'Counsellor';
                           });
                         },
                         child: _buildCategoryItem(
                           color: const Color(0xFFF7C95C),
                           icon: Icons.lightbulb_outline,
-                          label: "Counsellor",
+                          label: context.t('doc.catCounsellor'),
                         ),
                       ),
 
@@ -216,7 +218,7 @@ class _DoctorAppointmentScreenState extends State<DoctorAppointmentScreen> {
                         child: _buildCategoryItem(
                           color: const Color(0xFF74C144),
                           icon: Icons.event_note,
-                          label: "My Sessions",
+                          label: context.t('doc.mySessions'),
                         ),
                       ),
                     ],
@@ -234,7 +236,7 @@ class _DoctorAppointmentScreenState extends State<DoctorAppointmentScreen> {
                               if (filteredDoctors.isEmpty)
                                 Center(
                                   child: Text(
-                                    _errorMessage ?? "No doctors found",
+                                    _errorMessage ?? context.t('doc.noDoctors'),
                                     style: const TextStyle(
                                       fontSize: 16,
                                       color: Color(0xFF4B3425),

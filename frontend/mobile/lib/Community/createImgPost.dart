@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_app/Community/community_service.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class CreateImgPostScreen extends StatefulWidget {
   const CreateImgPostScreen({super.key});
@@ -98,8 +99,8 @@ class _CreateImgPostScreenState extends State<CreateImgPostScreen> {
                       padding: EdgeInsets.zero,
                       minimumSize: const Size(60, 36),
                     ),
-                    child: const Text(
-                      "Cancel",
+                    child: Text(
+                      context.t('common.cancel'),
                       style: TextStyle(
                         color: purple,
                         fontSize: 19,
@@ -138,8 +139,8 @@ class _CreateImgPostScreenState extends State<CreateImgPostScreen> {
                           color: Colors.white,
                         ),
                       )
-                          : const Text(
-                        "Post",
+                          : Text(
+                        context.t('community.post'),
                         style: TextStyle(
                           fontSize: 19,
                           color: Colors.white,
@@ -169,12 +170,12 @@ class _CreateImgPostScreenState extends State<CreateImgPostScreen> {
                   child: _image == null
                       ? Column(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
+                    children: [
                       Icon(Icons.add_photo_alternate_outlined,
                           size: 40, color: Colors.grey),
                       SizedBox(height: 8),
                       Text(
-                        "Add Photo",
+                        context.t('community.addPhoto'),
                         style: TextStyle(
                           color: Colors.grey,
                           fontSize: 20,
@@ -225,8 +226,8 @@ class _CreateImgPostScreenState extends State<CreateImgPostScreen> {
                         enabled: !isPosting,
                         maxLines: null,
                         keyboardType: TextInputType.multiline,
-                        decoration: const InputDecoration(
-                          hintText: "Write a caption...",
+                        decoration: InputDecoration(
+                          hintText: context.t('community.captionHint'),
                           hintStyle: TextStyle(
                             color: hintColor,
                             fontSize: 25,

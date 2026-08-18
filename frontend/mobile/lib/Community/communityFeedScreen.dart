@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_app/Community/createImgPost.dart';
 import 'package:mobile_app/Community/createPost.dart';
 import 'package:mobile_app/Community/community_service.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class CommunityScreen extends StatefulWidget {
   final String? focusPostId;
@@ -147,8 +148,8 @@ class _CommunityScreenState extends State<CommunityScreen>
                           ),
                         ),
                         const SizedBox(width: 10),
-                        const Text(
-                          "Community",
+                        Text(
+                          context.t('community.title'),
                           style: TextStyle(
                             color: textDark,
                             fontSize: 26,
@@ -173,7 +174,7 @@ class _CommunityScreenState extends State<CommunityScreen>
                               },
                               child: Center(
                                 child: Text(
-                                  "All",
+                                  context.t('community.all'),
                                   style: TextStyle(
                                     color: showYourPosts ? textMuted : textDark,
                                     fontSize: 19,
@@ -193,7 +194,7 @@ class _CommunityScreenState extends State<CommunityScreen>
                               },
                               child: Center(
                                 child: Text(
-                                  "Your Posts",
+                                  context.t('community.yourPosts'),
                                   style: TextStyle(
                                     color: showYourPosts ? textDark : textMuted,
                                     fontSize: 19,
@@ -237,9 +238,9 @@ class _CommunityScreenState extends State<CommunityScreen>
                     child: isLoading
                         ? const Center(child: CircularProgressIndicator())
                         : posts.isEmpty
-                        ? const Center(
+                        ? Center(
                             child: Text(
-                              "No posts found",
+                              context.t('community.noPosts'),
                               style: TextStyle(
                                 color: textDark,
                                 fontSize: 18,
@@ -292,7 +293,7 @@ class _CommunityScreenState extends State<CommunityScreen>
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             _buildFabOption(
-                              label: "Photos",
+                              label: context.t('community.photos'),
                               icon: Icons.image_outlined,
                               onTap: () async {
                                 closeFab();
@@ -307,7 +308,7 @@ class _CommunityScreenState extends State<CommunityScreen>
                             ),
                             const SizedBox(height: 16),
                             _buildFabOption(
-                              label: "Post",
+                              label: context.t('community.post'),
                               icon: Icons.edit_outlined,
                               onTap: () async {
                                 closeFab();
@@ -685,7 +686,7 @@ class _PostCardState extends State<PostCard>
     final type = widget.post["type"]?.toString() ?? "";
     final avatar = widget.post["authorAvatar"]?.toString() ?? "";
     final imageURL = widget.post["imageURL"]?.toString() ?? "";
-    final authorName = widget.post["authorName"]?.toString() ?? "User";
+    final authorName = widget.post["authorName"]?.toString() ?? context.t('community.user');
     final authorHandle = widget.post["authorHandle"]?.toString() ?? "";
     final dateText = _formatCreatedAt(widget.post["createdAt"]);
 
@@ -901,7 +902,7 @@ class _PostCardState extends State<PostCard>
 
   Widget _buildCommentTile(Map<String, dynamic> comment) {
     final avatar = comment["authorAvatar"]?.toString() ?? "";
-    final authorName = comment["authorName"]?.toString() ?? "User";
+    final authorName = comment["authorName"]?.toString() ?? context.t('community.user');
     final createdAt = _formatCreatedAt(comment["createdAt"]);
 
     return Row(
@@ -977,7 +978,7 @@ class _PostCardState extends State<PostCard>
               textInputAction: TextInputAction.send,
               onSubmitted: (_) => _addComment(),
               decoration: InputDecoration(
-                hintText: "Add a comment...",
+                hintText: context.t('community.addComment'),
                 hintStyle: const TextStyle(
                   color: Color(0xFF9AA3AD),
                   fontSize: 15,

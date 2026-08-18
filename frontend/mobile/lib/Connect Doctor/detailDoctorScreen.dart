@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_app/Connect%20Doctor/checkoutScreen.dart';
 import 'package:mobile_app/Connect%20Doctor/appointment_service.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class DetailDoctorPage extends StatefulWidget {
   const DetailDoctorPage({
@@ -137,8 +138,8 @@ class _DetailDoctorPageState extends State<DetailDoctorPage> {
             const SizedBox(height: 25),
 
             // Title
-            const Text(
-              "Detail Doctor",
+            Text(
+              context.t('doc.detail'),
               style: TextStyle(
                 fontSize: 36,
                 fontWeight: FontWeight.w900,
@@ -146,8 +147,8 @@ class _DetailDoctorPageState extends State<DetailDoctorPage> {
               ),
             ),
             const SizedBox(height: 6),
-            const Text(
-              "Get more information",
+            Text(
+              context.t('doc.getMoreInfo'),
               style: TextStyle(
                 color: lightText,
                 fontSize: 18,
@@ -223,8 +224,8 @@ class _DetailDoctorPageState extends State<DetailDoctorPage> {
             const SizedBox(height: 30),
 
             // Biography
-            const Text(
-              "Biography",
+            Text(
+              context.t('doc.biography'),
               style: TextStyle(
                 fontWeight: FontWeight.w700,
                 fontSize: 18,
@@ -235,7 +236,7 @@ class _DetailDoctorPageState extends State<DetailDoctorPage> {
             Text(
               widget.doctorSpecialty.isNotEmpty
                   ? "Specialty: ${widget.doctorSpecialty}"
-                  : "Specialty not available",
+                  : context.t('doc.specialtyNA'),
               style: const TextStyle(
                 color: lightText,
                 height: 1.5,
@@ -249,8 +250,8 @@ class _DetailDoctorPageState extends State<DetailDoctorPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  "Calendar",
+                Text(
+                  context.t('doc.calendar'),
                   style: TextStyle(
                     fontSize: 21,
                     fontWeight: FontWeight.w800,
@@ -304,8 +305,8 @@ class _DetailDoctorPageState extends State<DetailDoctorPage> {
             const SizedBox(height: 21),
 
             // Time
-            const Text(
-              "Time",
+            Text(
+              context.t('doc.time'),
               style: TextStyle(
                 fontSize: 21,
                 fontWeight: FontWeight.w800,
@@ -347,8 +348,8 @@ class _DetailDoctorPageState extends State<DetailDoctorPage> {
                 onPressed: () {
                   if (selectedDate == null || _selectedTime == null) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text("Please select a date and time."),
+                      SnackBar(
+                        content: Text(context.t('doc.errSelectDateTime')),
                       ),
                     );
                     return;
@@ -375,8 +376,8 @@ class _DetailDoctorPageState extends State<DetailDoctorPage> {
                     borderRadius: BorderRadius.circular(25),
                   ),
                 ),
-                child: const Text(
-                  "Book Appointment",
+                child: Text(
+                  context.t('doc.bookAppointment'),
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 18,

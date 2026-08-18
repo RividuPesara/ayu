@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'histroyScreen.dart';
 import 'chatbot_service.dart' as api;
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class Chatbot extends StatefulWidget {
   final api.ChatSession? existingSession;
@@ -85,7 +86,7 @@ class _ChatbotState extends State<Chatbot> {
       });
       WidgetsBinding.instance.addPostFrameCallback((_) => scrollToBottom());
     } catch (e) {
-      _showError('Could not load conversation history.');
+      _showError(context.t('chat.errHistory'));
     } finally {
       if (mounted) setState(() => _isLoadingHistory = false);
     }
@@ -138,7 +139,7 @@ class _ChatbotState extends State<Chatbot> {
         );
       });
     } catch (_) {
-      _showError('Could not load older messages.');
+      _showError(context.t('chat.errOlder'));
     } finally {
       if (mounted) {
         setState(() => _isLoadingOlder = false);
@@ -202,7 +203,7 @@ class _ChatbotState extends State<Chatbot> {
       setState(() {
         messages.add({
           'isUser': false,
-          'message': 'Sorry, I could not get a response. Please try again.',
+          'message': context.t('chat.errResponse'),
         });
       });
     } finally {
@@ -337,8 +338,8 @@ class _ChatbotState extends State<Chatbot> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  const Text(
-                    'AI Helpers',
+                  Text(
+                    context.t('chat.aiHelpers'),
                     style: TextStyle(
                       fontSize: 25,
                       fontWeight: FontWeight.w600,
@@ -364,8 +365,8 @@ class _ChatbotState extends State<Chatbot> {
                       ),
                       fixedSize: const Size(95, 54),
                     ),
-                    child: const Text(
-                      'Chat',
+                    child: Text(
+                      context.t('chat.chat'),
                       style: TextStyle(color: Colors.white, fontSize: 19),
                     ),
                   ),
@@ -383,8 +384,8 @@ class _ChatbotState extends State<Chatbot> {
                       ),
                       fixedSize: const Size(110, 54),
                     ),
-                    child: const Text(
-                      'History',
+                    child: Text(
+                      context.t('chat.history'),
                       style: TextStyle(color: Color(0xff3727AB), fontSize: 19),
                     ),
                   ),
@@ -449,7 +450,7 @@ class _ChatbotState extends State<Chatbot> {
                       enabled: !_isSending,
                       onChanged: (v) => setState(() => isTyping = v.isNotEmpty),
                       decoration: InputDecoration(
-                        hintText: 'Ask me anything...',
+                        hintText: context.t('chat.askAnything'),
                         hintStyle: const TextStyle(
                           color: Color(0xffB8B8B8),
                           fontSize: 19,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class TakenView extends StatelessWidget {
   final List<Map<String, String>> takenMedicines;
@@ -19,8 +20,8 @@ class TakenView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            "DAILY LOG",
+          Text(
+            context.t('tracker.dailyLog'),
             style: TextStyle(
               fontSize: 16,
               letterSpacing: 1.2,
@@ -29,8 +30,8 @@ class TakenView extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 13),
-          const Text(
-            "Your routine is\non track.",
+          Text(
+            context.t('tracker.onTrack'),
             style: TextStyle(
               fontSize: 35,
               fontWeight: FontWeight.w700,
@@ -40,7 +41,11 @@ class TakenView extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           Text(
-            "Showing ${takenMedicines.length} medication${takenMedicines.length == 1 ? '' : 's'} taken today",
+            context.tPlural(
+                    'tracker.showingTakenOne',
+                    'tracker.showingTakenMany',
+                    takenMedicines.length,
+                  ),
             style: const TextStyle(
               fontSize: 19,
               color: Color(0xFF8A847D),
@@ -112,7 +117,7 @@ class TakenView extends StatelessWidget {
                             color: const Color(0xFF0E8D3D),
                             borderRadius: BorderRadius.circular(16),
                           ),
-                          child: const Row(
+                          child: Row(
                             children: [
                               Icon(
                                 Icons.check_circle,
@@ -121,7 +126,7 @@ class TakenView extends StatelessWidget {
                               ),
                               SizedBox(width: 5),
                               Text(
-                                "TAKEN",
+                                context.t('tracker.takenCaps'),
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 16,
@@ -160,7 +165,7 @@ class TakenView extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Row(
+                              Row(
                                 children: [
                                   Icon(
                                     Icons.access_time,
@@ -169,7 +174,7 @@ class TakenView extends StatelessWidget {
                                   ),
                                   SizedBox(width: 6),
                                   Text(
-                                    "SCHEDULED FOR",
+                                    context.t('tracker.scheduledFor'),
                                     style: TextStyle(
                                       fontSize: 15,
                                       letterSpacing: 1,
@@ -206,8 +211,8 @@ class TakenView extends StatelessWidget {
                     const SizedBox(height: 14),
                     Row(
                       children: [
-                        const Text(
-                          "DAILY ADHERENCE",
+                        Text(
+                          context.t('tracker.dailyAdherence'),
                           style: TextStyle(
                             fontSize: 15,
                             letterSpacing: 1,

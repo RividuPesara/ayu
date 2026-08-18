@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'Todo List/task_service.dart';
 import 'Notification/local_notification_scheduler.dart';
 import 'dashboard_cache.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 void main() {
   runApp(const MyApp());
@@ -54,7 +55,7 @@ class _ToDoListState extends State<ToDoList> {
   }
 
   String formatKey(DateTime date) {
-    return DateFormat('yyyy-MM-dd').format(date);
+    return DateFormat('yyyy-MM-dd', 'en').format(date);
   }
 
   String _toTimeString(TimeOfDay time) {
@@ -130,7 +131,7 @@ class _ToDoListState extends State<ToDoList> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Unable to delete "${task.title}". Please try again.',
+              context.t('todo.deleteFailed', {'title': task.title}),
             ),
           ),
         );
@@ -153,8 +154,8 @@ class _ToDoListState extends State<ToDoList> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
-              title: const Text(
-                "Add Task",
+              title: Text(
+                context.t('todo.addTask'),
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w700,
@@ -164,10 +165,10 @@ class _ToDoListState extends State<ToDoList> {
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Align(
+                  Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      "Task",
+                      context.t('todo.task'),
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
@@ -179,8 +180,8 @@ class _ToDoListState extends State<ToDoList> {
                   TextField(
                     controller: nameController,
                     decoration: InputDecoration(
-                      hintText: "Enter task",
-                      errorText: isTextEmpty ? "Please enter a task" : null,
+                      hintText: context.t('todo.enterTask'),
+                      errorText: isTextEmpty ? context.t('todo.errEnterTask') : null,
                       errorBorder: const OutlineInputBorder(
                         borderSide: BorderSide(color: Colors.red),
                       ),
@@ -197,10 +198,10 @@ class _ToDoListState extends State<ToDoList> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const Align(
+                  Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      "Time",
+                      context.t('todo.time'),
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
@@ -249,7 +250,7 @@ class _ToDoListState extends State<ToDoList> {
                           Text(
                             selectedTime != null
                                 ? selectedTime!.format(context)
-                                : "Select Time",
+                                : context.t('todo.selectTime'),
                             style: const TextStyle(
                               color: Color(0xff605D62),
                               fontSize: 16,
@@ -260,10 +261,10 @@ class _ToDoListState extends State<ToDoList> {
                     ),
                   ),
                   if (isTimeMissing)
-                    const Align(
+                    Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        "       Please select a time",
+                        context.t('todo.errSelectTime'),
                         style: TextStyle(color: Colors.red, fontSize: 12),
                       ),
                     ),
@@ -284,8 +285,8 @@ class _ToDoListState extends State<ToDoList> {
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
-                        child: const Text(
-                          "Cancel",
+                        child: Text(
+                          context.t('common.cancel'),
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w600,
@@ -328,6 +329,8 @@ class _ToDoListState extends State<ToDoList> {
 
                           // Capture messenger before the async gap to avoid stale context
                           final messenger = ScaffoldMessenger.of(context);
+                          // Resolved up front: the snackbar fires after awaits.
+                          final addFailedMessage = context.t('todo.addFailed');
                           Navigator.pop(context);
 
                           createTask(
@@ -362,11 +365,7 @@ class _ToDoListState extends State<ToDoList> {
                                     () => _tasks = repo.tasksFor(dateKey),
                                   );
                                   messenger.showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Failed to add task. Please try again.',
-                                      ),
-                                    ),
+                                    SnackBar(content: Text(addFailedMessage)),
                                   );
                                 }
                               });
@@ -380,8 +379,8 @@ class _ToDoListState extends State<ToDoList> {
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
-                        child: const Text(
-                          "Add",
+                        child: Text(
+                          context.t('todo.add'),
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w600,
@@ -434,8 +433,8 @@ class _ToDoListState extends State<ToDoList> {
                 ),
               ),
               const SizedBox(height: 10),
-              const Text(
-                "Weekly Tasks",
+              Text(
+                context.t('todo.weeklyTasks'),
                 style: TextStyle(
                   fontSize: 50,
                   fontWeight: FontWeight.w600,
@@ -443,8 +442,8 @@ class _ToDoListState extends State<ToDoList> {
                 ),
               ),
               const SizedBox(height: 10),
-              const Text(
-                "Your path to balance, outlined day by day.\nTake a breath and focus on what matters.",
+              Text(
+                context.t('todo.subtitle'),
                 style: TextStyle(color: Color(0xff6D6661), fontSize: 17),
               ),
               const SizedBox(height: 30),
@@ -457,8 +456,8 @@ class _ToDoListState extends State<ToDoList> {
                   itemBuilder: (context, index) {
                     DateTime date = week[index];
                     bool isSelected =
-                        DateFormat('yyyy-MM-dd').format(date) ==
-                            DateFormat('yyyy-MM-dd').format(selectedDate);
+                        DateFormat('yyyy-MM-dd', 'en').format(date) ==
+                            DateFormat('yyyy-MM-dd', 'en').format(selectedDate);
 
                     return GestureDetector(
                       onTap: () {
@@ -520,8 +519,8 @@ class _ToDoListState extends State<ToDoList> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    "Today's Tasks",
+                  Text(
+                    context.t('todo.todaysTasks'),
                     style: TextStyle(
                       fontSize: 23,
                       fontWeight: FontWeight.bold,
@@ -531,8 +530,8 @@ class _ToDoListState extends State<ToDoList> {
                   if (!widget.isReadOnly && !_isPastDate)
                     GestureDetector(
                       onTap: showAddTaskDialog,
-                      child: const Text(
-                        "Add Task",
+                      child: Text(
+                        context.t('todo.addTask'),
                         style: TextStyle(
                           color: Color(0xFF7C6CA8),
                           fontWeight: FontWeight.w500,

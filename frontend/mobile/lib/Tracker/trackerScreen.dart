@@ -16,6 +16,7 @@ import '../Notification/local_notification_scheduler.dart';
 import '../dashboard_cache.dart';
 import 'package:lottie/lottie.dart';
 import '../Chatbot/chatbotScreen.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 const List<Color> _missedCardColors = [
   Color(0xFF8A4C86),
@@ -162,42 +163,30 @@ class _TrackerScreenState extends State<TrackerScreen> {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
-  String _monthLabel(int month) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return months[month - 1];
-  }
+  String _monthLabel(int month) => context.t('month.short.$month');
 
   String get formattedHeaderDate {
     final today = DashboardCache.adjustedNow();
 
     if (_isSameDate(selectedDate, today)) {
-      return "Today, ${_monthLabel(selectedDate.month)} ${selectedDate.day}";
+      return context.t('tracker.todayLabel', {
+        'month': _monthLabel(selectedDate.month),
+        'day': '${selectedDate.day}',
+      });
     }
 
     final day = selectedDate.day.toString().padLeft(2, '0');
     final month = selectedDate.month.toString().padLeft(2, '0');
     final year = selectedDate.year.toString();
 
-    return "You are viewing $day/$month/$year";
+    return context.t('tracker.viewingDate', {
+      'day': day,
+      'month': month,
+      'year': year,
+    });
   }
 
-  String weekLabel(DateTime date) {
-    const labels = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
-    return labels[date.weekday - 1];
-  }
+  String weekLabel(DateTime date) => context.t('weekday.short.${date.weekday}');
 
   Future<void> _openCalendarPicker() async {
     const bgColor = Color(0xFFF7F4F2);
@@ -283,7 +272,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
                                   vertical: 12,
                                 ),
                               ),
-                              child: const Text("Cancel"),
+                              child: Text(context.t('common.cancel')),
                             ),
                           ),
                           const SizedBox(width: 10),
@@ -301,7 +290,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
                                   vertical: 12,
                                 ),
                               ),
-                              child: const Text("Done"),
+                              child: Text(context.t('common.done')),
                             ),
                           ),
                         ],
@@ -410,7 +399,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
         setState(() => _scheduleItems = backupItems);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Unable to delete ${item.name}. Please try again.'),
+            content: Text(context.t('tracker.deleteFailed', {'name': item.name})),
           ),
         );
       }
@@ -436,7 +425,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
         'name': item.name,
         'type': item.type,
         'time': item.scheduledTime,
-        'tag': 'Taken',
+        'tag': context.t('tracker.taken'),
         'image': '',
       },
     )
@@ -483,8 +472,8 @@ class _TrackerScreenState extends State<TrackerScreen> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  const Text(
-                    "Your Tracker",
+                  Text(
+                    context.t('tracker.title'),
                     style: TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.w700,
@@ -565,19 +554,19 @@ class _TrackerScreenState extends State<TrackerScreen> {
                 Row(
                   children: [
                     FilterCategoryWidget(
-                      label: "All $allCount",
+                      label: context.t('tracker.filterAll', {'count': '$allCount'}),
                       selected: selectedFilter == 0,
                       onTap: () => setState(() => selectedFilter = 0),
                     ),
                     const SizedBox(width: 9),
                     FilterCategoryWidget(
-                      label: "Taken $takenCount",
+                      label: context.t('tracker.filterTaken', {'count': '$takenCount'}),
                       selected: selectedFilter == 1,
                       onTap: () => setState(() => selectedFilter = 1),
                     ),
                     const SizedBox(width: 9),
                     FilterCategoryWidget(
-                      label: "Missed $missedCount",
+                      label: context.t('tracker.filterMissed', {'count': '$missedCount'}),
                       selected: selectedFilter == 2,
                       onTap: () => setState(() => selectedFilter = 2),
                     ),
@@ -612,8 +601,8 @@ class _TrackerScreenState extends State<TrackerScreen> {
                     : ListView(
                   padding: const EdgeInsets.only(bottom: 100),
                   children: [
-                    const Text(
-                      "TODAY'S SCHEDULE",
+                    Text(
+                      context.t('tracker.todaysSchedule'),
                       style: TextStyle(
                         fontSize: 17,
                         letterSpacing: 1.2,
@@ -674,10 +663,10 @@ class _TrackerScreenState extends State<TrackerScreen> {
                             type: item.type,
                             time: item.scheduledTime,
                             tag: isTaken
-                                ? 'Taken'
+                                ? context.t('tracker.taken')
                                 : isMissed
-                                ? 'Missed'
-                                : 'Take',
+                                ? context.t('tracker.missed')
+                                : context.t('tracker.take'),
                             imagePath: null,
                             isTaken: isTaken,
                             isMissed: isMissed,
@@ -835,8 +824,8 @@ class _TrackerScreenState extends State<TrackerScreen> {
                   child: Lottie.asset('assets/thumb.json', repeat: true),
                 ),
                 const SizedBox(height: 10),
-                const Text(
-                  'Your medication successfully added',
+                Text(
+                  context.t('tracker.addedSuccess'),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 22,
@@ -862,8 +851,8 @@ class _TrackerScreenState extends State<TrackerScreen> {
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    child: const Text(
-                      'Add another',
+                    child: Text(
+                      context.t('tracker.addAnother'),
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -888,8 +877,8 @@ class _TrackerScreenState extends State<TrackerScreen> {
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    child: const Text(
-                      'Back to tracker',
+                    child: Text(
+                      context.t('tracker.backToTracker'),
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -907,7 +896,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
 
   Future<void> _showAddMedicationDialog() async {
     final nameController = TextEditingController();
-    String selectedType = "Capsule";
+    String selectedType = context.t('tracker.typeCapsule');
     DateTime? repeatUntilDate;
     final List<TimeOfDay> selectedTimes = [];
 
@@ -1067,8 +1056,8 @@ class _TrackerScreenState extends State<TrackerScreen> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        "Add Medication",
+                      Text(
+                        context.t('tracker.addMedication'),
                         style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.w700,
@@ -1076,8 +1065,8 @@ class _TrackerScreenState extends State<TrackerScreen> {
                         ),
                       ),
                       const SizedBox(height: 18),
-                      const Text(
-                        "Name of medicine",
+                      Text(
+                        context.t('tracker.nameOfMedicine'),
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
@@ -1088,7 +1077,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
                       TextField(
                         controller: nameController,
                         decoration: InputDecoration(
-                          hintText: "Enter medicine name",
+                          hintText: context.t('tracker.nameHint'),
                           filled: true,
                           fillColor: Colors.white,
                           contentPadding: const EdgeInsets.symmetric(
@@ -1102,8 +1091,8 @@ class _TrackerScreenState extends State<TrackerScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      const Text(
-                        "Type",
+                      Text(
+                        context.t('tracker.type'),
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
@@ -1121,14 +1110,14 @@ class _TrackerScreenState extends State<TrackerScreen> {
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
                             value: selectedType,
-                            items: const [
+                            items: [
                               DropdownMenuItem(
-                                value: "Capsule",
-                                child: Text("Capsule"),
+                                value: context.t('tracker.typeCapsule'),
+                                child: Text(context.t('tracker.typeCapsule')),
                               ),
                               DropdownMenuItem(
-                                value: "Injection",
-                                child: Text("Injection"),
+                                value: context.t('tracker.typeInjection'),
+                                child: Text(context.t('tracker.typeInjection')),
                               ),
                             ],
                             onChanged: (value) {
@@ -1142,8 +1131,8 @@ class _TrackerScreenState extends State<TrackerScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      const Text(
-                        "Times",
+                      Text(
+                        context.t('tracker.times'),
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
@@ -1203,7 +1192,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
                                 color: const Color(0xFFA8BA78),
                                 borderRadius: BorderRadius.circular(14),
                               ),
-                              child: const Row(
+                              child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(
@@ -1213,7 +1202,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
                                   ),
                                   SizedBox(width: 6),
                                   Text(
-                                    "Add Time",
+                                    context.t('tracker.addTime'),
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.w600,
@@ -1227,8 +1216,8 @@ class _TrackerScreenState extends State<TrackerScreen> {
                         ],
                       ),
                       const SizedBox(height: 18),
-                      const Text(
-                        "Repeat until",
+                      Text(
+                        context.t('tracker.repeatUntil'),
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
@@ -1253,7 +1242,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
                               Expanded(
                                 child: Text(
                                   repeatUntilDate == null
-                                      ? "Choose date"
+                                      ? context.t('tracker.chooseDate')
                                       : formatDate(repeatUntilDate!),
                                   style: TextStyle(
                                     fontSize: 15,
@@ -1292,8 +1281,8 @@ class _TrackerScreenState extends State<TrackerScreen> {
                                   vertical: 14,
                                 ),
                               ),
-                              child: const Text(
-                                "Cancel",
+                              child: Text(
+                                context.t('common.cancel'),
                                 style: TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.w600,
@@ -1406,8 +1395,8 @@ class _TrackerScreenState extends State<TrackerScreen> {
                                   vertical: 14,
                                 ),
                               ),
-                              child: const Text(
-                                "Add",
+                              child: Text(
+                                context.t('tracker.add'),
                                 style: TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.w600,

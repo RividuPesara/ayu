@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_app/Connect Doctor/currentAppointments.dart';
 import 'package:mobile_app/Connect%20Doctor/appointment_service.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class MyAppointmentScreen extends StatefulWidget {
   const MyAppointmentScreen({super.key, this.isReadOnly = false});
@@ -119,8 +120,8 @@ class _MyAppointmentScreenState extends State<MyAppointmentScreen> {
                 const SizedBox(height: 18),
                 Text(
                   widget.isReadOnly
-                      ? "Patient's Appointments"
-                      : "My Appointments",
+                      ? context.t('sessions.patientAppts')
+                      : context.t('sessions.myAppts'),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 34,
@@ -153,7 +154,7 @@ class _MyAppointmentScreenState extends State<MyAppointmentScreen> {
                             ),
                             child: Center(
                               child: Text(
-                                "Upcoming",
+                                context.t('sessions.upcoming'),
                                 style: TextStyle(
                                   color: isUpcomingSelected
                                       ? purple
@@ -183,7 +184,7 @@ class _MyAppointmentScreenState extends State<MyAppointmentScreen> {
                             ),
                             child: Center(
                               child: Text(
-                                "Past",
+                                context.t('sessions.past'),
                                 style: TextStyle(
                                   color: !isUpcomingSelected
                                       ? purple
@@ -210,7 +211,7 @@ class _MyAppointmentScreenState extends State<MyAppointmentScreen> {
                 : visibleAppointments.isEmpty
                 ? Center(
                     child: Text(
-                      _errorMessage ?? "No appointments yet",
+                      _errorMessage ?? context.t('sessions.none'),
                       style: const TextStyle(
                         fontSize: 16,
                         color: Color(0xFF4B3425),
@@ -227,8 +228,8 @@ class _MyAppointmentScreenState extends State<MyAppointmentScreen> {
                       final isOverdue = appointment.status == "overdue";
                       final isDone = appointment.status == "done";
                       final badgeLabel = isUpcomingSelected
-                          ? (isOverdue ? "Late" : "Upcoming")
-                          : (isDone ? "Done" : "Late");
+                          ? (isOverdue ? context.t('sessions.late') : context.t('sessions.upcoming'))
+                          : (isDone ? context.t('sessions.done') : context.t('sessions.late'));
                       final badgeColor = isUpcomingSelected
                           ? (isOverdue ? Colors.red : Colors.green)
                           : (isDone ? Colors.blueGrey : Colors.red);

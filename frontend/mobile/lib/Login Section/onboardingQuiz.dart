@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_app/Mood Journal/moodSelectorScreen.dart';
 import 'package:mobile_app/homeScreen.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class Quiz extends StatefulWidget {
   const Quiz({super.key});
@@ -117,8 +118,8 @@ class _QuizState extends State<Quiz> {
   Future<void> _saveQuizData() async {
     if (interests.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select at least one story type you enjoy.'),
+        SnackBar(
+          content: Text(context.t('quiz.errPickStory')),
         ),
       );
       return;
@@ -164,7 +165,9 @@ class _QuizState extends State<Quiz> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Could not save profile: $e')));
+      ).showSnackBar(SnackBar(
+        content: Text(context.t('quiz.errSave', {'error': '$e'})),
+      ));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -244,8 +247,8 @@ class _QuizState extends State<Quiz> {
                   color: const Color(0xffFFEBC2),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Text(
-                  "STEP 1",
+                child: Text(
+                  context.t('quiz.step1'),
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: Color(0xffE1A707),
@@ -258,10 +261,10 @@ class _QuizState extends State<Quiz> {
               // Main Text
               RichText(
                 textAlign: TextAlign.center,
-                text: const TextSpan(
+                text: TextSpan(
                   children: [
                     TextSpan(
-                      text: "Curious about you... mind\n",
+                      text: context.t('quiz.introLine1'),
                       style: TextStyle(
                         fontSize: 34,
                         fontWeight: FontWeight.w700,
@@ -277,7 +280,7 @@ class _QuizState extends State<Quiz> {
                       ),
                     ),
                     TextSpan(
-                      text: " a few things?",
+                      text: context.t('quiz.introLine2'),
                       style: TextStyle(
                         fontSize: 34,
                         fontWeight: FontWeight.w700,
@@ -324,8 +327,8 @@ class _QuizState extends State<Quiz> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                "Quiz Time",
+              Text(
+                context.t('quiz.title'),
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w700,
@@ -342,7 +345,10 @@ class _QuizState extends State<Quiz> {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  "${index + 1} of 6",
+                  context.t('quiz.progress', {
+                    'current': '${index + 1}',
+                    'total': '6',
+                  }),
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
@@ -372,13 +378,13 @@ class _QuizState extends State<Quiz> {
                       horizontal: 30,
                     ),
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.arrow_back, color: Colors.white, size: 35),
                       SizedBox(width: 15),
                       Text(
-                        "Back",
+                        context.t('quiz.back'),
                         style: TextStyle(
                           fontSize: 25,
                           color: Color(0xffF7F4F2),
@@ -411,7 +417,7 @@ class _QuizState extends State<Quiz> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        index == 5 ? "Finish" : "Next",
+                        index == 5 ? context.t('quiz.finish') : context.t('quiz.next'),
                         style: const TextStyle(
                           fontSize: 25,
                           color: Color(0xffF7F4F2),
@@ -443,8 +449,8 @@ class _QuizState extends State<Quiz> {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const Text(
-              "When were you born?",
+            Text(
+              context.t('quiz.dobTitle'),
               style: TextStyle(
                 fontSize: 37,
                 fontWeight: FontWeight.bold,
@@ -454,8 +460,8 @@ class _QuizState extends State<Quiz> {
 
             const SizedBox(height: 20),
 
-            const Text(
-              "We'd love to celebrate\nyour birthday!",
+            Text(
+              context.t('quiz.dobSubtitle'),
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 25,
@@ -594,8 +600,8 @@ class _QuizState extends State<Quiz> {
                           textAlign: TextAlign.center,
                           keyboardType: TextInputType.number,
                           maxLength: 4,
-                          decoration: const InputDecoration(
-                            hintText: "YYYY",
+                          decoration: InputDecoration(
+                            hintText: context.t('quiz.dobYearHint'),
                             counterText: "",
                             border: InputBorder.none,
                           ),
@@ -620,8 +626,8 @@ class _QuizState extends State<Quiz> {
 
             const SizedBox(height: 60),
 
-            const Text(
-              "We'll celebrate with you!",
+            Text(
+              context.t('quiz.dobCelebrate'),
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 25,
@@ -639,11 +645,16 @@ class _QuizState extends State<Quiz> {
   Widget genderQuiz() {
     return singleChoiceQuiz(
       1,
-      "How do you describe yourself?",
-      ["Male", "Female", "Transgender", "Prefer not to say"],
+      context.t('quiz.genderTitle'),
+      [
+        context.t('quiz.genderMale'),
+        context.t('quiz.genderFemale'),
+        context.t('quiz.genderTrans'),
+        context.t('quiz.preferNotSay'),
+      ],
       gender,
       (v) => setState(() => gender = v),
-      subtitle: "Tell us a bit about you",
+      subtitle: context.t('quiz.genderSubtitle'),
     );
   }
 
@@ -651,13 +662,13 @@ class _QuizState extends State<Quiz> {
   Widget interestQuiz() {
     return multiChoiceQuiz(
       2,
-      "What kind of stories do you like?",
+      context.t('quiz.interestTitle'),
       [
-        "Calm & peaceful",
-        "Educational",
-        "Documentary",
-        "Science",
-        "Songs & music",
+        context.t('quiz.interestCalm'),
+        context.t('quiz.interestEdu'),
+        context.t('quiz.interestDoc'),
+        context.t('quiz.interestScience'),
+        context.t('quiz.interestMusic'),
       ],
       interests,
       (i) {
@@ -665,7 +676,7 @@ class _QuizState extends State<Quiz> {
           interests.contains(i) ? interests.remove(i) : interests.add(i);
         });
       },
-      subtitle: "Pick what sounds fun to you!\n(You can choose more than one)",
+      subtitle: context.t('quiz.interestSubtitle'),
     );
   }
 
@@ -673,11 +684,16 @@ class _QuizState extends State<Quiz> {
   Widget moodQuiz() {
     return singleChoiceQuiz(
       3,
-      "How are you feeling right now?",
-      ["Happy & excited", "Calm & okay", "A little sad", "Worried or scared"],
+      context.t('quiz.moodTitle'),
+      [
+        context.t('quiz.moodHappy'),
+        context.t('quiz.moodCalm'),
+        context.t('quiz.moodSad'),
+        context.t('quiz.moodWorried'),
+      ],
       mood,
       (v) => setState(() => mood = v),
-      subtitle: "There's no wrong answer.\nJust tell us honestly",
+      subtitle: context.t('quiz.moodSubtitle'),
     );
   }
 
@@ -685,18 +701,18 @@ class _QuizState extends State<Quiz> {
   Widget religionQuiz() {
     return singleChoiceQuiz(
       4,
-      "Do you have a faith or belief?",
+      context.t('quiz.religionTitle'),
       [
-        "Christian",
-        "Muslim",
-        "Buddhist",
-        "Hindu",
-        "Other",
-        "Prefer not to say",
+        context.t('quiz.relChristian'),
+        context.t('quiz.relMuslim'),
+        context.t('quiz.relBuddhist'),
+        context.t('quiz.relHindu'),
+        context.t('quiz.relOther'),
+        context.t('quiz.preferNotSay'),
       ],
       religion,
       (v) => setState(() => religion = v),
-      subtitle: "Totally optional.\nThis helps us customize your journey",
+      subtitle: context.t('quiz.religionSubtitle'),
     );
   }
 
@@ -711,8 +727,8 @@ class _QuizState extends State<Quiz> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             // Title
-            const Text(
-              "Your health journey",
+            Text(
+              context.t('quiz.healthTitle'),
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 35,
@@ -724,8 +740,8 @@ class _QuizState extends State<Quiz> {
             const SizedBox(height: 15),
 
             // Subtitle
-            const Text(
-              "Tell us about your health (all optional)",
+            Text(
+              context.t('quiz.healthSubtitle'),
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 22, color: Color(0xff6D6661)),
             ),
@@ -737,8 +753,8 @@ class _QuizState extends State<Quiz> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    "Type of cancer",
+                  Text(
+                    context.t('quiz.cancerType'),
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w600,
@@ -776,7 +792,7 @@ class _QuizState extends State<Quiz> {
                           fontWeight: FontWeight.w500,
                         ),
                         decoration: InputDecoration(
-                          hintText: "e.g., Leukemia, Lymphoma, etc.",
+                          hintText: context.t('quiz.cancerTypeHint'),
                           hintStyle: const TextStyle(
                             fontSize:
                                 22, // Hint text size (can be different from input)
@@ -806,8 +822,8 @@ class _QuizState extends State<Quiz> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    "What stage are you in?",
+                  Text(
+                    context.t('quiz.stageTitle'),
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w600,
@@ -818,13 +834,13 @@ class _QuizState extends State<Quiz> {
 
                   Column(
                     children: [
-                      _sideRadioOption(0, "Early"),
+                      _sideRadioOption(0, context.t('quiz.stageEarly')),
                       const SizedBox(height: 10),
-                      _sideRadioOption(1, "Advanced"),
+                      _sideRadioOption(1, context.t('quiz.stageAdvanced')),
                       const SizedBox(height: 10),
-                      _sideRadioOption(2, "In remission"),
+                      _sideRadioOption(2, context.t('quiz.stageRemission')),
                       const SizedBox(height: 10),
-                      _sideRadioOption(3, "Not sure"),
+                      _sideRadioOption(3, context.t('quiz.stageNotSure')),
                     ],
                   ),
                 ],
@@ -849,12 +865,12 @@ class _QuizState extends State<Quiz> {
                   const SizedBox(height: 15),
 
                   _radioOptionsList(
-                    title: "Current treatment",
+                    title: context.t('quiz.treatmentTitle'),
                     options: [
-                      "Chemotherapy",
-                      "Surgery",
-                      "Radiation",
-                      "None right now",
+                      context.t('quiz.treatChemo'),
+                      context.t('quiz.treatSurgery'),
+                      context.t('quiz.treatRadiation'),
+                      context.t('quiz.treatNone'),
                     ],
                     selectedValue: treatment,
                     onChanged: (value) {

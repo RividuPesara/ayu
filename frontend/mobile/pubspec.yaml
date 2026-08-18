@@ -30,6 +30,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   lottie: ^2.7.0
   google_fonts: ^6.1.0
   flutter_svg: ^2.0.10
@@ -46,7 +48,7 @@ dependencies:
   flutter_timezone: ^3.0.0
   shared_preferences: ^2.2.3
   url_launcher: ^6.3.0
-  intl: ^0.18.1
+  intl: ^0.20.2  # bumped: flutter_localizations requires >=0.20
   file_picker: ^8.1.7
 
   # The following adds the Cupertino Icons font to your application.
@@ -155,6 +157,24 @@ flutter:
   # see https://flutter.dev/to/font-from-package
 
   fonts:
+    # Sinhala fallback: Urbanist ships no Sinhala glyphs, so Sinhala text needs
+    # its own family. Registered as a fontFamilyFallback in the app theme, which
+    # keeps Latin on Urbanist and only routes Sinhala codepoints here.
+    - family: NotoSansSinhala
+      fonts:
+        - asset: assets/fonts/NotoSansSinhala-400.ttf
+          weight: 400
+        - asset: assets/fonts/NotoSansSinhala-500.ttf
+          weight: 500
+        - asset: assets/fonts/NotoSansSinhala-600.ttf
+          weight: 600
+        - asset: assets/fonts/NotoSansSinhala-700.ttf
+          weight: 700
+        - asset: assets/fonts/NotoSansSinhala-800.ttf
+          weight: 800
+        - asset: assets/fonts/NotoSansSinhala-900.ttf
+          weight: 900
+
     - family: Urbanist
       fonts:
         - asset: assets/fonts/Urbanist-Thin.ttf

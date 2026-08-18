@@ -10,6 +10,8 @@ import 'package:mobile_app/patient_service.dart';
 import 'dashboard_cache.dart';
 import 'Tracker/tracker_service.dart';
 import 'Todo List/task_service.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
+import 'package:mobile_app/core/localization/language_selector.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key, this.isCompanion = false});
@@ -208,8 +210,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   _loadProfile();
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: brown),
-                child: const Text(
-                  'Retry',
+                child: Text(
+                  context.t('common.retry'),
                   style: TextStyle(color: Colors.white),
                 ),
               ),
@@ -230,8 +232,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           children: [
             Lottie.asset('assets/success.json', width: 140, repeat: false),
             const SizedBox(height: 40),
-            const Text(
-              "Your changes saved successfully",
+            Text(
+              context.t('editProfile.saved'),
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: textDark,
@@ -251,8 +253,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     borderRadius: BorderRadius.circular(28),
                   ),
                 ),
-                child: const Text(
-                  "Back to Dashboard",
+                child: Text(
+                  context.t('editProfile.backToDash'),
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
@@ -291,9 +293,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   children: [
                     _backButton(),
                     const SizedBox(width: 14),
-                    const Expanded(
+                    Expanded(
                       child: Text(
-                        "Edit Profile",
+                        context.t('editProfile.title'),
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 22,
@@ -325,33 +327,33 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Column(
                     children: [
-                      _buildLabel("First Name"),
+                      _buildLabel(context.t('signUp.firstName')),
                       const SizedBox(height: 8),
                       _buildField(
                         _firstNameFocus,
                         _firstNameCtrl,
-                        "First Name",
+                        context.t('signUp.firstName'),
                       ),
 
                       const SizedBox(height: 12),
-                      _buildLabel("Last Name"),
+                      _buildLabel(context.t('signUp.lastName')),
                       const SizedBox(height: 8),
-                      _buildField(_lastNameFocus, _lastNameCtrl, "Last Name"),
+                      _buildField(_lastNameFocus, _lastNameCtrl, context.t('signUp.lastName')),
 
                       if (!widget.isCompanion) ...[
                         const SizedBox(height: 12),
-                        _buildLabel("Mobile Number"),
+                        _buildLabel(context.t('signUp.mobile')),
                         const SizedBox(height: 8),
                         _buildField(
                           _mobileFocus,
                           _mobileCtrl,
-                          "07XXXXXXXX",
+                          context.t('editProfile.phoneHint'),
                           keyboardType: TextInputType.number,
                         ),
                       ],
 
                       const SizedBox(height: 12),
-                      _buildLabel("Email Address"),
+                      _buildLabel(context.t('login.emailLabel')),
                       const SizedBox(height: 8),
                       _buildReadOnlyField(
                         _profile?.email ?? '',
@@ -359,9 +361,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       ),
 
                       const SizedBox(height: 12),
-                      _buildLabel("Password"),
+                      _buildLabel(context.t('login.passwordLabel')),
                       const SizedBox(height: 8),
                       _buildPasswordField(),
+
+                      const SizedBox(height: 24),
+                      const LanguageSelector(),
 
                       const SizedBox(height: 50),
 
@@ -386,8 +391,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                     strokeWidth: 2.5,
                                   ),
                                 )
-                              : const Text(
-                                  "Save Changes",
+                              : Text(
+                                  context.t('editProfile.saveChanges'),
                                   style: TextStyle(
                                     fontSize: 20,
                                     fontWeight: FontWeight.w700,
@@ -528,7 +533,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         controller: _passwordCtrl,
         obscureText: !_isPasswordVisible,
         decoration: InputDecoration(
-          hintText: "Leave blank to keep current",
+          hintText: context.t('editProfile.passwordHint'),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 20,

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:mobile_app/core/auth/auth_service.dart';
 import 'package:mobile_app/Login Section/forgotPasswordSuccessScreen.dart';
+import 'package:mobile_app/core/theme/app_typography.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   final String? initialEmail;
@@ -55,7 +57,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
       setState(() {
         _errorMessage = error is StateError
             ? error.message
-            : 'Unable to send reset link. Please try again.';
+            : context.t('forgot.errSend');
       });
     } finally {
       if (!mounted) return;
@@ -101,11 +103,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
                       ),
                     ),
                     const SizedBox(width: 10),
-                    const Text(
-                      "Forgot Password",
+                    Text(
+                      context.t('forgot.title'),
                       style: TextStyle(
                         fontSize: 20,
                         fontFamily: 'Urbanist',
+                        fontFamilyFallback: AppTypography.familyFallback,
                         fontWeight: FontWeight.w600,
                         color: Color(0xFF4B3425),
                       ),
@@ -115,14 +118,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
 
                 const SizedBox(height: 30),
 
-                const Center(
+                Center(
                   child: Column(
                     children: [
                       Text(
-                        "Forgot your password?",
+                        context.t('forgot.heading'),
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontFamily: 'Urbanist',
+                          fontFamilyFallback: AppTypography.familyFallback,
                           fontSize: 25,
                           fontWeight: FontWeight.bold,
                           color: Color(0xFF4B3425),
@@ -130,8 +134,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
                       ),
                       SizedBox(height: 10),
                       Text(
-                        "Enter your registered email below\n"
-                        "to receive password reset instruction",
+                        context.t('forgot.body'),
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 18,
@@ -209,7 +212,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
                     textInputAction: TextInputAction.done,
                     onSubmitted: (_) => _sendPasswordResetEmail(),
                     decoration: InputDecoration(
-                      hintText: "Enter your email...",
+                      hintText: context.t('forgot.emailHint'),
                       filled: true,
                       fillColor: Colors.white,
                       contentPadding: const EdgeInsets.symmetric(
@@ -240,11 +243,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
                     onPressed: _isLoading ? null : _sendPasswordResetEmail,
                     child: _isLoading
                         ? const CircularProgressIndicator(color: Colors.white)
-                        : const Row(
+                        : Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
-                                "Send",
+                                context.t('forgot.send'),
                                 style: TextStyle(
                                   fontSize: 18,
                                   color: Colors.white,
@@ -263,7 +266,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
                 Center(
                   child: RichText(
                     text: TextSpan(
-                      text: "Remember password? ",
+                      text: context.t('forgot.remember'),
                       style: const TextStyle(
                         color: Color(0xFF4B3425),
                         fontSize: 15,
@@ -271,7 +274,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
                       ),
                       children: [
                         TextSpan(
-                          text: "Login",
+                          text: context.t('forgot.login'),
                           style: const TextStyle(
                             color: Color(0xFFFE814B),
                             fontSize: 15,

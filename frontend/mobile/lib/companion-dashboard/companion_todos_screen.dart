@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../Todo List/task_service.dart';
 import '../dashboard_cache.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class CompanionTodosScreen extends StatefulWidget {
   const CompanionTodosScreen({super.key});
@@ -32,8 +33,8 @@ class _CompanionTodosScreenState extends State<CompanionTodosScreen> {
       final msg = e.toString();
       setState(() {
         _error = msg.contains('403')
-            ? 'The patient has restricted access to their to-do list.'
-            : 'Could not load tasks.';
+            ? context.t('compTodo.restricted')
+            : context.t('compTodo.errLoad');
         _isLoading = false;
       });
     }
@@ -73,11 +74,11 @@ class _CompanionTodosScreenState extends State<CompanionTodosScreen> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  const Column(
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'To-Do List',
+                        context.t('privacy.todo'),
                         style: TextStyle(
                           color: Color(0xFF4B3425),
                           fontSize: 20,
@@ -85,7 +86,7 @@ class _CompanionTodosScreenState extends State<CompanionTodosScreen> {
                         ),
                       ),
                       Text(
-                        'Read only · Today',
+                        context.t('compTodo.readOnly'),
                         style: TextStyle(
                             color: Color(0xFF7B6030), fontSize: 12),
                       ),
@@ -103,7 +104,7 @@ class _CompanionTodosScreenState extends State<CompanionTodosScreen> {
                   : _error != null
                       ? _buildMessage(_error!)
                       : _tasks.isEmpty
-                          ? _buildMessage('No tasks for today.')
+                          ? _buildMessage(context.t('compTodo.none'))
                           : ListView.builder(
                               padding: const EdgeInsets.all(16),
                               itemCount: _tasks.length,

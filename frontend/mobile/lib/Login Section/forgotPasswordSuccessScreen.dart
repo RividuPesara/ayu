@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:mobile_app/Login Section/loginScreen.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 
 class ForgotPasswordSuccessScreen extends StatelessWidget {
@@ -33,8 +34,8 @@ class ForgotPasswordSuccessScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  const Text(
-                    "Forgot Password",
+                  Text(
+                    context.t('forgot.title'),
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w600,
@@ -47,9 +48,9 @@ class ForgotPasswordSuccessScreen extends StatelessWidget {
               const SizedBox(height: 80),
 
               // Title Text
-              const Center(
+              Center(
                 child: Text(
-                  "Email has been sent!",
+                  context.t('forgotSuccess.sent'),
                   style: TextStyle(
                     fontSize: 27,
                     fontWeight: FontWeight.bold,
@@ -60,9 +61,9 @@ class ForgotPasswordSuccessScreen extends StatelessWidget {
 
               const SizedBox(height: 10),
 
-              const Center(
+              Center(
                 child: Text(
-                  "Please check your inbox for further instructions.",
+                  context.t('forgotSuccess.body'),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 18,
@@ -105,8 +106,8 @@ class ForgotPasswordSuccessScreen extends StatelessWidget {
                           (route) => false,
                     );
                   },
-                  child: const Text(
-                    "Sign In",
+                  child: Text(
+                    context.t('forgotSuccess.signIn'),
                     style: TextStyle(
                       fontSize: 20,
                       color: Colors.white,
@@ -121,8 +122,8 @@ class ForgotPasswordSuccessScreen extends StatelessWidget {
               // Resend
               Center(
                 child: RichText(
-                  text: const TextSpan(
-                    text: "Didn't receive link? ",
+                  text: TextSpan(
+                    text: context.t('forgotSuccess.noLink'),
                     style: TextStyle(
                       color: Colors.black54,
                       fontSize: 16,
@@ -130,7 +131,7 @@ class ForgotPasswordSuccessScreen extends StatelessWidget {
                     ),
                     children: [
                       TextSpan(
-                        text: "Resend",
+                        text: context.t('forgotSuccess.resend'),
                         style: TextStyle(
                           color: Color(0xFFFF6A3D),
                           fontWeight: FontWeight.w600,

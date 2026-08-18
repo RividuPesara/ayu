@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_app/Companion/companion_service.dart';
 import 'package:mobile_app/Companion/invitationSentScreen.dart';
 import 'package:mobile_app/Companion/sharingPrivacyScreen.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class CompanionInviteScreen extends StatefulWidget {
   const CompanionInviteScreen({super.key});
@@ -53,7 +54,7 @@ class _CompanionInviteScreenState extends State<CompanionInviteScreen> {
   Future<void> _sendInvite(String email) async {
     if (email.isEmpty || !email.contains('@')) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid email address.')),
+        SnackBar(content: Text(context.t('login.errInvalidEmail'))),
       );
       return;
     }
@@ -87,7 +88,7 @@ class _CompanionInviteScreenState extends State<CompanionInviteScreen> {
       await _service.sendInvite(email);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invite resent successfully.')),
+        SnackBar(content: Text(context.t('comp.inviteResent'))),
       );
     } catch (e) {
       if (!mounted) return;
@@ -106,7 +107,7 @@ class _CompanionInviteScreenState extends State<CompanionInviteScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Companion removed.')));
+      ).showSnackBar(SnackBar(content: Text(context.t('comp.removed'))));
       await _loadStatus();
     } catch (e) {
       if (!mounted) return;
@@ -122,14 +123,14 @@ class _CompanionInviteScreenState extends State<CompanionInviteScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Remove Companion?'),
-        content: const Text(
-          'This will unlink your companion. They will no longer have access to your data.',
+        title: Text(context.t('comp.removeTitle')),
+        content: Text(
+          context.t('comp.removeBody'),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(context.t('common.cancel')),
           ),
           TextButton(
             onPressed: () {
@@ -137,7 +138,7 @@ class _CompanionInviteScreenState extends State<CompanionInviteScreen> {
               _unlinkCompanion();
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Remove'),
+            child: Text(context.t('comp.remove')),
           ),
         ],
       ),
@@ -194,8 +195,8 @@ class _CompanionInviteScreenState extends State<CompanionInviteScreen> {
                       ),
                     ),
                     const SizedBox(width: 10),
-                    const Text(
-                      'Companion',
+                    Text(
+                      context.t('comp.title'),
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w600,
@@ -220,8 +221,8 @@ class _CompanionInviteScreenState extends State<CompanionInviteScreen> {
 
                 SizedBox(height: isKeyboardOpen ? 19 : 66),
 
-                const Text(
-                  'Build your circle',
+                Text(
+                  context.t('comp.buildCircle'),
                   style: TextStyle(
                     fontSize: 36,
                     fontWeight: FontWeight.w700,
@@ -232,10 +233,8 @@ class _CompanionInviteScreenState extends State<CompanionInviteScreen> {
 
                 const SizedBox(height: 13),
 
-                const Text(
-                  'Experience the journey together. Pair\n'
-                  'with your partner to share insights and\n'
-                  'stay connected effortlessly.',
+                Text(
+                  context.t('comp.intro'),
                   style: TextStyle(
                     fontSize: 21,
                     height: 1.45,
@@ -263,8 +262,8 @@ class _CompanionInviteScreenState extends State<CompanionInviteScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        "PARTNER'S EMAIL",
+                      Text(
+                        context.t('comp.partnerEmail'),
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
@@ -279,7 +278,7 @@ class _CompanionInviteScreenState extends State<CompanionInviteScreen> {
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
                         decoration: InputDecoration(
-                          hintText: 'name@example.com',
+                          hintText: context.t('comp.emailHint'),
                           hintStyle: const TextStyle(
                             fontSize: 16,
                             color: Color(0xFF5F5650),
@@ -323,8 +322,8 @@ class _CompanionInviteScreenState extends State<CompanionInviteScreen> {
                                     strokeWidth: 2.5,
                                   ),
                                 )
-                              : const Text(
-                                  'Send Invite',
+                              : Text(
+                                  context.t('comp.sendInvite'),
                                   style: TextStyle(
                                     fontSize: 20,
                                     fontWeight: FontWeight.w700,
@@ -379,8 +378,8 @@ class _CompanionInviteScreenState extends State<CompanionInviteScreen> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  const Text(
-                    'Companion',
+                  Text(
+                    context.t('comp.title'),
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w600,
@@ -427,8 +426,8 @@ class _CompanionInviteScreenState extends State<CompanionInviteScreen> {
                         color: const Color(0xFFF6C791),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Text(
-                        'AWAITING',
+                      child: Text(
+                        context.t('comp.awaiting'),
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w800,
@@ -438,8 +437,8 @@ class _CompanionInviteScreenState extends State<CompanionInviteScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    const Text(
-                      'Waiting for your partner to join…',
+                    Text(
+                      context.t('comp.waitingPartner'),
                       style: TextStyle(fontSize: 16, color: Color(0xFF6F6660)),
                     ),
                   ],
@@ -448,7 +447,7 @@ class _CompanionInviteScreenState extends State<CompanionInviteScreen> {
 
               const Spacer(),
 
-              _actionButton(label: 'Resend Invite', onPressed: _resendInvite),
+              _actionButton(label: context.t('comp.resendInvite'), onPressed: _resendInvite),
 
               const SizedBox(height: 12),
 
@@ -468,8 +467,8 @@ class _CompanionInviteScreenState extends State<CompanionInviteScreen> {
                       borderRadius: BorderRadius.circular(28),
                     ),
                   ),
-                  child: const Text(
-                    'Send to a different email',
+                  child: Text(
+                    context.t('comp.sendDifferent'),
                     style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
                   ),
                 ),
@@ -519,8 +518,8 @@ class _CompanionInviteScreenState extends State<CompanionInviteScreen> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  const Text(
-                    'Companion',
+                  Text(
+                    context.t('comp.title'),
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w600,
@@ -572,8 +571,8 @@ class _CompanionInviteScreenState extends State<CompanionInviteScreen> {
                         color: const Color(0xFFD6E8C8),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Text(
-                        'CONNECTED',
+                      child: Text(
+                        context.t('comp.connected'),
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w800,
@@ -589,7 +588,7 @@ class _CompanionInviteScreenState extends State<CompanionInviteScreen> {
               const Spacer(),
 
               _actionButton(
-                label: 'Privacy Settings',
+                label: context.t('comp.privacySettings'),
                 onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -612,8 +611,8 @@ class _CompanionInviteScreenState extends State<CompanionInviteScreen> {
                       borderRadius: BorderRadius.circular(28),
                     ),
                   ),
-                  child: const Text(
-                    'Remove Companion',
+                  child: Text(
+                    context.t('comp.removeCompanion'),
                     style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
                   ),
                 ),

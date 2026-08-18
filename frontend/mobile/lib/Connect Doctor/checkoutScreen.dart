@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_app/Connect%20Doctor/paymentScreen.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class CheckoutPage extends StatelessWidget {
   const CheckoutPage({
@@ -63,8 +64,8 @@ class CheckoutPage extends StatelessWidget {
               const SizedBox(height: 25),
 
               // Title
-              const Text(
-                'Check Out',
+              Text(
+                context.t('checkout.title'),
                 style: TextStyle(
                   fontSize: 36,
                   fontWeight: FontWeight.w900,
@@ -75,8 +76,8 @@ class CheckoutPage extends StatelessWidget {
 
               const SizedBox(height: 18),
 
-              const Text(
-                'Please check the details before proceeding to the payment',
+              Text(
+                context.t('checkout.subtitle'),
                 style: TextStyle(
                   fontSize: 18,
                   color: Color(0xFF3F3F3F),
@@ -91,34 +92,34 @@ class CheckoutPage extends StatelessWidget {
 
               const SizedBox(height: 14),
 
-              _DetailRow(label: 'Doctor', value: doctorName, boldValue: true),
+              _DetailRow(label: context.t('checkout.doctor'), value: doctorName, boldValue: true),
               const SizedBox(height: 18),
 
-              _DetailRow(label: 'Speciality', value: doctorSpecialty),
+              _DetailRow(label: context.t('checkout.speciality'), value: doctorSpecialty),
               const SizedBox(height: 18),
 
-              _DetailRow(label: 'Date', value: dateLabel),
+              _DetailRow(label: context.t('checkout.date'), value: dateLabel),
               const SizedBox(height: 18),
 
-              _DetailRow(label: 'Time', value: timeLabel),
+              _DetailRow(label: context.t('checkout.time'), value: timeLabel),
               const SizedBox(height: 58),
 
-              const Text(
-                "Payment Details",
+              Text(
+                context.t('checkout.paymentDetails'),
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 18),
 
-              const _DetailRow(
-                label: 'Doctor Fee',
+              _DetailRow(
+                label: context.t('checkout.doctorFee'),
                 value: 'LKR 1000.00',
                 boldValue: true,
               ),
 
               const SizedBox(height: 18),
 
-              const _DetailRow(
-                label: 'Booking Fee',
+              _DetailRow(
+                label: context.t('checkout.bookingFee'),
                 value: 'LKR 300.00',
                 boldValue: true,
               ),
@@ -131,10 +132,10 @@ class CheckoutPage extends StatelessWidget {
 
               Row(
                 children: [
-                  const SizedBox(
+                  SizedBox(
                     width: 110,
                     child: Text(
-                      'Total Fee',
+                      context.t('checkout.totalFee'),
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -193,8 +194,8 @@ class CheckoutPage extends StatelessWidget {
                       borderRadius: BorderRadius.circular(28),
                     ),
                   ),
-                  child: const Text(
-                    'Continue to Payment',
+                  child: Text(
+                    context.t('checkout.continueToPayment'),
                     style: TextStyle(
                       fontSize: 19,
                       fontWeight: FontWeight.w900,

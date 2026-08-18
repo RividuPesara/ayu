@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_app/Connect%20Doctor/appointment_service.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class AppointmentDetailScreen extends StatelessWidget {
   const AppointmentDetailScreen({super.key, required this.appointment});
@@ -17,7 +18,7 @@ class AppointmentDetailScreen extends StatelessWidget {
 
     if (url.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Zoom meeting link is not available.")),
+        SnackBar(content: Text(context.t('appt.errNoZoomLink'))),
       );
       return;
     }
@@ -26,14 +27,14 @@ class AppointmentDetailScreen extends StatelessWidget {
     if (uri == null) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text("Invalid meeting link.")));
+      ).showSnackBar(SnackBar(content: Text(context.t('appt.errInvalidLink'))));
       return;
     }
 
     final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!launched && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Unable to open Zoom meeting.")),
+        SnackBar(content: Text(context.t('appt.errOpenZoom'))),
       );
     }
   }
@@ -44,7 +45,7 @@ class AppointmentDetailScreen extends StatelessWidget {
       if (appointment.prescriptionUrl != null &&
           appointment.prescriptionUrl!.isNotEmpty)
         PrescriptionItem(
-          name: appointment.prescriptionFilename ?? 'Prescription',
+          name: appointment.prescriptionFilename ?? context.t('appt.prescription'),
           uploadedBy: appointment.doctorName,
           uploadedAt: appointment.displayDate,
           url: appointment.prescriptionUrl,
@@ -52,7 +53,7 @@ class AppointmentDetailScreen extends StatelessWidget {
       if (appointment.documentationUrl != null &&
           appointment.documentationUrl!.isNotEmpty)
         PrescriptionItem(
-          name: appointment.documentationFilename ?? 'Documentation',
+          name: appointment.documentationFilename ?? context.t('appt.documentation'),
           uploadedBy: appointment.doctorName,
           uploadedAt: appointment.displayDate,
           url: appointment.documentationUrl,
@@ -91,8 +92,8 @@ class AppointmentDetailScreen extends StatelessWidget {
 
               const SizedBox(height: 26),
 
-              const Text(
-                'Appointment Details',
+              Text(
+                context.t('appt.details'),
                 style: TextStyle(
                   fontSize: 38,
                   fontWeight: FontWeight.w800,
@@ -144,9 +145,9 @@ class AppointmentDetailScreen extends StatelessWidget {
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
-                            children: const [
+                            children: [
                               Text(
-                                'PLATFORM',
+                                context.t('appt.platform'),
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w700,
@@ -196,7 +197,7 @@ class AppointmentDetailScreen extends StatelessWidget {
                     const SizedBox(height: 33),
 
                     _DetailRow(
-                      label: 'MEETING ID',
+                      label: context.t('appt.meetingId'),
                       value: appointment.zoomMeetingId ?? '—',
                       showCopy: true,
                       onCopy: () {
@@ -211,7 +212,7 @@ class AppointmentDetailScreen extends StatelessWidget {
                     const SizedBox(height: 24),
 
                     _DetailRow(
-                      label: 'PASSCODE',
+                      label: context.t('appt.passcode'),
                       value: appointment.zoomPasscode ?? '—',
                       showCopy: true,
                       onCopy: () {
@@ -240,8 +241,8 @@ class AppointmentDetailScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(28),
                     ),
                   ),
-                  child: const Text(
-                    'Join Appointment',
+                  child: Text(
+                    context.t('appt.join'),
                     style: TextStyle(
                       fontSize: 19,
                       fontWeight: FontWeight.w700,
@@ -253,8 +254,8 @@ class AppointmentDetailScreen extends StatelessWidget {
 
               const SizedBox(height: 48),
 
-              const Text(
-                'Uploaded Documents',
+              Text(
+                context.t('appt.uploadedDocs'),
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
@@ -275,8 +276,8 @@ class AppointmentDetailScreen extends StatelessWidget {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(18),
                       ),
-                      child: const Text(
-                        'No documents uploaded by the doctor yet.',
+                      child: Text(
+                        context.t('appt.noDocs'),
                         style: TextStyle(
                           fontSize: 14,
                           color: Color(0xFF8A7E78),

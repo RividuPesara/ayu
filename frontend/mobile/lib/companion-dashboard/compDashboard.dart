@@ -13,6 +13,7 @@ import '../Connect Doctor/mySessions.dart';
 import '../todoListScreen.dart';
 import '../Tracker/tracker_service.dart';
 import '../Todo List/task_service.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class CompanionDashboard extends StatefulWidget {
   const CompanionDashboard({super.key});
@@ -29,7 +30,7 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
 
   String _companionName = '';
   String? _companionAvatar;
-  String _quote = '';
+  String _quoteKey = '';
 
   String _patientName = '';
   String? _patientAvatar;
@@ -77,7 +78,7 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
     setState(() {
       _companionName = profile.fullName;
       _companionAvatar = profile.avatarUrl;
-      _quote = CompanionDashboardService.pickDailyQuote();
+      _quoteKey = CompanionDashboardService.pickDailyQuoteKey();
       _patientName = status.patientName ?? '';
       _patientAvatar = status.patientAvatar;
       _privacy = privacy;
@@ -104,7 +105,7 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
     final cards = <Map<String, dynamic>>[];
     if (_privacy.moodJournal) {
       cards.add({
-        'title': 'Mood\nJournal',
+        'titleKey': 'compDash.card.mood',
         'image': 'assets/dashboard/mood_journal.png',
         'color': const Color(0xffFFCE5C),
         'icon': Icons.favorite_outline,
@@ -113,7 +114,7 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
     }
     if (_privacy.tracking) {
       cards.add({
-        'title': 'Tracking\nSystem',
+        'titleKey': 'compDash.card.tracking',
         'image': 'assets/dashboard/tracking_system.png',
         'color': const Color(0xffB4C48D),
         'icon': Icons.medication_outlined,
@@ -122,7 +123,7 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
     }
     if (_privacy.doctorAppointments) {
       cards.add({
-        'title': 'Doctor\nAppointments',
+        'titleKey': 'compDash.card.doctor',
         'image': 'assets/dashboard/connect_doctor.png',
         'color': const Color(0xffCBC2FF),
         'icon': Icons.calendar_today_outlined,
@@ -131,7 +132,7 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
     }
     if (_privacy.todoList) {
       cards.add({
-        'title': 'To-Do\nList',
+        'titleKey': 'compDash.card.todo',
         'image': 'assets/dashboard/to_do_list.png',
         'color': const Color(0xffFFDB8F),
         'icon': Icons.description_outlined,
@@ -228,8 +229,10 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
                           Expanded(
                             child: Text(
                               _companionName.isEmpty
-                                  ? 'Hi there!'
-                                  : 'Hi there, ${_companionName.split(' ').first}!',
+                                  ? context.t('dash.greetingAnon')
+                                  : context.t('dash.greetingNamed', {
+                                      'name': _companionName.split(' ').first,
+                                    }),
                               style: const TextStyle(
                                 fontSize: 32,
                                 color: Color(0xff4B3425),
@@ -265,7 +268,9 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
                               ),
                               const SizedBox(width: 8),
                               Text(
-                                'Supporting $_patientName',
+                                context.t('compDash.supporting', {
+                                  'name': _patientName,
+                                }),
                                 style: const TextStyle(
                                   color: Color(0xff7B6BA8),
                                   fontWeight: FontWeight.w600,
@@ -288,7 +293,7 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Row(
+                            Row(
                               children: [
                                 Icon(
                                   Icons.description,
@@ -297,7 +302,7 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
                                 ),
                                 SizedBox(width: 5),
                                 Text(
-                                  'Quote of the day',
+                                  context.t('dash.quoteOfDay'),
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontSize: 16,
@@ -308,7 +313,9 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
                             ),
                             const SizedBox(height: 3),
                             Text(
-                              _quote,
+                              _quoteKey.isEmpty
+                                  ? context.t('common.loading')
+                                  : context.t(_quoteKey),
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
@@ -329,7 +336,7 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(20),
                           ),
-                          child: const Row(
+                          child: Row(
                             children: [
                               Icon(
                                 Icons.lock_outline,
@@ -338,7 +345,7 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
                               SizedBox(width: 12),
                               Expanded(
                                 child: Text(
-                                  'The patient has not shared any information yet.',
+                                  context.t('compDash.noSharedInfo'),
                                   style: TextStyle(color: Color(0xff9B8A7E)),
                                 ),
                               ),
@@ -348,8 +355,10 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
                       else ...[
                         Text(
                           patientFirst.isNotEmpty
-                              ? "Everything $patientFirst Needs"
-                              : 'Everything They Need',
+                              ? context.t('compDash.everythingNamed', {
+                                  'name': patientFirst,
+                                })
+                              : context.t('compDash.everythingGeneric'),
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 20,
@@ -404,8 +413,10 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
                       if (_privacy.tracking || _privacy.todoList) ...[
                         Text(
                           patientFirst.isNotEmpty
-                              ? "$patientFirst's Plans For Today"
-                              : "Plans For Today",
+                              ? context.t('compDash.plansNamed', {
+                                  'name': patientFirst,
+                                })
+                              : context.t('compDash.plansGeneric'),
                           style: const TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -435,10 +446,10 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
                                     .toList()
                                 : <TaskItem>[];
                             if (visibleMeds.isEmpty && visibleTasks.isEmpty) {
-                              return const Padding(
+                              return Padding(
                                 padding: EdgeInsets.symmetric(vertical: 8),
                                 child: Text(
-                                  'No plans for today.',
+                                  context.t('dash.noPlans'),
                                   style: TextStyle(color: Color(0xff9B8A7E)),
                                 ),
                               );
@@ -561,7 +572,7 @@ class _CompanionDashboardState extends State<CompanionDashboard> {
                 Icon(item['icon'] as IconData, color: Colors.white),
                 const SizedBox(width: 7),
                 Text(
-                  item['title'] as String,
+                  context.t(item['titleKey'] as String),
                   style: const TextStyle(color: Colors.white),
                 ),
               ],

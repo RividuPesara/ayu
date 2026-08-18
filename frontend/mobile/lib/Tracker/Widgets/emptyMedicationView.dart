@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class EmptyMedicationView extends StatelessWidget {
   final VoidCallback? onAddMedication;
@@ -155,8 +156,8 @@ class EmptyMedicationView extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 36),
-          const Text(
-            "No Medications are\nScheduled for Today",
+          Text(
+            context.t('tracker.emptyTitle'),
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 32,
@@ -166,10 +167,10 @@ class EmptyMedicationView extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(horizontal: 18),
             child: Text(
-              "There are currently no medications scheduled for today. Stay on top of your health by adding your daily prescriptions and vitamins.",
+              context.t('tracker.emptyBody'),
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 18,
@@ -194,7 +195,7 @@ class EmptyMedicationView extends StatelessWidget {
                   borderRadius: BorderRadius.circular(22),
                 ),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   CircleAvatar(
@@ -204,7 +205,7 @@ class EmptyMedicationView extends StatelessWidget {
                   ),
                   SizedBox(width: 12),
                   Text(
-                    "Add Medication",
+                    context.t('tracker.addMedication'),
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w600,

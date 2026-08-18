@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'chatbotScreen.dart';
 import 'chatbot_service.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -42,8 +43,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not load history. Is the backend running?'),
+        SnackBar(
+          content: Text(context.t('chatHist.errLoad')),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -78,8 +79,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
           children: [
             Image.asset("assets/delete.png", height: 400),
             const SizedBox(height: 15),
-            const Text(
-              "Delete all the Conversation?",
+            Text(
+              context.t('chatHist.deleteAll'),
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 30,
@@ -96,11 +97,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 backgroundColor: Color(0xffCBC2FF),
                 minimumSize: const Size(double.infinity, 50),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    "Cancel",
+                    context.t('common.cancel'),
                     style: TextStyle(color: Color(0xff64548E), fontSize: 19),
                   ),
                   SizedBox(width: 8),
@@ -123,8 +124,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   if (!mounted) return;
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Could not delete conversations.'),
+                    SnackBar(
+                      content: Text(context.t('chatHist.errDeleteAll')),
                       backgroundColor: Colors.redAccent,
                     ),
                   );
@@ -134,11 +135,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 backgroundColor: const Color(0xff64548E),
                 minimumSize: const Size(double.infinity, 50),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    "Delete",
+                    context.t('common.delete'),
                     style: TextStyle(color: Colors.white, fontSize: 19),
                   ),
                   SizedBox(width: 8),
@@ -165,20 +166,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   String _formatDate(DateTime? dt) {
     if (dt == null) return '';
-    final months = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ];
     final hour = dt.hour > 12
         ? dt.hour - 12
         : dt.hour == 0
@@ -186,7 +173,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
         : dt.hour;
     final amPm = dt.hour >= 12 ? 'PM' : 'AM';
     final minute = dt.minute.toString().padLeft(2, '0');
-    return '${dt.day.toString().padLeft(2, '0')} ${months[dt.month - 1]} ${dt.year} | '
+    final month = context.t('month.full.${dt.month}');
+    return '${dt.day.toString().padLeft(2, '0')} $month ${dt.year} | '
         '${hour.toString().padLeft(2, '0')}:$minute $amPm';
   }
 
@@ -230,15 +218,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         ? TextField(
                             controller: searchController,
                             autofocus: true,
-                            decoration: const InputDecoration(
-                              hintText: "Search...",
+                            decoration: InputDecoration(
+                              hintText: context.t('chatHist.searchHint'),
                               hintStyle: TextStyle(fontSize: 22),
                               border: InputBorder.none,
                             ),
                             onChanged: _searchSessions,
                           )
-                        : const Text(
-                            "History",
+                        : Text(
+                            context.t('chat.history'),
                             style: TextStyle(
                               fontSize: 25,
                               fontWeight: FontWeight.w600,
@@ -277,7 +265,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         Image.asset("assets/not_found.png", height: 120),
                         SizedBox(height: 50),
                         Text(
-                          "Not Found",
+                          context.t('chatHist.notFound'),
                           style: TextStyle(
                             fontSize: 40,
                             fontWeight: FontWeight.w600,
@@ -285,7 +273,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         ),
                         SizedBox(height: 10),
                         Text(
-                          "We're sorry, no message\nmatches your search",
+                          context.t('chatHist.noMatch'),
                           textAlign: TextAlign.center,
                           style: TextStyle(fontSize: 21),
                         ),
@@ -308,16 +296,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             ),
                           ),
                           confirmDismiss: (_) async {
+                            final errorMessage =
+                                context.t('chatHist.errDeleteOne');
+                            final messenger = ScaffoldMessenger.of(context);
                             try {
                               await archiveSession(session.sessionId);
                               return true;
                             } catch (_) {
                               if (!mounted) return false;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Could not delete conversation.',
-                                  ),
+                              messenger.showSnackBar(
+                                SnackBar(
+                                  content: Text(errorMessage),
                                   backgroundColor: Colors.redAccent,
                                 ),
                               );

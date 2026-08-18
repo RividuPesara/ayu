@@ -63,21 +63,22 @@ class CompanionDashboardService {
 
   final BackendConnector _backend = BackendConnector.instance;
 
-  static const _quotes = [
-    'You are not alone in this.',
-    'Small acts of care make a big difference.',
-    'Your support means more than words can say.',
-    'Being there is the greatest gift.',
-    'Compassion is the root of all healing.',
-    'Together, every step is lighter.',
-    'Your kindness is a source of strength.',
+  static const _quoteKeys = [
+    'quote.companion.0',
+    'quote.companion.1',
+    'quote.companion.2',
+    'quote.companion.3',
+    'quote.companion.4',
+    'quote.companion.5',
+    'quote.companion.6',
   ];
 
-  static String pickDailyQuote() {
+  /// Returns a translation key, not display text.
+  static String pickDailyQuoteKey() {
     final now = DateTime.now();
     final d = now.hour < 5 ? now.subtract(const Duration(days: 1)) : now;
     final dayOfYear = d.difference(DateTime(d.year, 1, 1)).inDays;
-    return _quotes[dayOfYear % _quotes.length];
+    return _quoteKeys[dayOfYear % _quoteKeys.length];
   }
 
   Future<({String fullName, String? avatarUrl})> loadOwnProfile() async {

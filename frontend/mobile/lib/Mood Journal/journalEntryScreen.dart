@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_app/Mood Journal/mood_journal_service.dart';
+import 'package:mobile_app/core/theme/app_typography.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class NewJournalEntryPage extends StatefulWidget {
   const NewJournalEntryPage({super.key});
@@ -139,7 +141,7 @@ class _NewJournalEntryPageState extends State<NewJournalEntryPage> {
 
     if (title.isEmpty || content.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill in both title and entry')),
+        SnackBar(content: Text(context.t('journal.errFields'))),
       );
       return;
     }
@@ -321,11 +323,12 @@ class _NewJournalEntryPageState extends State<NewJournalEntryPage> {
                       ),
                     ),
                     const SizedBox(width: 15),
-                    const Text(
-                      "New Journal Entry",
+                    Text(
+                      context.t('journal.newEntry'),
                       style: TextStyle(
                         fontSize: 25,
                         fontFamily: 'Urbanist',
+                        fontFamilyFallback: AppTypography.familyFallback,
                         fontWeight: FontWeight.w700,
                         color: brown,
                       ),
@@ -335,11 +338,12 @@ class _NewJournalEntryPageState extends State<NewJournalEntryPage> {
 
                 const SizedBox(height: 38),
 
-                const Text(
-                  "Journal Title",
+                Text(
+                  context.t('journal.titleLabel'),
                   style: TextStyle(
                     fontSize: 17,
                     fontFamily: 'Urbanist',
+                    fontFamilyFallback: AppTypography.familyFallback,
                     fontWeight: FontWeight.w600,
                     color: brown,
                   ),
@@ -374,16 +378,18 @@ class _NewJournalEntryPageState extends State<NewJournalEntryPage> {
                           style: const TextStyle(
                             fontSize: 19,
                             fontFamily: 'Urbanist',
+                            fontFamilyFallback: AppTypography.familyFallback,
                             fontWeight: FontWeight.w600,
                             color: Color(0xA31F160F),
                           ),
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             border: InputBorder.none,
                             isCollapsed: true,
-                            hintText: "Feeling Bad Again",
+                            hintText: context.t('journal.titleHint'),
                             hintStyle: TextStyle(
                               fontSize: 18,
                               fontFamily: 'Urbanist',
+                              fontFamilyFallback: AppTypography.familyFallback,
                               fontWeight: FontWeight.w600,
                               color: Color(0xFF6E625D),
                             ),
@@ -397,11 +403,12 @@ class _NewJournalEntryPageState extends State<NewJournalEntryPage> {
 
                 const SizedBox(height: 24),
 
-                const Text(
-                  "Select Your Emotion",
+                Text(
+                  context.t('journal.selectEmotion'),
                   style: TextStyle(
                     fontSize: 17,
                     fontFamily: 'Urbanist',
+                    fontFamilyFallback: AppTypography.familyFallback,
                     fontWeight: FontWeight.w600,
                     color: brown,
                   ),
@@ -428,10 +435,11 @@ class _NewJournalEntryPageState extends State<NewJournalEntryPage> {
 
                 const SizedBox(height: 24),
 
-                const Text(
-                  "Write Your Entry",
+                Text(
+                  context.t('journal.writeEntry'),
                   style: TextStyle(
                     fontFamily: 'Urbanist',
+                    fontFamilyFallback: AppTypography.familyFallback,
                     fontWeight: FontWeight.w600,
                     fontSize: 17,
                     color: brown,
@@ -465,11 +473,11 @@ class _NewJournalEntryPageState extends State<NewJournalEntryPage> {
                             color: Color(0xFF4B3425),
                             fontWeight: FontWeight.w500,
                           ),
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             border: InputBorder.none,
                             counterText: "",
                             hintText:
-                                "I had a bad day today, at\nschool... It’s fine I guess...",
+                                context.t('journal.entryHint'),
                             hintStyle: TextStyle(
                               fontSize: 28,
                               height: 1.35,
@@ -516,8 +524,8 @@ class _NewJournalEntryPageState extends State<NewJournalEntryPage> {
                               Icons.camera_alt_outlined,
                               size: 18,
                             ),
-                            label: const Text(
-                              "Add Photo",
+                            label: Text(
+                              context.t('journal.addPhoto'),
                               style: TextStyle(
                                 fontSize: 12.5,
                                 fontWeight: FontWeight.w600,
@@ -552,11 +560,11 @@ class _NewJournalEntryPageState extends State<NewJournalEntryPage> {
                         borderRadius: BorderRadius.circular(26),
                       ),
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          "Create Journal",
+                          context.t('journal.create'),
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w700,

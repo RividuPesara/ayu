@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
+import 'package:mobile_app/core/theme/app_typography.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class ComingSoonScreen extends StatelessWidget {
   const ComingSoonScreen({super.key});
@@ -39,11 +41,12 @@ class ComingSoonScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 15),
-                  const Text(
-                    "Make a Request",
+                  Text(
+                    context.t('donation.makeARequest'),
                     style: TextStyle(
                       fontSize: 24,
                       fontFamily: 'Urbanist',
+                      fontFamilyFallback: AppTypography.familyFallback,
                       fontWeight: FontWeight.w600,
                       color: Color(0xFF4B3425),
                     ),

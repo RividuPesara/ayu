@@ -5,10 +5,14 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:mobile_app/Notification/local_notification_scheduler.dart';
 import 'package:mobile_app/Notification/notification_navigator.dart';
+import 'package:mobile_app/core/localization/app_locale.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 import 'package:mobile_app/core/network/backend_connector.dart';
+import 'package:mobile_app/core/theme/app_typography.dart';
 import 'package:mobile_app/splashScreen.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -117,6 +121,10 @@ Future<void> main() async {
     }
   });
 
+  // Restore the saved language before the first frame so the app never flashes
+  // English on its way to Sinhala.
+  await LocaleController.instance.load();
+
   BackendConnector.instance.configure(
     tokenProvider: () async => FirebaseAuth.instance.currentUser?.getIdToken(),
     fallbackToken: null,
@@ -130,16 +138,37 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Ayu',
-      navigatorKey: notificationNavigatorKey,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        fontFamily: 'Urbanist',
+    // LocaleScope rebuilds MaterialApp whenever the user switches language, so
+    // the change takes effect everywhere without restarting the app.
+    return LocaleScope(
+      controller: LocaleController.instance,
+      child: AnimatedBuilder(
+        animation: LocaleController.instance,
+        builder: (context, _) {
+          return MaterialApp(
+            debugShowCheckedModeBanner: false,
+            title: 'Ayu',
+            navigatorKey: notificationNavigatorKey,
+            locale: LocaleController.instance.locale,
+            supportedLocales: AppLocales.supported,
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            theme: ThemeData(
+              colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+              fontFamily: AppTypography.primaryFamily,
+              // Sinhala codepoints fall through to Noto Sans Sinhala; Latin
+              // stays on Urbanist.
+              fontFamilyFallback: AppTypography.familyFallback,
+            ),
+            navigatorObservers: [routeObserver],
+            home: SplashScreen(),
+          );
+        },
       ),
-      navigatorObservers: [routeObserver],
-      home: SplashScreen(),
     );
   }
 }

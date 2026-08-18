@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
+import 'package:mobile_app/dashboard_cache.dart';
 
 class MissedView extends StatelessWidget {
   final List<Map<String, dynamic>> missedMedicines;
@@ -10,6 +12,12 @@ class MissedView extends StatelessWidget {
     required this.onMarkTaken,
   });
 
+  String _greeting(BuildContext context) {
+    final name = DashboardCache.instance.fullName.trim();
+    if (name.isEmpty) return context.t('tracker.feelingOkayNoName');
+    return context.t('tracker.feelingOkay', {'name': name.split(' ').first});
+  }
+
   @override
   Widget build(BuildContext context) {
     const brown = Color(0xFF4B3425);
@@ -19,8 +27,8 @@ class MissedView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            "DAILY LOG",
+          Text(
+            context.t('tracker.dailyLog'),
             style: TextStyle(
               fontSize: 16,
               letterSpacing: 1.2,
@@ -29,8 +37,8 @@ class MissedView extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          const Text(
-            "Reviewing\nMissed Tasks",
+          Text(
+            context.t('tracker.reviewingMissed'),
             style: TextStyle(
               fontSize: 35,
               fontWeight: FontWeight.w800,
@@ -73,8 +81,8 @@ class MissedView extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  "Feeling okay, Hanie?",
+                Text(
+                  _greeting(context),
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
@@ -83,7 +91,11 @@ class MissedView extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  "You've missed ${missedMedicines.length} medication${missedMedicines.length == 1 ? '' : 's'} today.\nConsistency is key for your recovery\njourney.",
+                  context.tPlural(
+                    'tracker.missedBodyOne',
+                    'tracker.missedBodyMany',
+                    missedMedicines.length,
+                  ),
                   style: const TextStyle(
                     fontSize: 19,
                     color: Color(0xFF8A847D),
@@ -104,11 +116,11 @@ class MissedView extends StatelessWidget {
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          "Set Reminders",
+                          context.t('tracker.setReminders'),
                           style: TextStyle(
                             fontSize: 19,
                             fontWeight: FontWeight.w600,
@@ -202,8 +214,8 @@ class _MissedCard extends StatelessWidget {
                         color: Colors.red.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Text(
-                        "MISSED",
+                      child: Text(
+                        context.t('tracker.missedCaps'),
                         style: TextStyle(
                           fontSize: 18,
                           color: Colors.red,
@@ -241,8 +253,8 @@ class _MissedCard extends StatelessWidget {
                     const Spacer(),
                     GestureDetector(
                       onTap: onTap,
-                      child: const Text(
-                        "Mark as Taken",
+                      child: Text(
+                        context.t('tracker.markAsTaken'),
                         style: TextStyle(
                           fontSize: 17,
                           color: Color(0xFF4B3425),

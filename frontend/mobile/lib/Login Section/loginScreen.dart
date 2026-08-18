@@ -1,6 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_app/core/auth/auth_service.dart';
 import 'package:mobile_app/Login%20Section/emailVerificationScreen.dart';
 import 'package:mobile_app/Login%20Section/otpScreen.dart';
@@ -9,6 +8,8 @@ import 'package:mobile_app/Login Section/forgotPasswordScreen.dart';
 import 'package:mobile_app/Mood Journal/moodSelectorScreen.dart';
 import 'package:mobile_app/companion-dashboard/compDashboard.dart';
 import 'package:mobile_app/Notification/device_service.dart';
+import 'package:mobile_app/core/theme/app_typography.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -42,7 +43,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     // Basic validation to ensure fields aren't empty before calling the service
     if (email.isEmpty || password.isEmpty) {
-      _setError('Please enter both email and password.');
+      _setError(context.t('login.errBothFields'));
       return;
     }
 
@@ -85,7 +86,7 @@ class _LoginScreenState extends State<LoginScreen> {
       // Route to OTP screen if MFA is required to complete the login
       final session = result.otpSession;
       if (session == null) {
-        _showMessage('Unable to start OTP verification.');
+        _showMessage(context.t('login.errOtpStart'));
         return;
       }
 
@@ -144,9 +145,9 @@ class _LoginScreenState extends State<LoginScreen> {
       final code = error.code.toLowerCase();
       if (code.contains('invalid-email') ||
           error.message?.toLowerCase().contains('invalid email') == true) {
-        return 'Please enter a valid email address.';
+        return context.t('login.errInvalidEmail');
       }
-      return 'Incorrect password. Please try again.';
+      return context.t('login.errWrongPassword');
     }
 
     if (error is StateError) {
@@ -156,9 +157,9 @@ class _LoginScreenState extends State<LoginScreen> {
     final message = error.toString();
     final lower = message.toLowerCase();
     if (lower.contains('invalid-email') || lower.contains('invalid email')) {
-      return 'Please enter a valid email address.';
+      return context.t('login.errInvalidEmail');
     }
-    return 'Incorrect password. Please try again.';
+    return context.t('login.errWrongPassword');
   }
 
   @override
@@ -232,8 +233,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ],
                   Text(
-                    "Email Address",
-                    style: GoogleFonts.urbanist(
+                    context.t('login.emailLabel'),
+                    style: urbanist(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
                       color: Color(0xFF4B3425),
@@ -278,8 +279,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   // Password Field
                   Text(
-                    "Password",
-                    style: GoogleFonts.urbanist(
+                    context.t('login.passwordLabel'),
+                    style: urbanist(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
                       color: Color(0xFF4B3425),
@@ -306,7 +307,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       onSubmitted: (_) => _handleSignIn(),
                       decoration: InputDecoration(
                         prefixIcon: const Icon(Icons.lock_outline),
-                        hintText: "Enter your password...",
+                        hintText: context.t('login.passwordHint'),
                         filled: true,
                         fillColor: Colors.white,
                         suffixIcon: IconButton(
@@ -350,9 +351,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
-                        children: const [
+                        children: [
                           Text(
-                            "Sign In",
+                            context.t('login.signIn'),
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight(700),
@@ -373,7 +374,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        "Don't have an account? ",
+                        context.t('login.noAccount'),
                         style: TextStyle(fontSize: 18),
                       ),
                       GestureDetector(
@@ -386,8 +387,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           );
                         },
                         child: Text(
-                          "Sign Up",
-                          style: GoogleFonts.urbanist(
+                          context.t('login.signUp'),
+                          style: urbanist(
                             color: Color(0xFF7152FF),
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -413,7 +414,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         );
                       },
                       child: Text(
-                        "Forgot Password",
+                        context.t('login.forgotPassword'),
                         style: TextStyle(
                           color: Color(0xFF7152FF),
                           fontSize: 16,

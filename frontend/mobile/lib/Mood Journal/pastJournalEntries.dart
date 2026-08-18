@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:mobile_app/Mood Journal/journalEntryScreen.dart';
 import 'package:mobile_app/Mood Journal/mood_journal_service.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 const Color screenBg = Color(0xFFF4F4F4);
 const Color textDark = Color(0xFF4B3425);
@@ -27,6 +28,7 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
   final ScrollController _scrollController = ScrollController();
   final MoodJournalRepository _repository = MoodJournalRepository.instance;
 
+  // Sort sentinel ('Newest' | 'Oldest'); the label is translated at render.
   String selectedSort = 'Newest';
   bool _isLoading = true;
   bool _isLoadingMore = false;
@@ -164,7 +166,7 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not load more entries.')),
+        SnackBar(content: Text(context.t('past.loadMoreFailed'))),
       );
     } finally {
       if (mounted) {
@@ -222,8 +224,8 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
-          title: const Text(
-            'Journal Details',
+          title: Text(
+            context.t('past.details'),
             style: TextStyle(
               color: textDark,
               fontSize: 20,
@@ -235,8 +237,8 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Title',
+                Text(
+                  context.t('past.title'),
                   style: TextStyle(
                     color: mutedText,
                     fontSize: 18,
@@ -253,8 +255,8 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
                   ),
                 ),
                 const SizedBox(height: 14),
-                const Text(
-                  'Mood',
+                Text(
+                  context.t('past.mood'),
                   style: TextStyle(
                     color: mutedText,
                     fontSize: 20,
@@ -271,8 +273,8 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
                   ),
                 ),
                 const SizedBox(height: 14),
-                const Text(
-                  'Entry',
+                Text(
+                  context.t('past.entry'),
                   style: TextStyle(
                     color: mutedText,
                     fontSize: 18,
@@ -295,8 +297,8 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text(
-                'Close',
+              child: Text(
+                context.t('common.close'),
                 style: TextStyle(
                   color: textDark,
                   fontSize: 15,
@@ -348,12 +350,12 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
   String _subtitleForEntry(JournalEntryItem entry) {
     final dt = entry.entryDate;
     if (dt == null) {
-      return 'Tap to read full journal';
+      return context.t('past.tapToRead');
     }
 
     final month = dt.month.toString().padLeft(2, '0');
     final day = dt.day.toString().padLeft(2, '0');
-    return '$day/$month • Tap to read full journal';
+    return context.t('past.tapToReadDated', {'day': day, 'month': month});
   }
 
   @override
@@ -414,8 +416,8 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
                               const SizedBox(width: 12),
                               Text(
                                 widget.isReadOnly
-                                    ? 'Patient\'s Entries'
-                                    : 'Your Entries',
+                                    ? context.t('past.patientEntries')
+                                    : context.t('past.yourEntries'),
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 24,
@@ -438,9 +440,9 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
                             ),
                           ),
                           const SizedBox(height: 16),
-                          const Center(
+                          Center(
                             child: Text(
-                              'Active journal days this year.',
+                              context.t('past.activeDays'),
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: Colors.white,
@@ -477,8 +479,8 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Text(
-                                'All Journals',
+                              Text(
+                                context.t('past.allJournals'),
                                 style: TextStyle(
                                   fontSize: 19,
                                   fontWeight: FontWeight.w800,
@@ -566,16 +568,16 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
               ),
             ),
             const SizedBox(height: 10),
-            TextButton(onPressed: _loadInitial, child: const Text('Retry')),
+            TextButton(onPressed: _loadInitial, child: Text(context.t('common.retry'))),
           ],
         ),
       );
     }
 
     if (_entries.isEmpty) {
-      return const Center(
+      return Center(
         child: Text(
-          'No journal entries yet.',
+          context.t('past.noEntries'),
           style: TextStyle(
             color: textDark,
             fontSize: 16,
@@ -613,8 +615,8 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
           return Container(
             width: 120,
             alignment: Alignment.center,
-            child: const Text(
-              'Swipe for more',
+            child: Text(
+              context.t('past.swipeForMore'),
               textAlign: TextAlign.center,
               style: TextStyle(color: textDark, fontWeight: FontWeight.w700),
             ),
@@ -629,7 +631,7 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
           cardColor: cardColor,
           tagBg: tagBg,
           tagTextColor: cardColor,
-          moodText: 'MOOD: ${entry.userMood.toUpperCase()}',
+          moodText: context.t('past.moodCaps', {'mood': entry.userMood.toUpperCase()}),
           title: entry.title,
           subtitle: _subtitleForEntry(entry),
           moodIcon: _iconForMood(entry.userMood),
@@ -783,7 +785,7 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
             fontSize: 18,
             fontWeight: FontWeight.w700,
           ),
-          items: const [
+          items: [
             DropdownMenuItem(
               value: 'Newest',
               child: Row(
@@ -795,7 +797,7 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
                     color: textDark,
                   ),
                   SizedBox(width: 6),
-                  Text('Newest'),
+                  Text(context.t('past.newest')),
                 ],
               ),
             ),
@@ -810,7 +812,7 @@ class _PastJournalEntriesScreenState extends State<PastJournalEntriesScreen> {
                     color: textDark,
                   ),
                   SizedBox(width: 6),
-                  Text('Oldest'),
+                  Text(context.t('past.oldest')),
                 ],
               ),
             ),

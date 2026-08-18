@@ -5,6 +5,7 @@ import 'package:timezone/timezone.dart' as tz;
 
 import '../Tracker/tracker_service.dart';
 import 'notification_service.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 // single entry point for all local notification scheduling
 class LocalNotificationScheduler {
@@ -39,7 +40,7 @@ class LocalNotificationScheduler {
         await NotificationService.instance.scheduleLocal(
           uid: uid,
           dedupeKey: dedupeKey,
-          title: 'Time to take ${med.name}',
+          title: AppLocalizations.tr('notif.medTitle', {'name': med.name}),
           subtitle: med.type,
           type: 'medication',
           route: 'tracker',
@@ -99,8 +100,8 @@ class LocalNotificationScheduler {
     await NotificationService.instance.scheduleLocal(
       uid: uid,
       dedupeKey: dedupeKey,
-      title: 'How are you feeling today?',
-      subtitle: 'Log your mood',
+      title: AppLocalizations.tr('notif.moodTitle'),
+      subtitle: AppLocalizations.tr('notif.moodBody'),
       type: 'mood',
       route: 'mood_selector',
       fireAt: fireAt,
@@ -124,8 +125,8 @@ class LocalNotificationScheduler {
     await NotificationService.instance.scheduleLocal(
       uid: uid,
       dedupeKey: dedupeKey,
-      title: 'How are you feeling today?',
-      subtitle: 'Log your mood',
+      title: AppLocalizations.tr('notif.moodTitle'),
+      subtitle: AppLocalizations.tr('notif.moodBody'),
       type: 'mood',
       route: 'mood_selector',
       fireAt: tomorrow8pm,
@@ -173,8 +174,8 @@ class LocalNotificationScheduler {
     await NotificationService.instance.scheduleLocal(
       uid: uid,
       dedupeKey: dedupeKey,
-      title: '$title is due soon',
-      subtitle: 'Due at $time',
+      title: AppLocalizations.tr('notif.taskTitle', {'title': title}),
+      subtitle: AppLocalizations.tr('notif.taskBody', {'time': time}),
       type: 'task',
       route: 'todo',
       fireAt: fireAt,

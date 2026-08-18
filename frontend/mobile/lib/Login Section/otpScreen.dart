@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_app/core/auth/auth_service.dart';
 import 'onboardingQuiz.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class OtpScreen extends StatefulWidget {
   final AuthOtpSession session;
@@ -89,8 +90,8 @@ class _OtpScreenState extends State<OtpScreen> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  const Text(
-                    "OTP Setup",
+                  Text(
+                    context.t('otp.title'),
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
@@ -102,9 +103,9 @@ class _OtpScreenState extends State<OtpScreen> {
 
               const SizedBox(height: 90),
 
-              const Center(
+              Center(
                 child: Text(
-                  "Enter 6 digit OTP Code",
+                  context.t('otp.heading'),
                   style: TextStyle(
                     fontSize: 27,
                     fontWeight: FontWeight.w900,
@@ -115,9 +116,9 @@ class _OtpScreenState extends State<OtpScreen> {
 
               const SizedBox(height: 12),
 
-              const Center(
+              Center(
                 child: Text(
-                  "An OTP has been sent to your number",
+                  context.t('otp.body'),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 16,
@@ -149,9 +150,9 @@ class _OtpScreenState extends State<OtpScreen> {
                     color: const Color(0xFF4B3425),
                     borderRadius: BorderRadius.circular(30),
                   ),
-                  child: const Center(
+                  child: Center(
                     child: Text(
-                      "Continue  →",
+                      context.t('otp.continue'),
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 18,
@@ -164,10 +165,10 @@ class _OtpScreenState extends State<OtpScreen> {
 
               const Spacer(),
 
-              const Center(
+              Center(
                 child: Text.rich(
                   TextSpan(
-                    text: "Didn't receive the OTP? ",
+                    text: context.t('otp.noCode'),
                     style: TextStyle(
                       color: Colors.black54,
                       fontSize: 16,
@@ -175,7 +176,7 @@ class _OtpScreenState extends State<OtpScreen> {
                     ),
                     children: [
                       TextSpan(
-                        text: "Re-send.",
+                        text: context.t('otp.resend'),
                         style: TextStyle(
                           color: Color(0xFFFE814B),
                           fontSize: 16,

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mobile_app/Login%20Section/loginScreen.dart';
 import 'package:mobile_app/Login%20Section/termsOfServices.dart';
 import 'package:mobile_app/Login%20Section/privacyPolicy.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
+import 'package:mobile_app/core/theme/app_typography.dart';
+import 'package:mobile_app/core/localization/language_selector.dart';
 
 class SignInScreen extends StatelessWidget {
   const SignInScreen({super.key});
@@ -67,25 +69,32 @@ class SignInScreen extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    // Language switch lives here too: a Sinhala speaker needs
+                    // it before they have an account to open settings with.
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: SizedBox(
+                        width: 190,
+                        child: LanguageSelector(showLabel: false),
+                      ),
+                    ),
+
                     // Title
                     RichText(
                       textAlign: TextAlign.center,
                       text: TextSpan(
-                        style: GoogleFonts.urbanist(
+                        style: urbanist(
                           fontSize: 24,
                           fontWeight: FontWeight.w800,
                           color: Color(0xFF4B3425),
                         ),
                         children: [
-                          const TextSpan(
-                            text:
-                                "\nLet's get you started! How would you like to ",
+                          TextSpan(text: context.t('signIn.titlePrefix')),
+                          TextSpan(
+                            text: context.t('signIn.titleHighlight'),
+                            style: const TextStyle(color: Color(0xFF9BB068)),
                           ),
-                          const TextSpan(
-                            text: "sign in",
-                            style: TextStyle(color: Color(0xFF9BB068)),
-                          ),
-                          const TextSpan(text: "?"),
+                          TextSpan(text: context.t('signIn.titleSuffix')),
                         ],
                       ),
                     ),
@@ -119,8 +128,8 @@ class SignInScreen extends StatelessWidget {
                             ),
                             const SizedBox(width: 10),
                             Text(
-                              "Continue with Google",
-                              style: GoogleFonts.urbanist(
+                              context.t('signIn.google'),
+                              style: urbanist(
                                 fontSize: 18,
                                 color: Colors.white,
                                 fontWeight: FontWeight.w700,
@@ -168,8 +177,8 @@ class SignInScreen extends StatelessWidget {
                             ),
                             const SizedBox(width: 10),
                             Text(
-                              "Continue with Email",
-                              style: GoogleFonts.urbanist(
+                              context.t('signIn.email'),
+                              style: urbanist(
                                 fontSize: 18,
                                 color: Color(0xFF4B3425),
                                 fontWeight: FontWeight.w700,
@@ -185,16 +194,14 @@ class SignInScreen extends StatelessWidget {
                     RichText(
                       textAlign: TextAlign.center,
                       text: TextSpan(
-                        style: GoogleFonts.urbanist(
+                        style: urbanist(
                           fontSize: 20,
                           color: Color(0xFF4B3425),
                         ),
                         children: [
-                          const TextSpan(
-                            text: "By continuing, you agree to\nour ",
-                          ),
+                          TextSpan(text: context.t('signIn.legalPrefix')),
                           TextSpan(
-                            text: "Terms of Service",
+                            text: context.t('signIn.terms'),
                             style: const TextStyle(
                               color: Color(0xFF7152FF),
                               fontWeight: FontWeight.w600,
@@ -203,9 +210,9 @@ class SignInScreen extends StatelessWidget {
                             recognizer: TapGestureRecognizer()
                               ..onTap = () => _openTerms(context),
                           ),
-                          const TextSpan(text: " and "),
+                          TextSpan(text: context.t('signIn.legalAnd')),
                           TextSpan(
-                            text: "Privacy Policy",
+                            text: context.t('signIn.privacy'),
                             style: const TextStyle(
                               color: Color(0xFF7152FF),
                               fontWeight: FontWeight.w600,
@@ -214,6 +221,7 @@ class SignInScreen extends StatelessWidget {
                             recognizer: TapGestureRecognizer()
                               ..onTap = () => _openPrivacy(context),
                           ),
+                          TextSpan(text: context.t('signIn.legalSuffix')),
                         ],
                       ),
                     ),

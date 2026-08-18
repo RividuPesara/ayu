@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 import 'package:mobile_app/signInScreen.dart';
+import 'package:mobile_app/core/theme/app_typography.dart';
 
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
@@ -58,15 +59,15 @@ class WelcomeScreen extends StatelessWidget {
                     RichText(
                       textAlign: TextAlign.center,
                       text: TextSpan(
-                        style: GoogleFonts.urbanist(
+                        style: urbanist(
                           fontSize: 49,
                           fontWeight: FontWeight.bold,
                           color: Color(0xFF4B3425),
                         ),
                         children: [
-                          TextSpan(text: "Welcome to "),
+                          TextSpan(text: context.t('welcome.titlePrefix')),
                           TextSpan(
-                            text: "Ayu!",
+                            text: context.t('welcome.titleBrand'),
                             style: TextStyle(color: Color(0xFFA18FFF)),
                           ),
                         ],
@@ -77,9 +78,9 @@ class WelcomeScreen extends StatelessWidget {
 
                     // Subtitle
                     Text(
-                      "So glad you're here! Ayu is ready to help you every step of the way",
+                      context.t('welcome.subtitle'),
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.urbanist(
+                      style: urbanist(
                         fontSize: 22,
                         color: Color(0xFF4B3425),
                       ),
@@ -99,14 +100,14 @@ class WelcomeScreen extends StatelessWidget {
                       },
                       child: Text.rich(
                         TextSpan(
-                          text: "Already have an account? ",
-                          style: GoogleFonts.urbanist(
+                          text: context.t('welcome.haveAccount'),
+                          style: urbanist(
                             fontSize: 19,
                             color: Color(0xFF4B3425),
                           ),
                           children: [
                             TextSpan(
-                              text: "Sign In",
+                              text: context.t('welcome.signIn'),
                               style: TextStyle(
                                 color: Color(0xFFA18FFF),
                                 fontWeight: FontWeight.bold,

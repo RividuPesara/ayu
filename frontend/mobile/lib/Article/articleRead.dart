@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'article_service.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class ArticleRead extends StatelessWidget {
   final ArticleModel article;
@@ -50,8 +51,8 @@ class ArticleRead extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 10),
-                        const Text(
-                          "Articles",
+                        Text(
+                          context.t('article.articles'),
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w500,
@@ -77,7 +78,7 @@ class ArticleRead extends StatelessWidget {
                           child: Text(
                             article.genre.isNotEmpty
                                 ? article.genre.toUpperCase()
-                                : "ARTICLE",
+                                : context.t('article.articleCaps'),
                             style: const TextStyle(
                               fontSize: 15,
                               color: Color(0xffF7F4F2),
@@ -100,7 +101,11 @@ class ArticleRead extends StatelessWidget {
                     ),
                     const SizedBox(height: 25),
                     Text(
-                      "By ${article.author.isNotEmpty ? article.author : 'Unknown'}",
+                      context.t('article.by', {
+                        'author': article.author.isNotEmpty
+                            ? article.author
+                            : context.t('article.unknownAuthor'),
+                      }),
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w600,
@@ -117,8 +122,8 @@ class ArticleRead extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    "Introduction",
+                  Text(
+                    context.t('article.introduction'),
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w500,

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_app/core/auth/auth_service.dart';
 import 'package:mobile_app/Login%20Section/otpScreen.dart';
+import 'package:mobile_app/core/theme/app_typography.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class EmailVerificationScreen extends StatefulWidget {
   final String email;
@@ -23,11 +24,14 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
       _isLoading = true;
     });
 
+    // Resolved before the await: using context after an async gap is unsafe.
+    final notVerifiedMessage = context.t('emailVerify.notYet');
+
     try {
       // Refresh the user data and check if the email link was clicked
       final verified = await AuthService.instance.reloadAndCheckEmailVerified();
       if (!verified) {
-        _showMessage('Email is not verified yet. Please check your inbox.');
+        _showMessage(notVerifiedMessage);
         return;
       }
 
@@ -60,9 +64,10 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
 
   // Triggers a new verification email to be sent to the user's address
   Future<void> _handleResend() async {
+    final resentMessage = context.t('emailVerify.resent');
     try {
       await AuthService.instance.resendEmailVerification();
-      _showMessage('Verification email sent again.');
+      _showMessage(resentMessage);
     } catch (error) {
       _showMessage(error.toString().replaceFirst('Exception: ', ''));
     }
@@ -103,8 +108,8 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
               ),
               const SizedBox(height: 32),
               Text(
-                'Verify your email',
-                style: GoogleFonts.urbanist(
+                context.t('emailVerify.title'),
+                style: urbanist(
                   fontSize: 26,
                   fontWeight: FontWeight.w800,
                   color: const Color(0xFF4B3425),
@@ -112,8 +117,8 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
               ),
               const SizedBox(height: 12),
               Text(
-                'We sent a verification link to:',
-                style: GoogleFonts.urbanist(
+                context.t('emailVerify.sentTo'),
+                style: urbanist(
                   fontSize: 16,
                   color: Colors.black54,
                   fontWeight: FontWeight.w600,
@@ -123,7 +128,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
               // Back button to return to the previous screen
               Text(
                 widget.email,
-                style: GoogleFonts.urbanist(
+                style: urbanist(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                   color: const Color(0xFF4B3425),
@@ -131,8 +136,8 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
               ),
               const SizedBox(height: 20),
               Text(
-                'After you verify, press Continue to set up OTP.',
-                style: GoogleFonts.urbanist(
+                context.t('emailVerify.afterHint'),
+                style: urbanist(
                   fontSize: 15,
                   color: Colors.black54,
                 ),
@@ -153,8 +158,8 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                   child: _isLoading
                       ? const CircularProgressIndicator(color: Colors.white)
                       : Text(
-                          'Continue',
-                          style: GoogleFonts.urbanist(
+                          context.t('emailVerify.continue'),
+                          style: urbanist(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
                             color: Colors.white,
@@ -168,8 +173,8 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                 child: TextButton(
                   onPressed: _handleResend,
                   child: Text(
-                    'Resend email',
-                    style: GoogleFonts.urbanist(
+                    context.t('emailVerify.resend'),
+                    style: urbanist(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
                       color: const Color(0xFF7152FF),

@@ -1,3 +1,5 @@
+import 'package:mobile_app/core/localization/app_localizations.dart';
+
 // Ensures the phone number starts with '07' and is exactly 10 digits long
 final RegExp _sriLankanMobileRegex = RegExp(r'^07\d{8}$');
 
@@ -30,7 +32,7 @@ String toSriLankanE164(String localPhone) {
   // Checks if the cleaned number matches the required Sri Lankan mobile pattern
   if (!_sriLankanMobileRegex.hasMatch(normalized)) {
     throw StateError(
-      'Phone must be a valid Sri Lankan mobile number (e.g. 0775455266).',
+      AppLocalizations.tr('auth.errPhoneFormat'),
     );
   }
 
@@ -43,7 +45,7 @@ String maskLocalPhone(String phone) {
   final digits = phone.replaceAll(RegExp(r'\D'), '');
   // Fallback text if the input is too short to mask properly
   if (digits.length < 4) {
-    return 'your phone';
+    return AppLocalizations.tr('auth.yourPhone');
   }
 
   // Returns a string of stars followed by the last three numbers

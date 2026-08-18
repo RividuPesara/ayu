@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class TermsOfServiceScreen extends StatelessWidget {
   const TermsOfServiceScreen({super.key});
@@ -14,8 +15,8 @@ class TermsOfServiceScreen extends StatelessWidget {
           icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          "Terms of Service",
+        title: Text(
+          context.t('legal.termsTitle'),
           style: TextStyle(
             color: Colors.black,
             fontWeight: FontWeight.w600,
@@ -28,7 +29,25 @@ class TermsOfServiceScreen extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
+            children: [
+
+              /// Sinhala readers get told up front that the body below is
+              /// English and that the English text is the binding one.
+              if (context.isSinhala) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEDE7F6),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    context.t('legal.englishNotice'),
+                    style: const TextStyle(fontSize: 13, height: 1.5),
+                  ),
+                ),
+              ],
 
               /// HEADER
               Text(
@@ -45,7 +64,7 @@ class TermsOfServiceScreen extends StatelessWidget {
               SizedBox(height: 24),
 
               /// SECTION 1
-              SectionTitle(title: "1. Acceptance of Terms"),
+              SectionTitle(title: context.t('terms.s1')),
 
               SectionText(
                 text:
@@ -61,7 +80,7 @@ class TermsOfServiceScreen extends StatelessWidget {
               SizedBox(height: 28),
 
               /// SECTION 2
-              SectionTitle(title: "2. About Ayu"),
+              SectionTitle(title: context.t('terms.s2')),
 
               SectionText(
                 text:
@@ -81,7 +100,7 @@ class TermsOfServiceScreen extends StatelessWidget {
               SizedBox(height: 28),
 
               /// SECTION 3
-              SectionTitle(title: "3. Medical Disclaimer"),
+              SectionTitle(title: context.t('terms.s3')),
 
               SectionText(
                 text:
@@ -103,7 +122,7 @@ class TermsOfServiceScreen extends StatelessWidget {
               SizedBox(height: 28),
 
               /// SECTION 4
-              SectionTitle(title: "4. Eligibility"),
+              SectionTitle(title: context.t('terms.s4')),
 
               SectionText(
                 text:
@@ -117,7 +136,7 @@ class TermsOfServiceScreen extends StatelessWidget {
               SizedBox(height: 28),
 
               /// SECTION 5
-              SectionTitle(title: "5. User Accounts & Registration"),
+              SectionTitle(title: context.t('terms.s5')),
 
               SectionText(
                 text:
@@ -133,7 +152,7 @@ class TermsOfServiceScreen extends StatelessWidget {
               SizedBox(height: 28),
 
               /// SECTION 6
-              SectionTitle(title: "6. Onboarding & Health Data"),
+              SectionTitle(title: context.t('terms.s6')),
 
               SectionText(
                 text:
@@ -148,7 +167,7 @@ class TermsOfServiceScreen extends StatelessWidget {
               SizedBox(height: 28),
 
               /// SECTION 7
-              SectionTitle(title: "7. Data We Collect and How We Use It"),
+              SectionTitle(title: context.t('terms.s7')),
 
               SectionText(
                 text:
@@ -165,7 +184,7 @@ class TermsOfServiceScreen extends StatelessWidget {
               SizedBox(height: 28),
 
               /// SECTION 8
-              SectionTitle(title: "8. Privacy & Data Security"),
+              SectionTitle(title: context.t('terms.s8')),
 
               SectionText(
                 text:
@@ -183,7 +202,7 @@ class TermsOfServiceScreen extends StatelessWidget {
               SizedBox(height: 28),
 
               /// SECTION 9
-              SectionTitle(title: "9. Companion (Caregiver) Access"),
+              SectionTitle(title: context.t('terms.s9')),
 
               SectionText(
                 text:
@@ -201,7 +220,7 @@ class TermsOfServiceScreen extends StatelessWidget {
               SizedBox(height: 28),
 
               /// SECTION 10
-              SectionTitle(title: "10. AI Chatbot"),
+              SectionTitle(title: context.t('terms.s10')),
 
               SectionText(
                 text:
@@ -219,7 +238,7 @@ class TermsOfServiceScreen extends StatelessWidget {
               SizedBox(height: 28),
 
               /// SECTION 11
-              SectionTitle(title: "11. Mood Journal & Sentiment Analysis"),
+              SectionTitle(title: context.t('terms.s11')),
 
               SectionText(
                 text:
@@ -234,7 +253,7 @@ class TermsOfServiceScreen extends StatelessWidget {
               SizedBox(height: 28),
 
               /// SECTION 12
-              SectionTitle(title: "12. Doctor Consultations"),
+              SectionTitle(title: context.t('terms.s12')),
 
               SectionText(
                 text:
@@ -249,7 +268,7 @@ class TermsOfServiceScreen extends StatelessWidget {
               SizedBox(height: 28),
 
               /// SECTION 13
-              SectionTitle(title: "13. Video Recommendations"),
+              SectionTitle(title: context.t('terms.s13')),
 
               SectionText(
                 text:
@@ -263,7 +282,7 @@ class TermsOfServiceScreen extends StatelessWidget {
               SizedBox(height: 28),
 
               /// SECTION 14
-              SectionTitle(title: "14. Acceptable Use"),
+              SectionTitle(title: context.t('terms.s14')),
 
               SectionText(
                 text:
@@ -280,7 +299,7 @@ class TermsOfServiceScreen extends StatelessWidget {
               SizedBox(height: 28),
 
               /// SECTION 15
-              SectionTitle(title: "15. Intellectual Property"),
+              SectionTitle(title: context.t('terms.s15')),
 
               SectionText(
                 text:
@@ -293,7 +312,7 @@ class TermsOfServiceScreen extends StatelessWidget {
               SizedBox(height: 28),
 
               /// SECTION 16
-              SectionTitle(title: "16. Account Termination"),
+              SectionTitle(title: context.t('terms.s16')),
 
               SectionText(
                 text:
@@ -308,7 +327,7 @@ class TermsOfServiceScreen extends StatelessWidget {
               SizedBox(height: 28),
 
               /// SECTION 17
-              SectionTitle(title: "17. Limitation of Liability"),
+              SectionTitle(title: context.t('terms.s17')),
 
               SectionText(
                 text:
@@ -323,7 +342,7 @@ class TermsOfServiceScreen extends StatelessWidget {
               SizedBox(height: 28),
 
               /// SECTION 18
-              SectionTitle(title: "18. Changes to These Terms"),
+              SectionTitle(title: context.t('terms.s18')),
 
               SectionText(
                 text:
@@ -336,7 +355,7 @@ class TermsOfServiceScreen extends StatelessWidget {
               SizedBox(height: 28),
 
               /// SECTION 19
-              SectionTitle(title: "19. Governing Law"),
+              SectionTitle(title: context.t('terms.s19')),
 
               SectionText(
                 text:
@@ -349,7 +368,7 @@ class TermsOfServiceScreen extends StatelessWidget {
               SizedBox(height: 28),
 
               /// SECTION 20
-              SectionTitle(title: "20. Contact"),
+              SectionTitle(title: context.t('terms.s20')),
 
               SectionText(
                 text:

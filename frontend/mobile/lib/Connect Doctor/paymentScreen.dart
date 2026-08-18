@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mobile_app/Connect%20Doctor/appointment_service.dart';
 import 'package:mobile_app/Connect Doctor/mySessions.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class PaymentScreen extends StatefulWidget {
   const PaymentScreen({
@@ -74,8 +75,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
               const SizedBox(height: 25),
 
-              const Text(
-                'Check Out',
+              Text(
+                context.t('checkout.title'),
                 style: TextStyle(
                   fontSize: 36,
                   fontWeight: FontWeight.w900,
@@ -85,8 +86,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
               const SizedBox(height: 18),
 
-              const Text(
-                'Please check the details before proceeding to the payment',
+              Text(
+                context.t('checkout.subtitle'),
                 style: TextStyle(
                   fontSize: 18,
                   color: Color(0xFF3F3F3F),
@@ -97,8 +98,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
               const SizedBox(height: 35),
 
-              const Text(
-                "Select Payment Method",
+              Text(
+                context.t('payment.selectMethod'),
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
 
@@ -119,7 +120,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
               const SizedBox(height: 35),
 
-              const Text("Cardholder name", style: TextStyle(fontSize: 14)),
+              Text(context.t('payment.cardholder'), style: TextStyle(fontSize: 14)),
               const SizedBox(height: 5),
               inputField(
                 hint: "Jannet Klein",
@@ -128,7 +129,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
               const SizedBox(height: 15),
 
-              const Text("Card number", style: TextStyle(fontSize: 14)),
+              Text(context.t('payment.cardNumber'), style: TextStyle(fontSize: 14)),
               const SizedBox(height: 5),
               inputField(
                 hint: "7236 xxxx xxxx 2345",
@@ -143,7 +144,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text("Exp. Date", style: TextStyle(fontSize: 14)),
+                        Text(context.t('payment.expDate'), style: TextStyle(fontSize: 14)),
                         const SizedBox(height: 5),
                         inputField(
                           hint: "MM/YY",
@@ -157,7 +158,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text("CVV", style: TextStyle(fontSize: 14)),
+                        Text(context.t('payment.cvv'), style: TextStyle(fontSize: 14)),
                         const SizedBox(height: 5),
                         inputField(
                           hint: "123",
@@ -222,8 +223,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
                       borderRadius: BorderRadius.circular(30),
                     ),
                   ),
-                  child: const Text(
-                    "Pay",
+                  child: Text(
+                    context.t('payment.pay'),
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w900,

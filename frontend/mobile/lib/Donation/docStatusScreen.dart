@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:mobile_app/Donation/comingSoon.dart';
 import 'package:mobile_app/Donation/uploadDocScreen.dart';
+import 'package:mobile_app/core/theme/app_typography.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class DocumentStatusScreen extends StatelessWidget {
   final String status;
@@ -32,24 +34,24 @@ class DocumentStatusScreen extends StatelessWidget {
         : 'WAITING';
 
     final String title = isApproved
-        ? 'Document Approved'
+        ? context.t('donation.docApproved')
         : isRejected
-        ? 'Document Rejected'
-        : 'In Review';
+        ? context.t('donation.docRejected')
+        : context.t('donation.inReview');
 
     final String description = isApproved
-        ? 'Your credentials and documentation\nhave been verified by our compliance team.'
+        ? context.t('donation.approvedBody')
         : isRejected
         ? (rejectionReason != null && rejectionReason!.isNotEmpty
             ? rejectionReason!
-            : "We couldn't verify your identity with the documents provided.")
-        : 'Your document is currently being reviewed by our admins.\nResults will be provided soon.';
+            : context.t('donation.rejectedBody'))
+        : context.t('donation.reviewBody');
 
     final String buttonText = isApproved
-        ? 'Make a request'
+        ? context.t('donation.makeRequest')
         : isRejected
-        ? 'Resubmit'
-        : 'Make a request';
+        ? context.t('donation.resubmit')
+        : context.t('donation.makeRequest');
 
     final bool buttonEnabled = !isPending;
 
@@ -86,11 +88,12 @@ class DocumentStatusScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 15),
-                  const Text(
-                    "Document Status",
+                  Text(
+                    context.t('donation.docStatus'),
                     style: TextStyle(
                       fontSize: 24,
                       fontFamily: 'Urbanist',
+                      fontFamilyFallback: AppTypography.familyFallback,
                       fontWeight: FontWeight.w600,
                       color: Color(0xFF4B3425),
                     ),

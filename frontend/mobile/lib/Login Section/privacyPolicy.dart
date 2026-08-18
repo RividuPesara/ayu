@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class PrivacyPolicyScreen extends StatelessWidget {
   const PrivacyPolicyScreen({super.key});
@@ -14,8 +15,8 @@ class PrivacyPolicyScreen extends StatelessWidget {
           icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          "Privacy Policy",
+        title: Text(
+          context.t('legal.privacyTitle'),
           style: TextStyle(
             color: Colors.black,
             fontWeight: FontWeight.w600,
@@ -28,7 +29,25 @@ class PrivacyPolicyScreen extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
+            children: [
+
+              /// Sinhala readers get told up front that the body below is
+              /// English and that the English text is the binding one.
+              if (context.isSinhala) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEDE7F6),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    context.t('legal.englishNotice'),
+                    style: const TextStyle(fontSize: 13, height: 1.5),
+                  ),
+                ),
+              ],
 
               /// HEADER
               Text(
@@ -62,7 +81,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
               SizedBox(height: 28),
 
               /// SECTION 1
-              SectionTitle(title: "1. What We Collect"),
+              SectionTitle(title: context.t('privacyDoc.s1')),
 
               SectionText(
                 text:
@@ -95,7 +114,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
               SizedBox(height: 28),
 
               /// SECTION 2
-              SectionTitle(title: "2. How We Use Your Information"),
+              SectionTitle(title: context.t('privacyDoc.s2')),
 
               BulletText(
                 text:
@@ -140,7 +159,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
               SizedBox(height: 28),
 
               /// SECTION 3
-              SectionTitle(title: "3. How We Use Your Data to Improve Ayu"),
+              SectionTitle(title: context.t('privacyDoc.s3')),
 
               SectionText(
                 text:
@@ -157,7 +176,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
               SizedBox(height: 28),
 
               /// SECTION 4
-              SectionTitle(title: "4. Who Can See Your Information"),
+              SectionTitle(title: context.t('privacyDoc.s4')),
 
               SectionText(
                 text:
@@ -181,7 +200,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
               SizedBox(height: 28),
 
               /// SECTION 5
-              SectionTitle(title: "5. Crisis Detection"),
+              SectionTitle(title: context.t('privacyDoc.s5')),
 
               SectionText(
                 text:
@@ -199,7 +218,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
               SizedBox(height: 28),
 
               /// SECTION 6
-              SectionTitle(title: "6. Your Data Is Kept Secure"),
+              SectionTitle(title: context.t('privacyDoc.s6')),
 
               SectionText(
                 text:
@@ -214,7 +233,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
               SizedBox(height: 28),
 
               /// SECTION 7
-              SectionTitle(title: "7. How Long We Keep Your Data"),
+              SectionTitle(title: context.t('privacyDoc.s7')),
 
               SectionText(
                 text:
@@ -226,7 +245,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
               SizedBox(height: 28),
 
               /// SECTION 8
-              SectionTitle(title: "8. Your Rights"),
+              SectionTitle(title: context.t('privacyDoc.s8')),
 
               SectionText(
                 text:
@@ -242,7 +261,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
               SizedBox(height: 28),
 
               /// SECTION 9
-              SectionTitle(title: "9. Children"),
+              SectionTitle(title: context.t('privacyDoc.s9')),
 
               SectionText(
                 text:
@@ -255,7 +274,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
               SizedBox(height: 28),
 
               /// SECTION 10
-              SectionTitle(title: "10. Changes to This Policy"),
+              SectionTitle(title: context.t('privacyDoc.s10')),
 
               SectionText(
                 text:
@@ -267,7 +286,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
               SizedBox(height: 28),
 
               /// SECTION 11
-              SectionTitle(title: "11. Contact Us"),
+              SectionTitle(title: context.t('privacyDoc.s11')),
 
               SectionText(
                 text:

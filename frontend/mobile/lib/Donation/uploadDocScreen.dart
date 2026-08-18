@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:mobile_app/Donation/donation_service.dart';
 import 'package:mobile_app/Donation/docStatusScreen.dart';
+import 'package:mobile_app/core/theme/app_typography.dart';
+import 'package:mobile_app/core/localization/app_localizations.dart';
 
 class UploadDocumentScreen extends StatefulWidget {
   const UploadDocumentScreen({super.key});
@@ -11,12 +13,13 @@ class UploadDocumentScreen extends StatefulWidget {
 }
 
 class _UploadDocumentScreenState extends State<UploadDocumentScreen> {
-  final TextEditingController _titleController =
-  TextEditingController(text: "Medical Document");
+  final TextEditingController _titleController = TextEditingController();
+  bool _titleSeeded = false;
 
   final FocusNode _titleFocusNode = FocusNode();
 
-  String selectedFileName = "No file chosen";
+  // null until the user picks a file; the placeholder is localized at render.
+  String? selectedFileName;
   List<int>? fileBytes;
   String? fileMime;
   bool isSubmitting = false;
@@ -44,7 +47,7 @@ class _UploadDocumentScreenState extends State<UploadDocumentScreen> {
   Future<void> _submit() async {
     if (fileBytes == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please choose a file first.')),
+        SnackBar(content: Text(context.t('donation.errChooseFile'))),
       );
       return;
     }
@@ -54,7 +57,7 @@ class _UploadDocumentScreenState extends State<UploadDocumentScreen> {
     try {
       await DonationService().submitDonation(
         bytes: fileBytes!,
-        filename: selectedFileName,
+        filename: selectedFileName!,
         contentType: fileMime!,
       );
 
@@ -68,12 +71,12 @@ class _UploadDocumentScreenState extends State<UploadDocumentScreen> {
     } on DonationConflictException {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You already have an active donation application.')),
+        SnackBar(content: Text(context.t('donation.errActiveApp'))),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Submission failed. Please try again.')),
+        SnackBar(content: Text(context.t('donation.errSubmit'))),
       );
     } finally {
       if (mounted) setState(() => isSubmitting = false);
@@ -85,6 +88,17 @@ class _UploadDocumentScreenState extends State<UploadDocumentScreen> {
     _titleController.dispose();
     _titleFocusNode.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Seed the default title here rather than in a field initializer, where
+    // there is no BuildContext to translate with.
+    if (!_titleSeeded) {
+      _titleSeeded = true;
+      _titleController.text = context.t('donation.medicalDoc');
+    }
   }
 
   @override
@@ -131,11 +145,12 @@ class _UploadDocumentScreenState extends State<UploadDocumentScreen> {
                     ),
                   ),
                   const SizedBox(width: 15),
-                  const Text(
-                    "Donation Request",
+                  Text(
+                    context.t('donation.requestTitle'),
                     style: TextStyle(
                       fontSize: 24,
                       fontFamily: 'Urbanist',
+                      fontFamilyFallback: AppTypography.familyFallback,
                       fontWeight: FontWeight.w600,
                       color: Color(0xFF4B3425),
                     ),
@@ -145,8 +160,8 @@ class _UploadDocumentScreenState extends State<UploadDocumentScreen> {
 
               const SizedBox(height: 45),
 
-              const Text(
-                "Document Title",
+              Text(
+                context.t('donation.docTitle'),
                 style: TextStyle(
                   fontSize: 23,
                   color: Color(0xFF4B3425),
@@ -214,7 +229,7 @@ class _UploadDocumentScreenState extends State<UploadDocumentScreen> {
                     ),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Center(
+                  child: Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -225,7 +240,7 @@ class _UploadDocumentScreenState extends State<UploadDocumentScreen> {
                         ),
                         SizedBox(height: 20),
                         Text(
-                          "Tap to upload",
+                          context.t('donation.tapToUpload'),
                           style: TextStyle(
                             fontSize: 20,
                             color: Colors.black54,
@@ -240,8 +255,8 @@ class _UploadDocumentScreenState extends State<UploadDocumentScreen> {
 
               SizedBox(height: isKeyboardOpen ? 24 : 42),
 
-              const Text(
-                "Upload Document",
+              Text(
+                context.t('donation.uploadDoc'),
                 style: TextStyle(
                   fontSize: 23,
                   color: Color(0xFF4B3425),
@@ -276,8 +291,8 @@ class _UploadDocumentScreenState extends State<UploadDocumentScreen> {
                         ),
                       ),
                       onPressed: _pickFile,
-                      child: const Text(
-                        "Choose File",
+                      child: Text(
+                        context.t('donation.chooseFile'),
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 20,
@@ -288,7 +303,7 @@ class _UploadDocumentScreenState extends State<UploadDocumentScreen> {
                     const SizedBox(width: 20),
                     Expanded(
                       child: Text(
-                        selectedFileName,
+                        selectedFileName ?? context.t('donation.noFile'),
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: Colors.black54,
@@ -322,11 +337,11 @@ class _UploadDocumentScreenState extends State<UploadDocumentScreen> {
                             strokeWidth: 2.5,
                           ),
                         )
-                      : const Row(
+                      : Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
-                              "Submit Document",
+                              context.t('donation.submitDoc'),
                               style: TextStyle(
                                 fontSize: 21,
                                 fontWeight: FontWeight.w700,
